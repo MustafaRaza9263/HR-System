@@ -23,11 +23,15 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, request, respo
   }
 
   if (error instanceof ApiError) {
+    const extra =
+      error.details && typeof error.details === "object" && !Array.isArray(error.details)
+        ? (error.details as Record<string, unknown>)
+        : undefined;
     response.status(error.statusCode).json({
       error: {
         code: error.code,
         message: error.message,
-        ...(error.details === undefined ? {} : { details: error.details }),
+        ...(extra ?? (error.details === undefined ? {} : { details: error.details })),
       },
     });
     return;

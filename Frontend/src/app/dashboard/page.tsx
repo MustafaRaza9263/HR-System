@@ -89,8 +89,8 @@ export default function DashboardPage() {
                 <h2 className="text-base font-bold text-gray-950 dark:text-white">Hiring pipeline</h2>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Candidate movement across active jobs</p>
               </div>
-              <Link className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400" href="/dashboard/candidates">
-                View candidates
+              <Link className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400" href="/dashboard/applications">
+                View applications
                 <ArrowRight aria-hidden className="h-3.5 w-3.5" />
               </Link>
             </div>

@@ -12,5 +12,12 @@ export const queryKeys = {
   careers: {
     all: ["careers"] as const,
     openJobs: ["careers", "open-jobs"] as const,
+    job: (slug: string) => ["careers", "job", slug] as const,
+  },
+  applications: {
+    all: ["applications"] as const,
+    list: (filters?: { q?: string; jobId?: string; status?: string }) =>
+      ["applications", "list", filters?.q ?? "", filters?.jobId ?? "", filters?.status ?? ""] as const,
+    detail: (applicationId: string) => ["applications", "detail", applicationId] as const,
   },
 } as const;

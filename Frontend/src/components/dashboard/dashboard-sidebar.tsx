@@ -3,12 +3,12 @@
 import {
   Bot,
   BriefcaseBusiness,
+  ClipboardList,
   LayoutDashboard,
   ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  UserRoundSearch,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -28,7 +28,7 @@ const navigation: NavigationItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Job Roles", href: "/dashboard/job-roles", icon: BriefcaseBusiness },
   { label: "Jobs", href: "/dashboard/jobs", icon: BriefcaseBusiness },
-  { label: "Candidates", href: "/dashboard/candidates", icon: UserRoundSearch },
+  { label: "Applications", href: "/dashboard/applications", icon: ClipboardList },
   { label: "Scoring", href: "/dashboard/scoring", icon: ListChecks },
   { label: "Assistant", href: "/dashboard/assistant", icon: Bot },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },

@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { isDatabaseConnected } from "../config/database.js";
+import { applicationRouter } from "./application.routes.js";
 import { authRouter } from "./auth.routes.js";
 import { careersRouter } from "./careers.routes.js";
 import { departmentRouter } from "./department.routes.js";
@@ -21,3 +22,4 @@ apiRouter.use("/careers", careersRouter);
 apiRouter.use("/departments", departmentRouter);
 apiRouter.use("/roles", roleRouter);
 apiRouter.use("/jobs", jobRouter);
+apiRouter.use("/applications", applicationRouter);
