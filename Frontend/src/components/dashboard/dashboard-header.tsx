@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
@@ -13,9 +14,12 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
+  const pathname = usePathname();
+  const title = resolveTitle(pathname);
+
   return (
     <header className="relative z-30 shrink-0 border-b border-gray-200 bg-white dark:border-gray-800/60 dark:bg-gray-900">
-      <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+      <div className="flex h-16 items-center gap-3 px-4 md:px-6">
         <button
           aria-label="Open navigation"
           className="grid h-10 w-10 place-items-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 md:hidden dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
@@ -24,6 +28,7 @@ export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
         >
           <Menu aria-hidden className="h-5 w-5" />
         </button>
+        {title ? <h1 className="truncate text-base font-bold tracking-tight text-gray-950 sm:text-lg dark:text-white">{title}</h1> : null}
         <div className="ml-auto flex shrink-0 items-center gap-3">
           <NotificationMenu />
           <ThemeToggle variant="header" />
@@ -32,4 +37,14 @@ export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
       </div>
     </header>
   );
+}
+
+function resolveTitle(pathname: string) {
+  if (pathname === "/dashboard") return "Dashboard";
+  if (pathname === "/dashboard/job-roles") return "Job Roles";
+  if (pathname === "/dashboard/jobs/new") return "Create job";
+  if (pathname.startsWith("/dashboard/jobs/") && pathname.endsWith("/edit")) return "Edit job";
+  if (pathname.startsWith("/dashboard/jobs/") && pathname !== "/dashboard/jobs") return "Job detail";
+  if (pathname === "/dashboard/jobs") return "Jobs";
+  return undefined;
 }

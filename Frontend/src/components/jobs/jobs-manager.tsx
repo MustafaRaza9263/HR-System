@@ -1,0 +1,586 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
+import {
+  AlertTriangle,
+  BriefcaseBusiness,
+  CirclePlus,
+  Copy,
+  Eye,
+  FolderOpen,
+  Pencil,
+  Search,
+  Trash2,
+  UsersRound,
+  XCircle,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+
+import { MetricCard } from "@/components/ui/metric-card";
+import { alerts } from "@/lib/alerts";
+import { ApiClientError, apiRequest } from "@/lib/api";
+import type { Job, JobStats, JobsListResponse } from "@/lib/jobs/types";
+import { queryKeys } from "@/lib/query/query-keys";
+
+interface Department {
+  id: string;
+  name: string;
+  status: "active" | "inactive";
+}
+
+interface Role {
+  id: string;
+  name: string;
+  departmentId: string;
+  status: "active" | "inactive";
+}
+
+interface DepartmentResponse {
+  data: { departments: Department[] };
+}
+
+interface RoleResponse {
+  data: { roles: Role[] };
+}
+
+interface JobMutationResponse {
+  data: { job: Job };
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiClientError) {
+    const fieldMessage = error.fields ? Object.values(error.fields).flat().find(Boolean) : undefined;
+    return fieldMessage ?? error.message;
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function statusBadgeClass(status: Job["status"]) {
+  switch (status) {
+    case "open":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
+    case "draft":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
+    case "closed":
+      return "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
+    case "filled":
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
+    default:
+      return "bg-gray-100 text-gray-600";
+  }
+}
+
+const emptyJobs: Job[] = [];
+const emptyStats: JobStats = {
+  totalJobs: 0,
+  totalOpened: 0,
+  averageApplicants: 0,
+  totalClosed: 0,
+};
+
+export function JobsManager() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [roleId, setRoleId] = useState("");
+  const [closeTarget, setCloseTarget] = useState<Job | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const filters = useMemo(
+    () => ({
+      q: debouncedQuery || undefined,
+      departmentId: departmentId || undefined,
+      roleId: roleId || undefined,
+    }),
+    [debouncedQuery, departmentId, roleId],
+  );
+
+  const jobsQuery = useQuery({
+    queryKey: queryKeys.jobs.list(filters),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters.q) params.set("q", filters.q);
+      if (filters.departmentId) params.set("departmentId", filters.departmentId);
+      if (filters.roleId) params.set("roleId", filters.roleId);
+      const suffix = params.toString() ? `?${params.toString()}` : "";
+      return apiRequest<JobsListResponse>(`/jobs${suffix}`);
+    },
+  });
+
+  const metaQuery = useQuery({
+    queryKey: queryKeys.jobRoles.list,
+    queryFn: async () => {
+      const [departments, roles] = await Promise.all([
+        apiRequest<DepartmentResponse>("/departments"),
+        apiRequest<RoleResponse>("/roles"),
+      ]);
+      return {
+        departments: departments.data.departments,
+        roles: roles.data.roles,
+      };
+    },
+  });
+
+  const jobs = jobsQuery.data?.data.jobs ?? emptyJobs;
+  const stats = jobsQuery.data?.data.stats ?? emptyStats;
+  const departments = metaQuery.data?.departments ?? [];
+
+  const filteredRoles = useMemo(() => {
+    const roles = metaQuery.data?.roles ?? [];
+    if (!departmentId) return roles;
+    return roles.filter((role) => role.departmentId === departmentId);
+  }, [metaQuery.data?.roles, departmentId]);
+
+  const closeMutation = useMutation({
+    mutationFn: async ({ jobId, closeReason }: { jobId: string; closeReason: string }) => {
+      const result = await apiRequest<JobMutationResponse>(`/jobs/${jobId}/close`, {
+        method: "POST",
+        body: JSON.stringify({ closeReason }),
+      });
+      return result.data.job;
+    },
+    onSuccess: () => {
+      setCloseTarget(null);
+      alerts.success("Job closed.");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
+    },
+    onError: (error) => alerts.error(errorMessage(error, "Job could not be closed.")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      await apiRequest<void>(`/jobs/${jobId}`, { method: "DELETE" });
+      return jobId;
+    },
+    onSuccess: () => {
+      setDeleteTarget(null);
+      alerts.success("Draft job deleted.");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
+    },
+    onError: (error) => alerts.error(errorMessage(error, "Job could not be deleted.")),
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const result = await apiRequest<JobMutationResponse>(`/jobs/${jobId}/duplicate`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      return result.data.job;
+    },
+    onSuccess: (job) => {
+      alerts.success("Job duplicated as draft.");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
+      router.push(`/dashboard/jobs/${job.id}/edit`);
+    },
+    onError: (error) => alerts.error(errorMessage(error, "Job could not be duplicated.")),
+  });
+
+  return (
+    <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
+      <div className="w-full space-y-6">
+        <section aria-label="Job metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={BriefcaseBusiness} label="Total jobs" supporting="All statuses" value={stats.totalJobs} />
+          <MetricCard icon={FolderOpen} label="Total opened jobs" supporting="Currently accepting applications" value={stats.totalOpened} />
+          <MetricCard icon={UsersRound} label="Average applicants on a job" supporting="Across all jobs" value={stats.averageApplicants} />
+          <MetricCard icon={XCircle} label="Total closed jobs" supporting="Manually closed postings" value={stats.totalClosed} />
+        </section>
+
+        <section aria-labelledby="jobs-table-title">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+            <label className="relative min-w-0 flex-1">
+              <span className="sr-only">Search jobs</span>
+              <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by title, description, or job id…"
+                value={query}
+              />
+            </label>
+            <select
+              aria-label="Filter by department"
+              className="h-12 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              onChange={(event) => {
+                setDepartmentId(event.target.value);
+                setRoleId("");
+              }}
+              value={departmentId}
+            >
+              <option value="">All departments</option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filter by role"
+              className="h-12 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              onChange={(event) => setRoleId(event.target.value)}
+              value={roleId}
+            >
+              <option value="">All roles</option>
+              {filteredRoles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            <Link
+              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+              href="/dashboard/jobs/new"
+            >
+              <CirclePlus aria-hidden className="h-4 w-4" />
+              Create job
+            </Link>
+          </div>
+
+          <h2 className="sr-only" id="jobs-table-title">
+            Jobs
+          </h2>
+
+          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/70">
+            {jobsQuery.isPending ? <LoadingState /> : null}
+            {jobsQuery.isError ? <LoadError onRetry={() => void jobsQuery.refetch()} /> : null}
+            {jobsQuery.isSuccess && jobs.length === 0 ? (
+              <EmptyState hasQuery={Boolean(debouncedQuery || departmentId || roleId)} />
+            ) : null}
+            {jobsQuery.isSuccess && jobs.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-400">
+                    <tr>
+                      <th className="px-4 py-3">Title</th>
+                      <th className="px-4 py-3">Department</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Positions</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Created</th>
+                      <th className="px-4 py-3">Applicants</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {jobs.map((job) => (
+                      <tr className="hover:bg-gray-50/80 dark:hover:bg-gray-900/40" key={job.id}>
+                        <td className="max-w-[220px] truncate px-4 py-3 font-bold text-gray-950 dark:text-white">{job.title}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.departmentName ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.roleName ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {job.positionsFilled}/{job.positionsAvailable}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.jobType ?? "—"}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">
+                          {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.applicationCount}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            {job.status === "draft" ? (
+                              <>
+                                <Link
+                                  aria-label={`Continue editing ${job.title}`}
+                                  className="icon-button"
+                                  href={`/dashboard/jobs/${job.id}/edit`}
+                                >
+                                  <Pencil aria-hidden className="h-4 w-4" />
+                                </Link>
+                                {job.applicationCount === 0 ? (
+                                  <button
+                                    aria-label={`Delete ${job.title}`}
+                                    className="icon-button"
+                                    onClick={() => setDeleteTarget(job)}
+                                    type="button"
+                                  >
+                                    <Trash2 aria-hidden className="h-4 w-4" />
+                                  </button>
+                                ) : null}
+                              </>
+                            ) : null}
+                            {job.status === "open" ? (
+                              <>
+                                <Link aria-label={`View ${job.title}`} className="icon-button" href={`/dashboard/jobs/${job.id}`}>
+                                  <Eye aria-hidden className="h-4 w-4" />
+                                </Link>
+                                <button
+                                  aria-label={`Close ${job.title}`}
+                                  className="icon-button"
+                                  onClick={() => setCloseTarget(job)}
+                                  type="button"
+                                >
+                                  <XCircle aria-hidden className="h-4 w-4" />
+                                </button>
+                              </>
+                            ) : null}
+                            {job.status === "filled" || job.status === "closed" ? (
+                              <>
+                                <Link aria-label={`View ${job.title}`} className="icon-button" href={`/dashboard/jobs/${job.id}`}>
+                                  <Eye aria-hidden className="h-4 w-4" />
+                                </Link>
+                                <button
+                                  aria-label={`Duplicate ${job.title}`}
+                                  className="icon-button"
+                                  disabled={duplicateMutation.isPending}
+                                  onClick={() => duplicateMutation.mutate(job.id)}
+                                  type="button"
+                                >
+                                  <Copy aria-hidden className="h-4 w-4" />
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </div>
+
+      {closeTarget ? (
+        <CloseJobModal
+          job={closeTarget}
+          pending={closeMutation.isPending}
+          onCancel={() => setCloseTarget(null)}
+          onConfirm={(closeReason) => closeMutation.mutate({ jobId: closeTarget.id, closeReason })}
+        />
+      ) : null}
+      {deleteTarget ? (
+        <DeleteJobModal
+          job={deleteTarget}
+          pending={deleteMutation.isPending}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div aria-label="Loading jobs" className="space-y-3 p-4" role="status">
+      {[1, 2, 3].map((item) => (
+        <div className="h-12 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-900" key={item} />
+      ))}
+    </div>
+  );
+}
+
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="px-6 py-12 text-center">
+      <AlertTriangle aria-hidden className="mx-auto h-8 w-8 text-red-500" />
+      <h3 className="mt-3 text-sm font-bold text-gray-900 dark:text-white">Jobs could not be loaded</h3>
+      <button className="mt-3 text-sm font-bold text-indigo-600 dark:text-indigo-400" onClick={onRetry} type="button">
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function EmptyState({ hasQuery }: { hasQuery: boolean }) {
+  return (
+    <div className="px-6 py-16 text-center">
+      <BriefcaseBusiness aria-hidden className="mx-auto h-9 w-9 text-gray-400" />
+      <h3 className="mt-3 text-sm font-bold text-gray-900 dark:text-white">{hasQuery ? "No jobs match your filters" : "Create your first job"}</h3>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {hasQuery ? "Try another search or clear filters." : "Publish openings after departments and roles are set up."}
+      </p>
+      {!hasQuery ? (
+        <Link className="mt-4 inline-block text-sm font-bold text-indigo-600 dark:text-indigo-400" href="/dashboard/jobs/new">
+          Create job
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function CloseJobModal({
+  job,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  job: Job;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending) onCancel();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onCancel, pending]);
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const clean = reason.trim();
+    if (!clean) {
+      alerts.error("Enter a close reason.");
+      return;
+    }
+    onConfirm(clean);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !pending) onCancel();
+      }}
+      role="presentation"
+    >
+      <form
+        aria-labelledby="close-job-title"
+        aria-modal="true"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+        onSubmit={submit}
+        role="dialog"
+      >
+        <div className="p-6">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+            <XCircle aria-hidden className="h-5 w-5" />
+          </span>
+          <h2 className="mt-4 text-lg font-bold text-gray-950 dark:text-white" id="close-job-title">
+            Close job?
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+            Closing <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span> removes it from open listings. A reason is required.
+          </p>
+          <label className="mt-4 block">
+            <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">
+              Close reason <span className="text-red-500">*</span>
+            </span>
+            <textarea
+              autoFocus
+              className="min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              maxLength={500}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="e.g. Hiring freeze, role filled externally…"
+              value={reason}
+            />
+          </label>
+        </div>
+        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+          <button
+            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            disabled={pending}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="h-11 rounded-xl bg-amber-600 text-sm font-bold text-white transition hover:bg-amber-700 disabled:opacity-50"
+            disabled={pending}
+            type="submit"
+          >
+            {pending ? "Closing..." : "Close job"}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+function DeleteJobModal({
+  job,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  job: Job;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending) onCancel();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onCancel, pending]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !pending) onCancel();
+      }}
+      role="presentation"
+    >
+      <section
+        aria-labelledby="delete-job-title"
+        aria-modal="true"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+        role="dialog"
+      >
+        <div className="p-6">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+            <Trash2 aria-hidden className="h-5 w-5" />
+          </span>
+          <h2 className="mt-4 text-lg font-bold text-gray-950 dark:text-white" id="delete-job-title">
+            Delete draft?
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+            This permanently deletes <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span>. This cannot be undone.
+          </p>
+        </div>
+        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+          <button
+            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            disabled={pending}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="h-11 rounded-xl bg-red-600 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+            disabled={pending}
+            onClick={onConfirm}
+            type="button"
+          >
+            {pending ? "Deleting..." : "Delete"}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}

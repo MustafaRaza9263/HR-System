@@ -33,6 +33,21 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, request, respo
     return;
   }
 
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === 11000
+  ) {
+    response.status(409).json({
+      error: {
+        code: "DUPLICATE_NAME",
+        message: "A record with this name already exists.",
+      },
+    });
+    return;
+  }
+
   request.log.error({ err: error }, "Unhandled request error");
   response.status(500).json({
     error: {

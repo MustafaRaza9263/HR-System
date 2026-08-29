@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { MetricCard } from "@/components/ui/metric-card";
+
 const metrics = [
   {
     label: "Active jobs",
@@ -41,13 +43,13 @@ const setupSteps = [
   {
     title: "Create your departments",
     description: "Define the teams that make up your organization.",
-    href: "/dashboard/departments",
+    href: "/dashboard/job-roles",
     icon: Building2,
   },
   {
     title: "Define roles and scoring",
     description: "Standardize job responsibilities and evaluation criteria.",
-    href: "/dashboard/roles",
+    href: "/dashboard/job-roles",
     icon: ListChecks,
   },
   {
@@ -75,19 +77,8 @@ export default function DashboardPage() {
         </div>
 
         <section aria-label="Hiring metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(({ label, value, supporting, icon: Icon }) => (
-            <article className="rounded-lg border border-gray-300 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900" key={label}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p>
-                  <p className="mt-2 text-3xl font-bold tracking-[-0.04em] text-gray-950 dark:text-white">{value}</p>
-                </div>
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                  <Icon aria-hidden className="h-5 w-5" />
-                </span>
-              </div>
-              <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">{supporting}</p>
-            </article>
+          {metrics.map(({ label, value, supporting, icon }) => (
+            <MetricCard icon={icon} key={label} label={label} supporting={supporting} value={value} />
           ))}
         </section>
 

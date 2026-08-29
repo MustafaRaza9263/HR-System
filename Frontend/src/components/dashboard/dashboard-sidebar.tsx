@@ -3,21 +3,18 @@
 import {
   Bot,
   BriefcaseBusiness,
-  Building2,
-  ClipboardList,
   LayoutDashboard,
   ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  SlidersHorizontal,
   UserRoundSearch,
   X,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CollapsedTooltip } from "./collapsed-tooltip";
 
@@ -29,15 +26,15 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Departments", href: "/dashboard/departments", icon: Building2 },
-  { label: "Roles", href: "/dashboard/roles", icon: ClipboardList },
-  { label: "Custom fields", href: "/dashboard/fields", icon: SlidersHorizontal },
+  { label: "Job Roles", href: "/dashboard/job-roles", icon: BriefcaseBusiness },
   { label: "Jobs", href: "/dashboard/jobs", icon: BriefcaseBusiness },
   { label: "Candidates", href: "/dashboard/candidates", icon: UserRoundSearch },
   { label: "Scoring", href: "/dashboard/scoring", icon: ListChecks },
   { label: "Assistant", href: "/dashboard/assistant", icon: Bot },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
+
+const SIDEBAR_COLLAPSED_KEY = "hr-sidebar-collapsed";
 
 interface DashboardSidebarProps {
   mobileOpen: boolean;
@@ -61,7 +58,28 @@ export function DashboardSidebar({
   user,
 }: DashboardSidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
+
+  useEffect(() => {
+    const desktopViewport = window.matchMedia("(min-width: 768px)");
+    const syncViewport = () => {
+      setIsDesktop(desktopViewport.matches);
+      setIsDesktopCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+    };
+
+    syncViewport();
+    desktopViewport.addEventListener("change", syncViewport);
+    return () => desktopViewport.removeEventListener("change", syncViewport);
+  }, []);
+
+  const collapsed = isDesktop && isDesktopCollapsed;
+
+  function toggleCollapsed() {
+    const next = !isDesktopCollapsed;
+    setIsDesktopCollapsed(next);
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+  }
 
   function isActive(href: string) {
     return href === "/dashboard" ? pathname === href : pathname.startsWith(href);
@@ -70,7 +88,7 @@ export function DashboardSidebar({
   return (
     <aside
       aria-label="Primary navigation"
-      className={`fixed inset-y-0 left-0 z-50 flex h-svh w-72 max-w-[86vw] shrink-0 flex-col border-r border-gray-200 bg-white text-gray-900 shadow-xl transition-[transform,width] duration-300 md:relative md:max-w-none md:translate-x-0 md:shadow-none dark:border-gray-800/60 dark:bg-gray-950 dark:text-white ${mobileOpen ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:w-20" : "md:w-72"}`}
+      className={`fixed inset-y-0 left-0 z-50 flex h-svh w-72 max-w-[86vw] shrink-0 transform-gpu flex-col overflow-hidden border-r border-gray-200 bg-white text-gray-900 shadow-xl transition-[transform,width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none md:relative md:max-w-none md:translate-x-0 md:shadow-none dark:border-gray-800/60 dark:bg-gray-950 dark:text-white ${mobileOpen ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:w-20" : "md:w-72"}`}
     >
       <div className="relative h-16 shrink-0 border-b border-gray-200 dark:border-gray-800/60">
         <Link
@@ -83,7 +101,7 @@ export function DashboardSidebar({
         <button
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className="absolute right-6 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 md:grid dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-          onClick={() => setCollapsed((current) => !current)}
+          onClick={toggleCollapsed}
           type="button"
         >
           {collapsed ? <PanelLeftOpen aria-hidden className="h-4 w-4" /> : <PanelLeftClose aria-hidden className="h-4 w-4" />}

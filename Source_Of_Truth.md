@@ -1,157 +1,276 @@
-The system is an HR management system with this features
-
-1. HR login / Register
-2. Department and Roles Creation [full CRUD]
-3. Fields creation with the section 
-4. Job creation [department, role, JD, pay range etc etc]
-5. Job Listing page [cleint facing]
-6. Agent scoring 
-7. Job filling form [Auto fill from resume]
-8. chat bot [assistant for asking question]
-
 # HR Recruitment System — Source of Truth
 
-Business rules, entities, and flows only. No implementation/tech-stack detail — backend and frontend (Next.js) are separate projects consuming this as shared spec.
+Business rules, entities, and flows only. No implementation or tech-stack detail — backend and frontend consume this as the shared product spec.
 
 ---
 
-### §1 Actors (updated HR row)
+## 1. Product overview
+
+HR manages hiring structure and job postings. Candidates apply via a public careers surface (later). AI assist, notifications, and marketing attribution come after core Job CRUD.
+
+### In scope now
+
+1. HR login / register
+2. Department and Role CRUD
+3. Job creation, listing, and detail (HR-facing) — Job CRUD only
+
+### Explicitly later (do not build yet)
+
+- Public careers page and `/apply/[slug]`
+- Application model, submission, or listing
+- AI ranking / autofill / chatbot
+- Notifications / email
+- Source / campaign tracking
+
+---
+
+## 2. Actors
 
 | Actor | Access |
 |---|---|
-| HR | Registers and logs in via standard email/password auth. Full access: jobs, departments, roles, applications, interviews, decisions, tags, marketing/source dashboard, chatbot. |
+| HR | Registers and logs in via email/password. Full access to departments, roles, jobs, and (later) applications, interviews, decisions, tags, marketing dashboard, chatbot. |
 | Candidate | No account. Applies via public careers page. Identified by email/application record only. |
 | Interviewer | No account. One-time access via a single-use secure link per interview assignment. |
 
-### §1a Authentication (new section)
+---
 
-- **Registration**: standard email + password sign-up. No email verification step, no OTP, no MFA — account is active immediately on registration.
-- **Password storage**: hashed (industry-standard hashing algorithm), never stored or logged in plain text.
-- **Login**: email + password → validated against stored hash → session/token issued on success.
-- **Session/Token issuance**: on successful login, a signed session token is issued (standard JWT or equivalent) and returned to the client. Token carries user identity + expiry; used to authenticate all subsequent requests.
-- **Session persistence**: token stored client-side (standard secure cookie or equivalent) so the user stays logged in across visits until expiry or logout.
-- **Token expiry**: sessions expire after a defined duration; expired tokens are rejected, user is redirected to login.
-- **Logout**: invalidates the client-side session (clears token/cookie); no server-side token blacklist required at this scale.
-- **Authorization**: every protected route/endpoint validates the session token before returning data — no anonymous access to any `/panel`-equivalent resource.
-- **No password reset flow defined yet** — flag this as a gap to decide on later if needed (out of scope for now, matches "no email verification/OTP" stance).
-- **No role-based permission tiers** — one authenticated user type (HR) for now, full access on login, no granular permission system.
+## 3. Authentication
+
+- **Registration**: email + password. No email verification, OTP, or MFA — account is active immediately.
+- **Password storage**: hashed; never stored or logged in plain text.
+- **Login**: email + password → session/token issued on success.
+- **Session**: signed token (JWT or equivalent) with identity + expiry; stored client-side (secure cookie or equivalent).
+- **Expiry**: expired tokens rejected; user redirected to login.
+- **Logout**: clears client-side session; no server-side blacklist required at this scale.
+- **Authorization**: every protected HR route validates the session token — no anonymous access to panel resources.
+- **Gaps (deferred)**: password reset; no RBAC tiers — one HR user type with full access.
 
 ---
 
-## 2. Department
+## 4. Department
 
-- Fields: `name` (required, unique), `status` (active/inactive), `createdAt`
-- No delete — only `active`/`inactive`. Inactive just hides it from dropdowns when creating new Roles; historical Roles/Jobs keep referencing it fine.
+| Field | Rules |
+|---|---|
+| `name` | Required, unique |
+| `status` | `active` \| `inactive` |
+| `createdAt` | System |
+
+- No hard delete — inactive only. Inactive departments are hidden from dropdowns when creating Roles; existing Roles/Jobs may still reference them.
 - A Role cannot exist without a Department.
 
-## 3. Role (job-title library, reusable across hiring cycles)
+---
 
-- Fields: `name` (required), `departmentId` (required), `defaultDescription` (optional JD template text), `status` (active/inactive)
-- Purpose: lets HR create multiple Job postings over time under the same title without retyping, and groups reporting cleanly (e.g. "all Backend Engineer hires ever").
-- Picking a Role while creating a Job auto-fills the Job's description from `defaultDescription` (editable per posting, doesn't alter the template).
-- No delete — active/inactive only, same reasoning as Department.
+## 5. Role (reusable job-title library)
 
-## 4. Job (the actual posting)
+| Field | Rules |
+|---|---|
+| `name` | Required |
+| `departmentId` | Required (ref Department) |
+| `defaultDescription` | Optional JD template (used to pre-fill Job description) |
+| `status` | `active` \| `inactive` |
 
-- Required at creation: `department`, `role`, `title`, `description`, `positionsAvailable` (default 1)
-- Optional/configurable: `payInfo`, `officeLocation`, custom fields (see §5)
-- **Status**: `draft` → `open` → `filled` / `closed`
-  - `draft` — being built, not public
-  - `open` — live on careers page, accepting applications
-  - `filled` — system-set automatically when `positionsFilled === positionsAvailable`
-  - `closed` — HR manually stopped it before headcount reached (e.g. cancelled, paused)
-  - Both `filled` and `closed` remove it from the public careers page; distinction is for accurate reporting only.
-- `positionsFilled` increments by 1 automatically each time an application under this Job is marked `Hired`.
-- **No hard delete, ever**, except: a Job with zero applications may be deleted outright (guard: delete action disabled once `applicationCount >= 1`).
-- **Reopening**: a `closed`/`filled` Job is never reopened for a new hiring round. Instead, HR uses **"Duplicate Job"** — copies title, department, role, description, pay, location, field config into a new `draft` Job. Old Job remains untouched as permanent history (its applications, source data, interview records stay intact and queryable).
-- Each Job has a stable, unique public URL (slug-based).
-
-## 5. Field Definitions (dynamic per-job application form)
-
-Two-part model:
-
-**a) `fieldDefinitions`** — reusable field library, created once, referenced by many jobs:
-- `key`, `label`, `type` (text/url/textarea/select/file/number), `options` (for select), `section`, `isSystemDefault` (true = auto-attached to every job, e.g. name/email/phone/resume)
-
-**b) On each Job** — `fields[]` = array of references with per-job overrides:
-- `{ fieldId, required: true/false, order }`
-- Same field definition can be required on one Job and optional/absent on another, without duplicating the definition.
-
-**Sections (clustering)**: fixed global list — `personal | experience | education | links | other`. Defined once as a constant, not a separate managed entity. Every field must have a section; fields with no natural grouping default to `other`. Sections with zero fields on a given Job are simply not rendered (no empty headers). No custom/reorderable sections per job — structure is global and fixed.
-
-## 6. Application
-
-- Fields: `jobId`, `roleSnapshot` (department + role title, copied at submit time — protects history if Job is edited later), `answers[]` (`{fieldId, value}` matching that Job's field config at submit time), `resumeUrl`, `status`, `source`, `campaign`, `tags[]`, `createdAt`
-- **Applications link to the Job only** — never directly to Department or Role.
-- **Status lifecycle**: `submitted` → `under_review` → `interviewing` → `decided (approved / rejected / trial)`
-- **Duplicate/reapplication detection**: same email/phone/resume reapplying should be flagged (e.g. "previously rejected on [date], reason: [x]") — not blocked, just surfaced to HR.
-- **Misrouted application fix**: HR can reassign an application to the correct Job (e.g. marketing CV submitted under a developer opening). This is a logged edit (`originalJobId`, `reassignedBy`, `reason`), never a silent overwrite.
-
-## 7. Tags
-
-- Free-form, HR-created (`{name, color}`), many-to-many with Applications.
-- Used for filtering and bulk actions (e.g. bulk-tag, bulk-reject by tag).
-
-## 8. Interview Process
-
-- HR creates any number of interview rounds per Application.
-- Each interview: `{applicationId, roundNumber, interviewerName, interviewerEmail, scheduledAt, status, notes, secureToken, tokenExpiry, cancelReason}`
-- **Interviewer has no account.** System emails a single-use secure link tied to that specific interview. Opening it shows only: candidate name + a note-writing field + "submit & mark complete." No access to application data, other candidates, or any other part of the system.
-- Link expires after submission or after a set date — cannot be reused.
-- **Cancellation**: HR can cancel an interview with a required reason; candidate is notified automatically.
-- Interviews are visible on an HR dashboard (upcoming / completed), linked to reminders (see §10).
-
-## 9. Decision
-
-- Final HR action per Application: **Approve / Reject / Trial** — each requires a written reason (mandatory, not optional).
-- `Trial` = a status + note (e.g. duration, re-review date) — not a separate workflow engine.
-- All decisions + reasons are permanently stored and are visible to the chatbot agent (§12) for future queries.
-- On `Approve` (hired), `Job.positionsFilled` increments; if it reaches `positionsAvailable`, Job auto-moves to `filled`.
-- Remaining shortlisted-but-not-hired applicants: HR manually updates their status (Rejected with reason, or held as Trial/Reserve). Untouched applicants simply remain in their prior status — no forced cleanup required. An optional bulk "reject remaining" action may be used.
-
-## 10. Notifications (candidate-facing, automatic)
-
-Triggered on:
-- Application submitted (confirmation)
-- Interview scheduled (+ a reminder sent before the interview, lead time configurable by HR per interview)
-- Interview cancelled (with reason)
-- Final decision communicated (approved / rejected / trial)
-
-All notifications are email-based. No manual sending — system-triggered on the relevant status change.
-
-## 11. AI Agent — three capabilities, one agent
-
-**a) Smart Autofill**
-On resume upload during application, extracts candidate info and pre-fills the form. Candidate reviews/edits before submitting — autofill never bypasses candidate confirmation.
-
-**b) Automatic Ranking**
-Triggered in the background the moment an Application is submitted. Combines resume, form answers, and any supplied external links (LinkedIn summary/PDF, GitHub, portfolio, Instagram) into: a concise candidate summary + a fit score against the Job's requirements (skills, experience, pay band). Result is stored on the Application and visible to HR immediately — no manual screening required before HR sees a ranked view.
-
-**c) HR Chatbot**
-Plain-language Q&A over the system's own data — e.g. "Why was this candidate rejected six months ago," "How many applications did we get for Role X last month," "Which source produced the best hires this quarter." Answers must be grounded only in real stored data (resumes, ranking summaries, interview notes, decision reasons, tags, source/campaign records) — never fabricated. Output is presented as text, tables, or charts as appropriate to the question. The agent has full read access to all HR data; it has no write/delete capability under any circumstance.
-
-## 12. Source & Campaign Tracking (marketing intelligence)
-
-- Marketers run ads externally, in their own ad platform's Ads Manager (Meta, Google, TikTok, LinkedIn, X), or post organically (Indeed, LinkedIn Jobs). They append their own UTM parameters (`utm_source`, `utm_campaign`, etc.) to the Job's public URL — nothing is pre-created or registered in this system.
-- On landing, the system captures `utm_source`/`utm_campaign` from the URL and stores them against the resulting Application at submit time. No application-side or manual entry required.
-- If no UTM parameters are present, the Application defaults to `source: website` (direct/organic traffic) — this is the natural fallback, not a special case.
-- **No separate "create campaign" or "create source" UI** — sources and campaigns are derived entirely from whatever UTM values actually arrive on real applications. The dashboard is a live read view, not manually maintained data.
-- **Ad-locked landing**: a candidate arriving via a tagged ad link lands directly on that specific Job page only, with no ability to browse other open roles from that entry point (a visible "see other openings" link may unlock the full careers page if clicked).
-- The same HR account views the Source & Campaign dashboard (applications by source/campaign/job, over time) — no separate marketer role/account for now.
-
-## 13. Public Careers Page
-
-- Lists all `open` Jobs; each Job has a permanent, shareable URL.
-- Candidates arriving from a tagged ad link land directly on that Job (see §12); candidates browsing the main site see the full open-roles list.
-- Application form is dynamically built from that Job's configured fields (§5), grouped by section, autofill-assisted (§11a).
+- Lets HR reuse the same title across hiring cycles and keep reporting grouped (e.g. all “Backend Engineer” hires).
+- Selecting a Role when creating a Job pre-fills Job title and description from the Role; edits on the Job do **not** mutate the Role template.
+- No hard delete — active/inactive only (same reasoning as Department).
 
 ---
 
-## Cross-Entity Rules Summary (quick reference)
+## 6. Job (the posting)
 
-- Nothing in this system is ever hard-deleted except a zero-application Job (explicit HR action, explicit guard).
-- Every status change (Job, Application, Interview) that affects the candidate triggers an automatic notification.
-- Every HR decision requires a written reason — no bare approve/reject/trial.
-- Every Application always resolves to exactly one Job; Department/Role are read through the Job, never linked to directly.
-- Historical accuracy over live-joins: Applications snapshot Department/Role text at submit time so later edits to Job/Role don't rewrite history.
-- The AI agent (autofill, ranking, chatbot) is read/assist-only — it never makes or overrides an HR decision.
+### 6.1 Fields
+
+| Field | Type / rules |
+|---|---|
+| `_id` | Auto |
+| `slug` | Auto-generated **on publish only** (not on draft save). Format: `slugify(title) + "-" + random 4-char suffix`. Null while draft. |
+| `title` | String, required. Auto-filled from Role name on selection; editable. |
+| `departmentId` | Ref Department, required |
+| `roleId` | Ref Role, required |
+| `description` | Rich text JSON (structured doc from editor: bold/italic/bullets/headings) — not a plain string |
+| `jobType` | Enum, required: `Full-time` \| `Part-time` \| `Contract` \| `Temporary` \| `Internship` \| `Fresher` |
+| `positionsAvailable` | Number, required, default `1`, min `1` |
+| `positionsFilled` | Number, default `0`. System-managed; never editable by HR |
+| `salaryMin` | Number, required |
+| `salaryMax` | Number, required; must be `>= salaryMin` |
+| `fieldsConfig` | Embedded per-job application form config — see §6.2. **Not a separate entity.** |
+| `status` | `draft` \| `open` \| `filled` \| `closed` — default `draft` |
+| `closeReason` | String, nullable; **required** when HR manually closes |
+| `applicationCount` | Number, default `0`. System-managed |
+| `createdAt` / `updatedAt` | System |
+| `publishedAt` | Nullable; set on first successful publish |
+| `closedAt` | Nullable; set when manually closed |
+
+**Status meaning**
+
+| Status | Meaning |
+|---|---|
+| `draft` | Being built; not public |
+| `open` | Live; accepting applications (when careers exist) |
+| `filled` | System-set when `positionsFilled === positionsAvailable` (later, on hire) |
+| `closed` | HR stopped the posting before headcount; requires `closeReason` |
+
+`filled` and `closed` both leave the public list; distinction is for reporting.
+
+### 6.2 `fieldsConfig` (embedded on Job — no Fields library)
+
+Application form shape is configured **per Job** during creation. There is no global Custom Fields entity, library, sidebar page, or experience/education section toggles.
+
+```
+fieldsConfig: {
+  customFields: [{
+    id: string,           // client-stable id within the job
+    label: string,
+    type: "text" | "textarea" | "number" | "select" | "date" | "checkbox" | "file",
+    required: boolean,
+    constraint: /* maxLength | min/max | options list — by type */,
+    section: "personal" | "experience" | "education"
+  }]
+}
+```
+
+- Wizard Step 3 only offers **+ Add field** (label, type, required, constraint, section) with edit/remove on the list.
+- Personal identity fields expected at apply time (name/email/phone/resume) are system defaults for the future Application form — not a managed Fields catalog.
+
+### 6.3 Critical publish rule (API-enforced)
+
+Before a Job may enter `open` (publish or any future re-open):
+
+1. Check whether **any other** Job exists with the same `departmentId` + `roleId` and status `draft` or `open`.
+2. If yes → reject with a clear error naming the conflicting Job (`title`, `status`, `slug` if present).
+3. Must run **server-side** on publish; UI may warn, but API never trusts the client alone.
+
+| Allowed | Blocked |
+|---|---|
+| Multiple drafts for same dept+role | Publishing to `open` while another draft/open exists for same dept+role |
+| New open after prior jobs are only `closed`/`filled` | Treating closed/filled as blockers |
+
+Drafts with the same department+role are allowed so HR can prepare the next cycle while one posting is still open — the block applies only at transition to `open`.
+
+### 6.4 Lifecycle rules
+
+- **Delete**: only if `applicationCount === 0`. Once applications exist, no hard delete.
+- **Reopen**: never reopen `closed`/`filled` for a new cycle. Use **Duplicate Job** → new `draft` copying all fields except `status`, `slug`, `positionsFilled`, `applicationCount`. Original remains history.
+- **Positions**: later, each Hired application increments `positionsFilled`; at headcount, status → `filled`.
+
+---
+
+## 7. Job creation — 4-step wizard (autosave draft each step)
+
+Each **Next** upserts the draft Job so HR can leave and resume from the list (“Continue Editing”).
+
+### Step 1 — Basics
+
+Department → Role (filtered by department) → Title (from Role, editable) → Job Type → Positions Available → Salary Min / Max (`max >= min`).
+
+### Step 2 — Description
+
+Rich text editor (bold, italic, bullets, numbered list, headings). Pre-fill from `role.defaultDescription` if present; fully editable; does not mutate Role.
+
+### Step 3 — Application Fields
+
+- **+ Add field** only (no experience/education section toggles): label, type, required, constraint, section (`personal` \| `experience` \| `education`). List with edit/remove. Empty list is allowed (system personal fields still apply later at apply time).
+
+### Step 4 — Review & Publish
+
+Read-only public-style preview: title, formatted description, job type, salary range, positions available.
+
+| Action | Effect |
+|---|---|
+| **Save as Draft** | Stay `draft`; no slug |
+| **Publish** | Conflict check (§6.3); on success generate slug, `status = open`, `publishedAt = now` |
+
+---
+
+## 8. Job listing (HR-facing)
+
+Top metric cards: **Total jobs**, **Total opened jobs**, **Average applicants on a job**, **Total closed jobs**.
+
+Toolbar: search (title, description plain text, job id) + department filter + role filter + **Create job** (opens wizard page).
+
+Table columns: title, department, role, status (badge), positions (`filled/available`), jobType, createdAt, applicationCount.
+
+| Status | Row actions |
+|---|---|
+| `draft` | Continue Editing (resume wizard at last incomplete step); Delete (only if `applicationCount === 0`) |
+| `open` | View; Close (modal → required `closeReason` → `closed` + `closedAt = now`) |
+| `filled` / `closed` | View; Duplicate Job |
+
+---
+
+## 9. Job detail (HR-facing)
+
+Read-only: all Job fields, rendered rich-text description, status badge, positions progress, and the same status-appropriate actions as the list (Close / Duplicate / Continue Editing).
+
+---
+
+## 10. Application (later)
+
+- Fields (sketch): `jobId`, `roleSnapshot` (dept + role title at submit), `answers[]` matching that Job’s `fieldsConfig` at submit, `resumeUrl`, `status`, `source`, `campaign`, `tags[]`, `createdAt`.
+- Applications link to **Job only** — never directly to Department or Role.
+- Status sketch: `submitted` → `under_review` → `interviewing` → decided (`approved` / `rejected` / `trial`).
+- Duplicate reapply: flag, do not block.
+- Misroute fix: logged reassignment (`originalJobId`, `reassignedBy`, `reason`).
+
+---
+
+## 11. Tags (later)
+
+Free-form `{name, color}`, many-to-many with Applications. Filtering and bulk actions.
+
+---
+
+## 12. Interview process (later)
+
+- Rounds per Application; interviewer has no account — single-use secure link for notes + complete.
+- Link expires after submit or date; cancel requires reason + candidate notify.
+
+---
+
+## 13. Decision (later)
+
+- Approve / Reject / Trial — written reason mandatory.
+- Approve (hired) increments `Job.positionsFilled`; at capacity → `filled`.
+- Remaining applicants: manual status updates; optional bulk reject remaining.
+
+---
+
+## 14. Notifications (later)
+
+Email on: apply confirmation, interview scheduled (+ reminder), interview cancelled, final decision. System-triggered only.
+
+---
+
+## 15. AI agent (later)
+
+1. **Smart Autofill** — resume → form prefill; candidate confirms.
+2. **Automatic Ranking** — on submit; summary + fit score stored on Application.
+3. **HR Chatbot** — read-only Q&A over stored HR data; never writes or decides.
+
+---
+
+## 16. Source & campaign tracking (later)
+
+- Marketers append UTMs to the Job public URL externally; system stores `utm_source` / `utm_campaign` on Application at submit.
+- No create-campaign UI; dashboard is a live read of arrived UTMs.
+- Missing UTMs → `source: website`.
+- Ad-locked landing: tagged link → that Job only (optional unlock to full careers list).
+
+---
+
+## 17. Public careers page (`/`)
+
+- Lists `open` Jobs grouped by department (accordion).
+- Filters: team (department) + search by role title. No office/location filter.
+- Permanent slug URL per Job; Apply form comes later.
+
+---
+
+## Cross-entity rules (quick reference)
+
+- No hard delete except a zero-application Job (explicit HR action + guard).
+- Status changes that affect candidates trigger automatic notifications (when that layer exists).
+- Every HR decision requires a written reason.
+- Every Application resolves to exactly one Job; Department/Role are via Job (plus snapshots for history).
+- Fields are **not** a first-class entity — only `Job.fieldsConfig`.
+- At most one **active** posting (`draft` or `open`) may become/stay `open` per department+role pair — enforced on publish at the API.
+- AI is assist/read-only — never overrides HR decisions.

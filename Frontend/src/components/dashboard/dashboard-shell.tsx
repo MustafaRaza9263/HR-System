@@ -14,6 +14,15 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
+    const mobileViewport = window.matchMedia("(max-width: 767px)");
+    const resetDrawer = () => setMobileSidebarOpen(false);
+
+    resetDrawer();
+    mobileViewport.addEventListener("change", resetDrawer);
+    return () => mobileViewport.removeEventListener("change", resetDrawer);
+  }, []);
+
+  useEffect(() => {
     if (!mobileSidebarOpen) return;
 
     const previousOverflow = document.body.style.overflow;

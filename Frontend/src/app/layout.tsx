@@ -8,10 +8,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "HR System",
+    default: "Careers | HR System",
     template: "%s | HR System",
   },
-  description: "A secure workspace for your people operations.",
+  description: "Browse open roles and join our team.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
