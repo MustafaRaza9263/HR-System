@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type {
@@ -120,32 +121,28 @@ export function ApplicationsManager() {
                 value={query}
               />
             </label>
-            <select
+            <Dropdown
               aria-label="Filter by job"
-              className="h-12 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              onChange={(event) => setJobId(event.target.value)}
+              className="w-full xl:w-56"
+              onChange={setJobId}
+              options={[
+                { value: "", label: "All jobs" },
+                ...jobs.map((job) => ({ value: job.id, label: job.title })),
+              ]}
+              size="md"
               value={jobId}
-            >
-              <option value="">All jobs</option>
-              {jobs.map((job) => (
-                <option key={job.id} value={job.id}>
-                  {job.title}
-                </option>
-              ))}
-            </select>
-            <select
+            />
+            <Dropdown
               aria-label="Filter by status"
-              className="h-12 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              onChange={(event) => setStatus(event.target.value)}
+              className="w-full xl:w-48"
+              onChange={setStatus}
+              options={[
+                { value: "", label: "All statuses" },
+                ...APPLICATION_STATUSES.map((item) => ({ value: item, label: statusLabel(item) })),
+              ]}
+              size="md"
               value={status}
-            >
-              <option value="">All statuses</option>
-              {APPLICATION_STATUSES.map((item) => (
-                <option key={item} value={item}>
-                  {statusLabel(item)}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <h2 className="sr-only" id="applications-table-title">

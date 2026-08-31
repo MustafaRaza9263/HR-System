@@ -125,6 +125,15 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+@keyframes dropdownIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dropdown-menu {
+  animation: dropdownIn 120ms ease-out both;
+}
+
 @keyframes appAlertEnter {
   from { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.985); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
@@ -229,7 +238,8 @@ a {
   }
 
   .app-alert-enter,
-  .app-alert-progress {
+  .app-alert-progress,
+  .dropdown-menu {
     animation: none;
   }
 }

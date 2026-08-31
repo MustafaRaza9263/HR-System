@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { AppIcon } from "@/components/ui/app-icon";
+import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
@@ -529,10 +530,16 @@ function EntityEditor({ editor, departments, onClose, onDepartmentSaved, onRoleS
           {!isDepartment ? (
             <label className="block">
               <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">Department <span className="text-red-500">*</span></span>
-              <select className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white" onChange={(event) => setDepartmentId(event.target.value)} required value={departmentId}>
-                <option value="">Select a department</option>
-                {activeDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}{department.status === "inactive" ? " (inactive)" : ""}</option>)}
-              </select>
+              <Dropdown
+                onChange={setDepartmentId}
+                options={activeDepartments.map((department) => ({
+                  value: department.id,
+                  label: department.status === "inactive" ? `${department.name} (inactive)` : department.name,
+                }))}
+                placeholder="Select a department"
+                required
+                value={departmentId}
+              />
             </label>
           ) : null}
 

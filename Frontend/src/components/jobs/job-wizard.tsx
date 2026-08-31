@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { RichTextEditor } from "@/components/jobs/rich-text-editor";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
+import { Dropdown } from "@/components/ui/dropdown";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import {
@@ -396,35 +397,23 @@ export function JobWizard({ jobId }: JobWizardProps) {
             <div className="space-y-5">
               <label className="block">
                 <span className="mb-2 block text-sm font-bold">Department <span className="text-red-500">*</span></span>
-                <select
-                  className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-                  onChange={(event) => onDepartmentChange(event.target.value)}
+                <Dropdown
+                  onChange={onDepartmentChange}
+                  options={departments.map((department) => ({ value: department.id, label: department.name }))}
+                  placeholder="Select department"
                   value={form.departmentId}
-                >
-                  <option value="">Select department</option>
-                  {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
 
               <label className="block">
                 <span className="mb-2 block text-sm font-bold">Role <span className="text-red-500">*</span></span>
-                <select
-                  className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
+                <Dropdown
                   disabled={!form.departmentId}
-                  onChange={(event) => onRoleChange(event.target.value)}
+                  onChange={onRoleChange}
+                  options={roles.map((role) => ({ value: role.id, label: role.name }))}
+                  placeholder="Select role"
                   value={form.roleId}
-                >
-                  <option value="">Select role</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
 
               <label className="block">
@@ -444,20 +433,12 @@ export function JobWizard({ jobId }: JobWizardProps) {
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-2 block text-sm font-bold">Job type <span className="text-red-500">*</span></span>
-                  <select
-                    className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, jobType: event.target.value as JobType | "" }))
-                    }
+                  <Dropdown
+                    onChange={(next) => setForm((current) => ({ ...current, jobType: next as JobType | "" }))}
+                    options={JOB_TYPES.map((type) => ({ value: type, label: type }))}
+                    placeholder="Select type"
                     value={form.jobType}
-                  >
-                    <option value="">Select type</option>
-                    {JOB_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-bold">Positions available <span className="text-red-500">*</span></span>
@@ -792,35 +773,19 @@ function FieldEditorModal({
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Type <span className="text-red-500">*</span></span>
-            <select
-              className="h-11 w-full rounded-xl border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, type: event.target.value as CustomFieldType }))
-              }
+            <Dropdown
+              onChange={(next) => setDraft((current) => ({ ...current, type: next as CustomFieldType }))}
+              options={FIELD_TYPES.map((type) => ({ value: type, label: type }))}
               value={draft.type}
-            >
-              {FIELD_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Section <span className="text-red-500">*</span></span>
-            <select
-              className="h-11 w-full rounded-xl border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, section: event.target.value as FieldSection }))
-              }
+            <Dropdown
+              onChange={(next) => setDraft((current) => ({ ...current, section: next as FieldSection }))}
+              options={FIELD_SECTIONS.map((section) => ({ value: section, label: section }))}
               value={draft.section}
-            >
-              {FIELD_SECTIONS.map((section) => (
-                <option key={section} value={section}>
-                  {section}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <label className="flex items-center gap-3 text-sm font-bold">
             <input

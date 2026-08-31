@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronDown, Minus, Plus, Search } from "lucide-react";
+import { ArrowRight, Minus, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { Dropdown } from "@/components/ui/dropdown";
 import { apiRequest } from "@/lib/api";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -86,22 +87,16 @@ export function CareersBoard() {
             Join our team
           </h1>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="relative">
-              <span className="sr-only">Filter by team</span>
-              <select
-                className="h-11 min-w-[10.5rem] appearance-none rounded-xl border border-neutral-300 bg-white py-2 pl-4 pr-10 text-sm text-neutral-800 outline-none transition focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                onChange={(event) => setTeamId(event.target.value)}
-                value={teamId}
-              >
-                <option value="">All Teams</option>
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown aria-hidden className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-            </label>
+            <Dropdown
+              aria-label="Filter by team"
+              className="w-full min-w-[10.5rem] sm:w-[12.5rem]"
+              onChange={setTeamId}
+              options={[
+                { value: "", label: "All Teams" },
+                ...teams.map((team) => ({ value: team.id, label: team.name })),
+              ]}
+              value={teamId}
+            />
             <label className="relative min-w-0 sm:min-w-[16rem]">
               <span className="sr-only">Search roles</span>
               <Search aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />

@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
@@ -208,35 +209,31 @@ export function JobsManager() {
                 value={query}
               />
             </label>
-            <select
+            <Dropdown
               aria-label="Filter by department"
-              className="h-12 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              onChange={(event) => {
-                setDepartmentId(event.target.value);
+              className="w-full xl:w-52"
+              onChange={(next) => {
+                setDepartmentId(next);
                 setRoleId("");
               }}
+              options={[
+                { value: "", label: "All departments" },
+                ...departments.map((department) => ({ value: department.id, label: department.name })),
+              ]}
+              size="md"
               value={departmentId}
-            >
-              <option value="">All departments</option>
-              {departments.map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-            <select
+            />
+            <Dropdown
               aria-label="Filter by role"
-              className="h-12 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              onChange={(event) => setRoleId(event.target.value)}
+              className="w-full xl:w-52"
+              onChange={setRoleId}
+              options={[
+                { value: "", label: "All roles" },
+                ...filteredRoles.map((role) => ({ value: role.id, label: role.name })),
+              ]}
+              size="md"
               value={roleId}
-            >
-              <option value="">All roles</option>
-              {filteredRoles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
+            />
             <Link
               className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
               href="/dashboard/jobs/new"

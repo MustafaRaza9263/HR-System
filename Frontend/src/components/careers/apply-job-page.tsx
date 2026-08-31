@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 
 import { BrandMark } from "@/components/brand/brand-mark";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
+import { Dropdown } from "@/components/ui/dropdown";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
 import type { ApplyResponse, PublicJobDetail, PublicJobDetailResponse } from "@/lib/applications/types";
@@ -116,19 +117,14 @@ function CustomFieldInput({
           {field.label}
           {field.required ? <span className="text-red-500"> *</span> : null}
         </span>
-        <select
-          className={inputClass}
+        <Dropdown
+          aria-label={field.label}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={onChange}
+          options={options.map((option) => ({ value: option, label: option }))}
+          placeholder="Select…"
           value={typeof value === "string" ? value : ""}
-        >
-          <option value="">Select…</option>
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+        />
         <FieldError message={error} />
       </label>
     );
