@@ -31,6 +31,52 @@ const SECTION_LABEL: Record<FieldSection, string> = {
   experience: "Experience",
   education: "Education",
 };
+const PERSONAL_SECTION_ID = "apply-personal";
+
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+let personalScrollFrame = 0;
+
+function scrollToPersonalSection() {
+  const target = document.getElementById(PERSONAL_SECTION_ID);
+  if (!target) return;
+
+  const top = target.getBoundingClientRect().top + window.scrollY;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (reduceMotion) {
+    window.scrollTo(0, top);
+    target.focus({ preventScroll: true });
+    return;
+  }
+
+  const start = window.scrollY;
+  const distance = top - start;
+  if (Math.abs(distance) < 1) {
+    target.focus({ preventScroll: true });
+    return;
+  }
+
+  const duration = Math.min(1200, Math.max(560, Math.abs(distance) * 0.42));
+  const token = ++personalScrollFrame;
+  let startTime: number | null = null;
+
+  function step(now: number) {
+    if (token !== personalScrollFrame) return;
+    if (startTime === null) startTime = now;
+    const progress = Math.min((now - startTime) / duration, 1);
+    window.scrollTo(0, start + distance * easeInOutCubic(progress));
+    if (progress < 1) {
+      requestAnimationFrame(step);
+      return;
+    }
+    target.focus({ preventScroll: true });
+  }
+
+  requestAnimationFrame(step);
+}
 
 const inputClass =
   "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
@@ -276,7 +322,11 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
     >
       {grouped.map((group) => (
         <section key={group.section}>
-          <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">
+          <h2
+            className="scroll-mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 outline-none"
+            id={group.section === "personal" ? PERSONAL_SECTION_ID : undefined}
+            tabIndex={group.section === "personal" ? -1 : undefined}
+          >
             {SECTION_LABEL[group.section]}
           </h2>
           <div className="mt-4 space-y-4">
@@ -715,6 +765,17 @@ export function ApplyJobPage({ slug }: { slug: string }) {
               {[job.jobType, formatSalary(job.salaryMin, job.salaryMax)].filter(Boolean).join(" · ")}
             </p>
             <div className="mt-8 border-t border-neutral-200 pt-6 dark:border-gray-800">
+              {accepting ? (
+                <div className="mb-6">
+                  <button
+                    className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-neutral-900 px-6 text-sm font-bold text-white transition hover:bg-neutral-800 sm:w-auto dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
+                    onClick={scrollToPersonalSection}
+                    type="button"
+                  >
+                    Apply now
+                  </button>
+                </div>
+              ) : null}
               <RichTextViewer value={job.description} />
             </div>
             {accepting ? (
