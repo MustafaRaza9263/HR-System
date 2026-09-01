@@ -7,6 +7,7 @@ import {
   CalendarClock,
   CircleCheck,
   ClipboardList,
+  FileText,
   Search,
   UserX,
 } from "lucide-react";
@@ -18,6 +19,7 @@ import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
+import { Tooltip } from "@/components/ui/tooltip";
 import { UserProfile } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
@@ -32,6 +34,7 @@ import type { JobsListResponse } from "@/lib/jobs/types";
 import { queryKeys } from "@/lib/query/query-keys";
 
 import { ReasonModal } from "./reason-modal";
+import { ResumeViewerModal } from "./resume-viewer-modal";
 
 const emptyApps: ApplicationListItem[] = [];
 const emptyStats: ApplicationStats = {
@@ -94,6 +97,7 @@ export function ApplicationsManager() {
     applicationIds?: string[];
   } | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<ApplicationListItem | null>(null);
+  const [resumeTarget, setResumeTarget] = useState<ApplicationListItem | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -359,18 +363,30 @@ export function ApplicationsManager() {
                           <DateTimeDisplay value={application.createdAt} />
                         </td>
                         <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
-                          {application.status !== "rejected" && application.status !== "approved" ? (
-                            <div className="flex justify-end">
+                          <div className="flex justify-end gap-1">
+                            <Tooltip label="View resume">
                               <button
-                                aria-label={`Schedule interview for ${application.candidateName}`}
+                                aria-label={`View resume for ${application.candidateName}`}
                                 className="icon-button"
-                                onClick={() => setScheduleTarget(application)}
+                                onClick={() => setResumeTarget(application)}
                                 type="button"
                               >
-                                <Calendar aria-hidden className="h-4 w-4" />
+                                <FileText aria-hidden className="h-4 w-4" />
                               </button>
-                            </div>
-                          ) : null}
+                            </Tooltip>
+                            {application.status !== "rejected" && application.status !== "approved" ? (
+                              <Tooltip label="Schedule interview">
+                                <button
+                                  aria-label={`Schedule interview for ${application.candidateName}`}
+                                  className="icon-button"
+                                  onClick={() => setScheduleTarget(application)}
+                                  type="button"
+                                >
+                                  <Calendar aria-hidden className="h-4 w-4" />
+                                </button>
+                              </Tooltip>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -396,6 +412,16 @@ export function ApplicationsManager() {
               applicationIds: rejectTarget.applicationIds,
             })
           }
+        />
+      ) : null}
+
+      {resumeTarget ? (
+        <ResumeViewerModal
+          applicationId={resumeTarget.id}
+          candidateEmail={resumeTarget.candidateEmail}
+          candidateName={resumeTarget.candidateName}
+          resumeFileName={resumeTarget.resumeFileName}
+          onClose={() => setResumeTarget(null)}
         />
       ) : null}
 

@@ -72,12 +72,46 @@ export async function apiFormRequest<T>(path: string, formData: FormData, init?:
   return response.json() as Promise<T>;
 }
 
-export async function apiDownload(path: string, filename: string) {
+export interface ApiBlob {
+  blob: Blob;
+  filename: string;
+  contentType: string;
+}
+
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (encoded?.[1]) {
+    try {
+      return decodeURIComponent(encoded[1]);
+    } catch {
+      return encoded[1];
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(header);
+  if (quoted?.[1]) return quoted[1];
+  const plain = /filename=([^;]+)/i.exec(header);
+  return plain?.[1]?.trim() ?? null;
+}
+
+export async function apiBlob(path: string): Promise<ApiBlob> {
   const response = await fetch(`${getPublicApiUrl()}${path}`, {
     credentials: "include",
   });
   await throwIfFailed(response);
-  const blob = await response.blob();
+  const raw = await response.blob();
+  const contentType =
+    response.headers.get("content-type")?.split(";")[0]?.trim() || raw.type || "application/octet-stream";
+  const blob = raw.type === contentType ? raw : new Blob([raw], { type: contentType });
+  return {
+    blob,
+    contentType,
+    filename: filenameFromDisposition(response.headers.get("content-disposition")) ?? "resume",
+  };
+}
+
+export async function apiDownload(path: string, filename: string) {
+  const { blob } = await apiBlob(path);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

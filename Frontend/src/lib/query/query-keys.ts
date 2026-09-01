@@ -22,6 +22,7 @@ export const queryKeys = {
       ["applications", "list", filters?.q ?? "", filters?.jobId ?? "", filters?.status ?? ""] as const,
     detail: (applicationId: string) => ["applications", "detail", applicationId] as const,
     interviews: (applicationId: string) => ["applications", "interviews", applicationId] as const,
+    resume: (applicationId: string) => ["application-resume", applicationId] as const,
   },
   interviews: {
     all: ["interviews"] as const,

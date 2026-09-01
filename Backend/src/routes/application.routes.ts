@@ -158,6 +158,7 @@ function serializeListItem(
     roleName: full.roleSnapshot.roleName,
     status: full.status,
     createdAt: full.createdAt,
+    resumeFileName: full.resumeFileName,
   };
 }
 
@@ -249,7 +250,8 @@ applicationRouter.get(
 
     const filename = contentDispositionFilename(application.resumeOriginalName);
     response.setHeader("Content-Type", mimeFor(filename));
-    response.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    response.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    response.setHeader("Cache-Control", "private, max-age=300");
     createReadStream(absolute).pipe(response);
   }),
 );

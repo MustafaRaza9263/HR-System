@@ -70,6 +70,7 @@ export interface ApplicationListItem {
   roleName: string;
   status: ApplicationStatus;
   createdAt: string;
+  resumeFileName: string;
 }
 
 export interface ApplicationStats {

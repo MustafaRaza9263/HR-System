@@ -276,7 +276,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then `notifyHR("new_application")` async.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved. Row click → detail (profile + interviews tabs). Reject from list or detail.
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved. Row click → detail (profile + interviews tabs). Row actions: view resume (modal), schedule interview. Reject from list or detail.
 
 ---
 
