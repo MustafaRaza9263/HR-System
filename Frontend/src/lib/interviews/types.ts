@@ -36,6 +36,7 @@ export interface InterviewsListResponse {
 export interface InterviewListItem extends Interview {
   candidateName: string;
   candidateEmail: string;
+  candidatePhone: string;
   jobTitle: string;
   jobId: string;
   departmentName: string;

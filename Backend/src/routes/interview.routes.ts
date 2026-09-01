@@ -57,7 +57,7 @@ interviewRouter.get(
     const serialized = await serializeInterviews(interviews);
     const applicationIds = [...new Set(interviews.map((item) => item.applicationId.toString()))];
     const applications = await Application.find({ _id: { $in: applicationIds } })
-      .select("candidateName candidateEmail roleSnapshot jobId")
+      .select("candidateName candidateEmail candidatePhone roleSnapshot jobId")
       .lean();
     const applicationById = new Map(applications.map((item) => [item._id.toString(), item]));
 
@@ -69,6 +69,7 @@ interviewRouter.get(
           ...interview,
           candidateName: application.candidateName,
           candidateEmail: application.candidateEmail,
+          candidatePhone: application.candidatePhone,
           jobTitle: application.roleSnapshot.title,
           jobId: application.jobId.toString(),
           departmentName: application.roleSnapshot.departmentName,
@@ -94,7 +95,7 @@ interviewRouter.get(
       if (query.bucket === "overdue" && item.displayStatus !== "overdue") return false;
       if (query.q) {
         const needle = query.q.toLocaleLowerCase();
-        const haystack = `${item.candidateName} ${item.candidateEmail} ${item.jobTitle}`.toLocaleLowerCase();
+        const haystack = `${item.candidateName} ${item.candidateEmail} ${item.candidatePhone} ${item.jobTitle}`.toLocaleLowerCase();
         if (!haystack.includes(needle)) return false;
       }
       return true;

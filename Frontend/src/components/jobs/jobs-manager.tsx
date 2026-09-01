@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   BriefcaseBusiness,
@@ -19,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { alerts } from "@/lib/alerts";
@@ -264,7 +264,7 @@ export function JobsManager() {
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Positions</th>
                       <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Created</th>
+                      <th className="px-4 py-3">Created At</th>
                       <th className="px-4 py-3">Applicants</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
@@ -284,8 +284,8 @@ export function JobsManager() {
                           {job.positionsFilled}/{job.positionsAvailable}
                         </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.jobType ?? "—"}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">
-                          {formatDistanceToNow(new Date(job.createdAt), { addSuffix: true })}
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <DateTimeDisplay value={job.createdAt} />
                         </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.applicationCount}</td>
                         <td className="px-4 py-3">

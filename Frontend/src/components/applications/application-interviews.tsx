@@ -2,10 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarPlus } from "lucide-react";
+import { CalendarClock, CalendarPlus, CircleCheck, LoaderCircle, UserX, XCircle, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
+import { Tooltip } from "@/components/ui/tooltip";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import { formatInterviewWhen } from "@/lib/interviews/format";
@@ -134,6 +135,7 @@ export function ApplicationInterviews({
 
               <InterviewActions
                 actions={interview.actions}
+                className="mt-3"
                 pendingAction={actionMutation.isPending ? actionMutation.variables?.action : undefined}
                 onAction={(action) => {
                   if (action === "reschedule") setPending({ kind: "reschedule", interview });
@@ -211,42 +213,56 @@ export function ApplicationInterviews({
   );
 }
 
+const ACTION_LABELS: Record<InterviewAction, string> = {
+  mark_complete: "Mark complete",
+  no_show: "No show",
+  reschedule: "Reschedule",
+  cancel: "Cancel",
+};
+
+const ACTION_ICONS: Record<InterviewAction, LucideIcon> = {
+  mark_complete: CircleCheck,
+  no_show: UserX,
+  reschedule: CalendarClock,
+  cancel: XCircle,
+};
+
 export function InterviewActions({
   actions,
   pendingAction,
   onAction,
+  className,
 }: {
   actions: InterviewAction[];
   pendingAction?: InterviewAction;
   onAction: (action: InterviewAction) => void;
+  className?: string;
 }) {
   if (actions.length === 0) return null;
-  const labels: Record<InterviewAction, string> = {
-    mark_complete: "Mark complete",
-    no_show: "No show",
-    reschedule: "Reschedule",
-    cancel: "Cancel",
-  };
-  const classes: Record<InterviewAction, string> = {
-    mark_complete: "bg-emerald-600 text-white hover:bg-emerald-700",
-    no_show: "bg-amber-600 text-white hover:bg-amber-700",
-    reschedule: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200",
-    cancel: "border border-red-200 bg-white text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:bg-transparent dark:text-red-300",
-  };
 
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      {actions.map((action) => (
-        <button
-          className={`h-9 rounded-lg px-3 text-xs font-bold disabled:opacity-50 ${classes[action]}`}
-          disabled={Boolean(pendingAction)}
-          key={action}
-          onClick={() => onAction(action)}
-          type="button"
-        >
-          {pendingAction === action ? "Saving…" : labels[action]}
-        </button>
-      ))}
+    <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`.trim()}>
+      {actions.map((action) => {
+        const Icon = ACTION_ICONS[action];
+        const label = pendingAction === action ? "Saving…" : ACTION_LABELS[action];
+        return (
+          <Tooltip key={action} label={label}>
+            <button
+              aria-label={label}
+              className="icon-button"
+              disabled={Boolean(pendingAction)}
+              onClick={() => onAction(action)}
+              type="button"
+            >
+              {pendingAction === action ? (
+                <LoaderCircle aria-hidden className="h-4 w-4 animate-spin" />
+              ) : (
+                <Icon aria-hidden className="h-4 w-4" />
+              )}
+            </button>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }

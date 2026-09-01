@@ -45,6 +45,7 @@ function resolveTitle(pathname: string) {
     return "Job Roles";
   }
   if (pathname.startsWith("/dashboard/configuration")) return "Configuration";
+  if (pathname.startsWith("/dashboard/notifications")) return "Notifications";
   if (pathname.startsWith("/dashboard/interviews")) return "Interviews";
   if (pathname.startsWith("/dashboard/applications")) return "Applications";
   if (pathname === "/dashboard/jobs/new") return "Create job";

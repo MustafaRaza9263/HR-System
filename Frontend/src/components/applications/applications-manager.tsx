@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   Calendar,
@@ -15,8 +14,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
+import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { StatusPills, type PillTone } from "@/components/ui/status-pills";
+import { UserProfile } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type {
@@ -39,29 +41,43 @@ const emptyStats: ApplicationStats = {
   approved: 0,
 };
 
-function statusBadgeClass(status: ApplicationStatus) {
+function statusLabel(status: ApplicationStatus) {
   switch (status) {
     case "submitted":
-      return "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400";
+      return "Submitted";
     case "under_review":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
+      return "Under review";
     case "interview_scheduled":
-      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
+      return "Interview scheduled";
     case "interviewed":
-      return "bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300";
+      return "Interviewed";
     case "approved":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
+      return "Approved";
     case "rejected":
-      return "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400";
+      return "Rejected";
     case "trial":
-      return "bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300";
+      return "Trial";
     default:
-      return "bg-gray-100 text-gray-600";
+      return status.replaceAll("_", " ");
   }
 }
 
-function statusLabel(status: ApplicationStatus) {
-  return status.replaceAll("_", " ");
+function statusTone(status: ApplicationStatus): PillTone {
+  switch (status) {
+    case "approved":
+      return "success";
+    case "rejected":
+      return "danger";
+    case "under_review":
+      return "warning";
+    case "submitted":
+    case "interview_scheduled":
+    case "interviewed":
+    case "trial":
+      return "info";
+    default:
+      return "neutral";
+  }
 }
 
 export function ApplicationsManager() {
@@ -308,7 +324,7 @@ export function ApplicationsManager() {
                       <th className="px-4 py-3">Job</th>
                       <th className="px-4 py-3">Department / role</th>
                       <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Applied</th>
+                      <th className="px-4 py-3">Applied At</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -328,8 +344,7 @@ export function ApplicationsManager() {
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-bold text-gray-950 dark:text-white">{application.candidateName}</p>
-                          <p className="mt-0.5 text-xs text-gray-500">{application.candidateEmail}</p>
+                          <UserProfile email={application.candidateEmail} name={application.candidateName} />
                         </td>
                         <td className="max-w-[220px] truncate px-4 py-3 text-gray-700 dark:text-gray-200">
                           {application.jobTitle}
@@ -337,13 +352,11 @@ export function ApplicationsManager() {
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                           {application.departmentName} / {application.roleName}
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadgeClass(application.status)}`}>
-                            {statusLabel(application.status)}
-                          </span>
+                        <td className="px-4 py-3 align-middle">
+                          <StatusPills items={[{ label: statusLabel(application.status), tone: statusTone(application.status) }]} />
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">
-                          {formatDistanceToNow(new Date(application.createdAt), { addSuffix: true })}
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <DateTimeDisplay value={application.createdAt} />
                         </td>
                         <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                           {application.status !== "rejected" && application.status !== "approved" ? (

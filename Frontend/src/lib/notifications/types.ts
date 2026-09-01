@@ -11,8 +11,26 @@ export interface HrNotification {
   createdAt: string;
 }
 
+export interface NotificationListFilters {
+  page?: number;
+  limit?: number;
+  unreadOnly?: boolean;
+  q?: string;
+}
+
+export interface NotificationPagination {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
 export interface NotificationsListResponse {
-  data: { notifications: HrNotification[] };
+  data: {
+    notifications: HrNotification[];
+    unreadCount: number;
+    pagination: NotificationPagination;
+  };
 }
 
 export interface UnreadCountResponse {

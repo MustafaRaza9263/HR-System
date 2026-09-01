@@ -1,5 +1,6 @@
 import { Notification, type NotificationType } from "../models/notification.model.js";
 import { User } from "../models/user.model.js";
+import { escapeRegex } from "../utils/application-filter.js";
 import { hrefForNotification, resolveNotificationContent } from "./catalog.js";
 import { sendHrPush } from "./fcm.js";
 import { publishNotification, type NotificationEvent } from "./stream.js";
@@ -53,9 +54,39 @@ export async function notifyHR(type: NotificationType, refId: string): Promise<v
   }
 }
 
-export async function listHrNotifications(limit = 50) {
-  const items = await Notification.find({ targetRole: "hr" }).sort({ createdAt: -1 }).limit(limit).lean();
-  return items.map(serializeNotification);
+export async function listHrNotifications(input: {
+  page: number;
+  limit: number;
+  unreadOnly?: boolean;
+  q?: string;
+}) {
+  const filter: Record<string, unknown> = { targetRole: "hr" };
+  if (input.unreadOnly) filter.isRead = false;
+  if (input.q) {
+    const escaped = escapeRegex(input.q);
+    filter.$or = [
+      { title: { $regex: escaped, $options: "i" } },
+      { body: { $regex: escaped, $options: "i" } },
+    ];
+  }
+
+  const skip = (input.page - 1) * input.limit;
+  const [items, total, unreadCount] = await Promise.all([
+    Notification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(input.limit).lean(),
+    Notification.countDocuments(filter),
+    Notification.countDocuments({ targetRole: "hr", isRead: false }),
+  ]);
+
+  return {
+    notifications: items.map(serializeNotification),
+    unreadCount,
+    pagination: {
+      total,
+      page: input.page,
+      limit: input.limit,
+      pages: Math.max(1, Math.ceil(total / input.limit) || 1),
+    },
+  };
 }
 
 export async function unreadHrCount(): Promise<number> {

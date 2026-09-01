@@ -1,281 +1,354 @@
-# HR Recruitment System — Source of Truth
+# HR System — Source of Truth
 
-Business rules, entities, and flows only. No implementation or tech-stack detail — backend and frontend consume this as the shared product spec.
-
----
-
-## 1. Product overview
-
-HR manages hiring structure, jobs, applications, interviews, and in-app notifications.
-
-### In scope now
-
-1. HR login / register
-2. Department and Role CRUD
-3. Job creation, listing, and detail
-4. Public careers + apply
-5. Application listing, detail, reject / bulk reject
-6. Interview scheduling, notes, guest department-day access
-7. HR notifications (in-app bell + optional browser push)
-
-### Explicitly later (do not build yet)
-
-- AI ranking / autofill / chatbot
-- Tags
-- Approve / trial decision flow
-- Marketing dashboard
+Canonical spec for agents. Matches the running code. If this file and the code disagree, the code wins — then update this file.
 
 ---
 
-## 2. Actors
+## 1. Product
 
-| Actor | Access |
+HR hiring workspace: departments/roles → jobs → public apply → applications → interviews → guest interviewer access → in-app notifications.
+
+| In scope | Not built (do not invent) |
 |---|---|
-| HR | Registers and logs in via email/password. Full access to departments, roles, jobs, applications, interviews, and configuration. |
-| Candidate | No account. Applies via public careers page. Identified by email/application record only. |
-| Guest interviewer | No account. Requests access via a department+day link; HR approves. Can add notes on that day's scheduled interviews only. |
+| HR register/login | Password reset, MFA, email verify, RBAC |
+| Dept + Role CRUD (soft inactive) | Role JD template (`defaultDescription` does not exist) |
+| Job 4-step wizard, list, detail, publish/close/duplicate/delete | Auto-`filled` on hire; reopen closed/filled |
+| Public careers + apply | Duplicate-apply flag; tags; AI score/chat |
+| Application list/detail, reject + bulk reject | Approve / trial decision UI |
+| Interview schedule/notes/actions | Interviewer assignment; time-based overdue |
+| Dept-day guest invite + approve/reject/revoke | Marketing dashboard |
+| HR bell + SSE + optional FCM | |
+
+**Timezone:** all calendar dates (`YYYY-MM-DD`) and “today / overdue / link expiry” use `Asia/Karachi`. Interview `time` is display-only; status rules use **date**, not clock time.
 
 ---
 
-## 3. Authentication
+## 2. Stack
 
-- **Registration**: email + password. No email verification, OTP, or MFA — account is active immediately.
-- **Password storage**: hashed; never stored or logged in plain text.
-- **Login**: email + password → session/token issued on success.
-- **Session**: signed token (JWT or equivalent) with identity + expiry; stored client-side (secure cookie or equivalent).
-- **Expiry**: expired tokens rejected; user redirected to login.
-- **Logout**: clears client-side session; no server-side blacklist required at this scale.
-- **Authorization**: every protected HR route validates the session token — no anonymous access to panel resources.
-- **Gaps (deferred)**: password reset; no RBAC tiers — one HR user type with full access.
+| Layer | Tech |
+|---|---|
+| API | Node ≥22, Express 5, TypeScript ESM (`Backend/`) |
+| DB | MongoDB via Mongoose 9 (`autoIndex: false`; indexes created on boot) |
+| Auth | `jose` HS256 JWT in httpOnly cookie `hr_session`; server `Session` row (hash + revoke + TTL) |
+| Passwords | bcryptjs, 12 rounds |
+| Validation | Zod 4 on every mutating input |
+| Uploads | multer memory → disk; PDF/DOC/DOCX; 5 MB; max 12 files/apply |
+| Push | Firebase Admin (optional env); FCM tokens on User |
+| Email | Stub: logs template name. Callers already wired — swap transport later |
+| Web | Next.js 16 App Router, React 19, Tailwind 4, TanStack Query 5 |
+| Editor | TipTap JSON `{ type: "doc", content? }` |
+| Icons | lucide-react |
+| Public API | `http://localhost:4000/api/v1` (`NEXT_PUBLIC_API_URL`) |
+| Frontend | `http://localhost:3000` |
+
+Monorepo: `Backend/src`, `Frontend/src`. No shared package.
 
 ---
 
-## 4. Department
+## 3. Actors
 
-| Field | Rules |
-|---|---|
-| `name` | Required, unique |
-| `status` | `active` \| `inactive` |
-| `createdAt` | System |
-
-- No hard delete — inactive only. Inactive departments are hidden from dropdowns when creating Roles; existing Roles/Jobs may still reference them.
-- A Role cannot exist without a Department.
+| Actor | Identity | Access |
+|---|---|---|
+| HR | User `role: "hr"` | Full dashboard. One user type. |
+| Candidate | No account | Public `/` and `/apply/[slug]`. Identified by application row. |
+| Guest interviewer | No account | `/interview-access/[token]`. Cookie `hr_guest_access` after register. Notes + resume for that dept+day’s **scheduled** interviews only. |
 
 ---
 
-## 5. Role (reusable job-title library)
-
-| Field | Rules |
-|---|---|
-| `name` | Required |
-| `departmentId` | Required (ref Department) |
-| `defaultDescription` | Optional JD template (used to pre-fill Job description) |
-| `status` | `active` \| `inactive` |
-
-- Lets HR reuse the same title across hiring cycles and keep reporting grouped (e.g. all “Backend Engineer” hires).
-- Selecting a Role when creating a Job pre-fills Job title and description from the Role; edits on the Job do **not** mutate the Role template.
-- No hard delete — active/inactive only (same reasoning as Department).
-
----
-
-## 6. Job (the posting)
-
-### 6.1 Fields
-
-| Field | Type / rules |
-|---|---|
-| `_id` | Auto |
-| `slug` | Auto-generated **on publish only** (not on draft save). Format: `slugify(title) + "-" + random 4-char suffix`. Null while draft. |
-| `title` | String, required. Auto-filled from Role name on selection; editable. |
-| `departmentId` | Ref Department, required |
-| `roleId` | Ref Role, required |
-| `description` | Rich text JSON (structured doc from editor: bold/italic/bullets/headings) — not a plain string |
-| `jobType` | Enum, required: `Full-time` \| `Part-time` \| `Contract` \| `Temporary` \| `Internship` \| `Fresher` |
-| `positionsAvailable` | Number, required, default `1`, min `1` |
-| `positionsFilled` | Number, default `0`. System-managed; never editable by HR |
-| `salaryMin` | Number, required |
-| `salaryMax` | Number, required; must be `>= salaryMin` |
-| `fieldsConfig` | Embedded per-job application form config — see §6.2. **Not a separate entity.** |
-| `status` | `draft` \| `open` \| `filled` \| `closed` — default `draft` |
-| `closeReason` | String, nullable; **required** when HR manually closes |
-| `applicationCount` | Number, default `0`. System-managed |
-| `createdAt` / `updatedAt` | System |
-| `publishedAt` | Nullable; set on first successful publish |
-| `closedAt` | Nullable; set when manually closed |
-
-**Status meaning**
-
-| Status | Meaning |
-|---|---|
-| `draft` | Being built; not public |
-| `open` | Live; accepting applications (when careers exist) |
-| `filled` | System-set when `positionsFilled === positionsAvailable` (later, on hire) |
-| `closed` | HR stopped the posting before headcount; requires `closeReason` |
-
-`filled` and `closed` both leave the public list; distinction is for reporting.
-
-### 6.2 `fieldsConfig` (embedded on Job — no Fields library)
-
-Application form shape is configured **per Job** during creation. There is no global Custom Fields entity, library, sidebar page, or experience/education section toggles.
+## 4. Repo map
 
 ```
-fieldsConfig: {
-  customFields: [{
-    id: string,           // client-stable id within the job
-    label: string,
-    type: "text" | "textarea" | "number" | "select" | "date" | "checkbox" | "file",
-    required: boolean,
-    constraint: /* maxLength | min/max | options list — by type */,
-    section: "personal" | "experience" | "education"
-  }]
-}
+Backend/src
+  app.ts                 CORS (credentials), helmet, json 512kb, cookie, /api/v1
+  server.ts              HTTP + Mongo connect + graceful shutdown
+  config/                env (zod), database
+  middleware/            authenticate, origin, apply-upload, error-handler
+  models/                one collection per file
+  routes/                Express routers = controllers (no extra layer)
+  schemas/               Zod
+  services/              auth, email, application-side-effects
+  notifications/         catalog, service, stream (SSE), fcm, routes
+  utils/                 rules, serialize, cookies, token, uploads, dates
+
+Frontend/src
+  app/                   routes only; pages compose client managers
+  components/            feature folders + ui/
+  lib/                   api, query-keys, typed domain helpers
 ```
 
-- Wizard Step 3 only offers **+ Add field** (label, type, required, constraint, section) with edit/remove on the list.
-- Personal identity fields expected at apply time (name/email/phone/resume) are system defaults for the future Application form — not a managed Fields catalog.
+---
 
-### 6.3 Critical publish rule (API-enforced)
+## 5. Code patterns (required)
 
-Before a Job may enter `open` (publish or any future re-open):
+**Backend**
 
-1. Check whether **any other** Job exists with the same `departmentId` + `roleId` and status `draft` or `open`.
-2. If yes → reject with a clear error naming the conflicting Job (`title`, `status`, `slug` if present).
-3. Must run **server-side** on publish; UI may warn, but API never trusts the client alone.
+- Router + `asyncHandler`. Throw `ApiError(status, CODE, message, details?)`.
+- `authenticate` on all HR routers. `verifyBrowserOrigin` on mutating HR routes (and public apply).
+- Zod `.parse(req.body|query)` first. ObjectIds: 24-hex or 404.
+- Serialize `_id` → `id` strings. Never leak passwordHash, resume paths in list JSON (files via download routes).
+- Envelope: `{ data }` or `{ error: { code, message, fields? } }`. Zod → 422 `VALIDATION_ERROR`. Duplicate key → 409.
+- Calendar helpers: `todayCalendarDate`, `getDateStateFromCalendarDate` (`future` \| `today` \| `passed`).
+- Emails: `sendEmailBestEffort` — never fail the HTTP action if mail fails.
+- Rate limits: auth 10/15m; apply 20/15m; guest register 20/15m.
 
-| Allowed | Blocked |
+**Frontend**
+
+- Client managers (`*-manager.tsx`) own queries/mutations. `apiRequest` / `apiFormRequest` with `credentials: "include"`.
+- `queryKeys` in `lib/query/query-keys.ts`. Invalidate parent `all` keys after writes.
+- Toasts: `alerts.success|error` (portal). Forms: field errors from `ApiClientError.fields`.
+- Dashboard layout SSR-checks `/auth/me`; missing session → `/login`.
+- Destructive/confirm via modal. Row actions: `icon-button` + `Tooltip`, not labeled pills (except primary CTAs).
+
+**UI patterns**
+
+| Pattern | Use |
 |---|---|
-| Multiple drafts for same dept+role | Publishing to `open` while another draft/open exists for same dept+role |
-| New open after prior jobs are only `closed`/`filled` | Treating closed/filled as blockers |
-
-Drafts with the same department+role are allowed so HR can prepare the next cycle while one posting is still open — the block applies only at transition to `open`.
-
-### 6.4 Lifecycle rules
-
-- **Delete**: only if `applicationCount === 0`. Once applications exist, no hard delete.
-- **Reopen**: never reopen `closed`/`filled` for a new cycle. Use **Duplicate Job** → new `draft` copying all fields except `status`, `slug`, `positionsFilled`, `applicationCount`. Original remains history.
-- **Positions**: later, each Hired application increments `positionsFilled`; at headcount, status → `filled`.
+| `MetricCard` | List page stat row |
+| `StatusPills` + tone | Application/interview/registrant status (success/danger/warning/info/neutral) |
+| `UserProfile` | Name + email + initials avatar in tables |
+| `DateTimeDisplay` | Absolute date + time (not relative) in HR tables |
+| `Dropdown` | Filters and selects |
+| Rounded-2xl bordered table card | All list tables |
+| Gray-50 thead, uppercase xs | Table headers |
+| `h-11`/`h-12` rounded-xl inputs | Forms |
+| Primary CTA indigo-600 | Create / Publish / View all |
+| Dark: `data-theme` on `<html>`, localStorage `hr-theme` | Theme |
+| Sidebar | Dashboard, Jobs, Applications, Interviews, Scoring*, Assistant*, Configuration. Collapse key `hr-sidebar-collapsed`. \*Nav only — no pages. |
 
 ---
 
-## 7. Job creation — 4-step wizard (autosave draft each step)
+## 6. Auth
 
-Each **Next** upserts the draft Job so HR can leave and resume from the list (“Continue Editing”).
+- **Register:** name ≥2, email unique, password ≥12 with lower+upper+digit+special. Account active immediately. Issues session.
+- **Login:** email+password. Dummy bcrypt compare if user missing (timing). Inactive users cannot log in.
+- **Session:** JWT `{ sub: userId, sid: sessionId }` + `Session` doc (`tokenHash`, `expiresAt`, `revokedAt`, lastSeen). Cookie `hr_session` httpOnly, `secure` in production, SameSite from env, TTL default 30d.
+- **Logout:** revoke session + clear cookie.
+- **HR routes:** cookie must verify, session unrevoked/unexpired, user `active`.
+- **Guest:** JWT audience `…-guest`, cookie expires at next Karachi midnight. Bound to `registrantId` + `linkToken`.
 
-### Step 1 — Basics
+---
 
-Department → Role (filtered by department) → Title (from Role, editable) → Job Type → Positions Available → Salary Min / Max (`max >= min`).
+## 7. Database
 
-### Step 2 — Description
+All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inactive` (dept/role). Hard-delete only zero-application **draft** jobs.
 
-Rich text editor (bold, italic, bullets, numbered list, headings). Pre-fill from `role.defaultDescription` if present; fully editable; does not mutate Role.
+| Collection | Key fields | Notes |
+|---|---|---|
+| User | name, email unique, passwordHash select:false, role `hr`, active, fcmTokens[] | |
+| Session | userId, tokenHash unique select:false, expiresAt (TTL index), revokedAt, lastSeenAt, ip, ua | |
+| Department | name, normalizedName unique, icon, status, createdBy | |
+| Role | name, normalizedName, departmentId, icon, status, createdBy | Unique `(departmentId, normalizedName)` |
+| Job | see §9 | slug unique when string; `wizardStep` 1–4 |
+| Application | see §10 | links **jobId only**; `roleSnapshot` frozen at apply |
+| Interview | applicationId, departmentId (copied from snapshot), date, time, durationMinutes 15–240, status, createdBy | |
+| InterviewNote | interviewId, authorName, authorEmail, content ≤2000, createdAt | Separate collection |
+| DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
+| LinkRegistrant | linkToken, name, email, status, requestedAt, approvedAt | |
+| Notification | type, title, body, refId, targetRole `hr`, isRead, createdAt | Shared HR inbox (not per-user) |
 
-### Step 3 — Application Fields
+Job schema also has unused `locations[]` / `remote` — do not expose or build on them.
 
-- **+ Add field** only (no experience/education section toggles): label, type, required, constraint, section (`personal` \| `experience` \| `education`). List with edit/remove. Empty list is allowed (system personal fields still apply later at apply time).
+---
 
-### Step 4 — Review & Publish
+## 8. API
 
-Read-only public-style preview: title, formatted description, job type, salary range, positions available.
+Base `/api/v1`. Public unless marked **HR**.
 
-| Action | Effect |
+| Method | Path | Rules |
+|---|---|---|
+| GET | `/health` | DB connected? |
+| POST | `/auth/register` `/login` | Origin + rate limit |
+| GET | `/auth/me` | HR |
+| POST | `/auth/logout` | Origin; revoke if cookie present |
+| GET/POST/PATCH | `/departments` `/departments/:id` | HR; no DELETE |
+| GET/POST/PATCH | `/roles` `/roles/:id` | HR; `?departmentId=`; create needs **active** dept |
+| GET | `/jobs` | HR; `q, departmentId, roleId, status` + stats |
+| POST | `/jobs` | HR draft |
+| GET/PATCH/DELETE | `/jobs/:jobId` | PATCH/DELETE **draft only**; DELETE also `applicationCount===0` |
+| POST | `/jobs/:id/publish` `/close` `/duplicate` | see §9 |
+| GET | `/careers/jobs` | `open` only |
+| GET | `/careers/jobs/:slug` | not draft; closed/filled still 200 (apply blocked) |
+| POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit |
+| GET | `/applications` | HR; `q, jobId, status` + stats |
+| POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason |
+| GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
+| PATCH | `/applications/:id/reject` | reason ≥10 ≤500 |
+| GET | `/applications/:id/resume` `/files/:fieldId` | HR download |
+| GET/POST | `/applications/:id/interviews` | POST = schedule |
+| GET | `/interviews` | HR; filter `q, jobId, status, bucket` |
+| PATCH | `/interviews/:id/reschedule` `/cancel` `/no-show` `/complete` | |
+| POST | `/interviews/:id/notes` | HR |
+| POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day) |
+| GET | `/department-links/pending` | today’s pending registrants |
+| GET | `/department-links/:token/registrants` | |
+| POST | `/department-links/:token/send-email` | `{ email }` |
+| PATCH | `/link-registrants/:id/approve` `/reject` `/revoke` | |
+| GET | `/interview-access/:token` | public state + expired flag |
+| POST | `/interview-access/:token/register` | live link only |
+| GET | `/interview-access/:token/interviews` | approved guest |
+| GET | `…/interviews/:id/resume` | approved guest, scheduled, same dept+date |
+| POST | `…/interviews/:id/notes` | same |
+| GET | `/notifications` | HR; `q, unreadOnly, page, limit≤50` default 20 |
+| GET | `/notifications/unread-count` `/stream` | SSE `notification` events |
+| PATCH | `/notifications/read-all` `/:id/read` | |
+| POST | `/users/fcm-token` | `{ token }` |
+
+Frontend routes: `/` careers, `/apply/[slug]`, `/login` `/register`, `/dashboard`, `/dashboard/jobs` `/new` `/[id]` `/[id]/edit`, `/dashboard/applications` `/[id]`, `/dashboard/interviews`, `/dashboard/notifications`, `/dashboard/configuration` `/job-roles`, `/interview-access/[token]`. Alias `/dashboard/job-roles`.
+
+---
+
+## 9. Department & Role
+
+- Unique names case-insensitive (`normalizedName`). Role unique **within** department.
+- Inactive: hidden from job-wizard dropdowns (active-only filter on client). Existing jobs keep refs.
+- Role create/move: department must be **active**.
+- Icon string (lucide-style). No hard delete.
+
+---
+
+## 10. Job
+
+**Statuses:** `draft` → `open` → `closed` (HR) or `filled` (reserved; never set yet).
+
+**Fields:** title, departmentId, roleId, description (TipTap JSON), descriptionPlain, jobType (`Full-time` \| `Part-time` \| `Contract` \| `Temporary` \| `Internship` \| `Fresher`), positionsAvailable ≥1, positionsFilled (system), salaryMin/Max ≥0, fieldsConfig.customFields[], status, closeReason, applicationCount, wizardStep, slug (null until publish), publishedAt, closedAt, createdBy.
+
+**fieldsConfig.customFields[]:** `{ id, label, type: text|textarea|number|select|date|checkbox|file, required, constraint?, section: personal|experience|education }`. Max 50. Select needs ≥1 option. Empty list allowed.
+
+### Workflow — create (wizard)
+
+Pages: `/dashboard/jobs/new`, resume `/dashboard/jobs/:id/edit` at saved `wizardStep`.
+
+Each **Next** upserts draft (`POST /jobs` then `PATCH`). Stay on step until save succeeds.
+
+1. **Basics** — active dept → roles of that dept → title auto-fills from role name until user edits title → jobType, positions, salary (`max ≥ min` when both set).
+2. **Description** — TipTap (bold/italic/lists/headings). Blank JSON allowed on draft; **required to publish**. Does not read/write Role.
+3. **Fields** — add/edit/remove custom fields only. No section toggles.
+4. **Review** — public-style preview. **Publish** or leave as draft (no slug).
+
+**Publish (`POST …/publish`) — API-enforced:**
+
+1. Status must be `draft`.
+2. Complete: non-empty title, jobType, both salaries, salaryMax ≥ min, description present.
+3. **Conflict:** no other job with same `departmentId+roleId` and status `draft` or `open` (exclude self). 409 `JOB_DEPARTMENT_ROLE_CONFLICT` names title/status/slug. Closed/filled do **not** block.
+4. Slug = `slugify(title)-` + 4 hex chars; retry on collision. `status=open`, `publishedAt=now`, `wizardStep=4`.
+
+Multiple drafts for same dept+role are allowed until one publishes.
+
+**Close:** only `open`; `closeReason` required; sets `closed` + `closedAt`.
+
+**Duplicate:** only `filled`/`closed`. New **draft** copies content/fields; resets slug, counts, positionsFilled, wizardStep=1, new createdBy.
+
+**Delete:** only `draft` with `applicationCount===0`.
+
+**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role. Columns: title, dept, role, status, filled/available, type, createdAt, applicants, icon actions.
+
+| Status | Actions |
 |---|---|
-| **Save as Draft** | Stay `draft`; no slug |
-| **Publish** | Conflict check (§6.3); on success generate slug, `status = open`, `publishedAt = now` |
+| draft | Continue editing, Delete (if 0 apps) |
+| open | View, Close (modal + reason) |
+| filled/closed | View, Duplicate |
 
 ---
 
-## 8. Job listing (HR-facing)
+## 11. Application
 
-Top metric cards: **Total jobs**, **Total opened jobs**, **Average applicants on a job**, **Total closed jobs**.
+**Link:** Job only. Snapshot `{ departmentId, roleId, departmentName, roleName, title }` at submit.
 
-Toolbar: search (title, description plain text, job id) + department filter + role filter + **Create job** (opens wizard page).
+**Status (stored):** `submitted` → `under_review` → `interview_scheduled` \| `interviewed` → `approved` \| `rejected` \| `trial`.
 
-Table columns: title, department, role, status (badge), positions (`filled/available`), jobType, createdAt, applicationCount.
+- Opening detail: first GET while `submitted` sets `under_review`.
+- Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`/`trial`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`.
+- **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**, emails candidate. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count.
+- Approve/trial: schema only; no HR endpoints yet. `trial` still locked against interview recompute.
+- Reapply: **not blocked and not flagged**.
 
-| Status | Row actions |
+### Workflow — public apply
+
+`/` lists `open` jobs grouped by department accordion. Filters: team + search title/dept/jobType. Apply → `/apply/[slug]`.
+
+Closed/filled slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
+
+**Required system fields:** name, email, phone, resume (pdf/doc/docx ≤5MB). **Required sections:** ≥1 experience (company, title, startDate; end ≥ start), ≥1 education (school, degree). Max 8 each.
+
+Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path.
+
+UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply sends them. Missing source → `"website"`.
+
+On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then `notifyHR("new_application")` async.
+
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved. Row click → detail (profile + interviews tabs). Reject from list or detail.
+
+---
+
+## 12. Interview
+
+**Stored status:** `scheduled` \| `completed` \| `cancelled` \| `no_show`.
+
+**Display:** if stored `scheduled` and date `< today` → `overdue`. Time unused.
+
+**Actions (scheduled only):**
+
+| Action | When |
 |---|---|
-| `draft` | Continue Editing (resume wizard at last incomplete step); Delete (only if `applicationCount === 0`) |
-| `open` | View; Close (modal → required `closeReason` → `closed` + `closedAt = now`) |
-| `filled` / `closed` | View; Duplicate Job |
+| reschedule, cancel | always while scheduled |
+| no_show | date is today or passed |
+| mark_complete | date today/passed **and** ≥1 note |
+
+Completed: locked (no status change, no new notes). Cancel/no-show keep notes. Reschedule updates the **same** row (date/time/duration), stays `scheduled`.
+
+**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status.
+
+**Complete:** increments `completedInterviewCount`. **Cancel:** emails candidate. **No-show:** no email.
+
+**Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited.
+
+**HR list:** search name/email/phone/job. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, phone, when, status pills, icon actions. Invite modal from this page.
 
 ---
 
-## 9. Job detail (HR-facing)
+## 13. Invitation (department-day guest access)
 
-Read-only: all Job fields, rendered rich-text description, status badge, positions progress, and the same status-appropriate actions as the list (Close / Duplicate / Continue Editing).
+**Model:** one `DepartmentAccessLink` per **department + calendar day**. Creating again returns the existing token (200 vs 201). Optional `email` on create sends invite. HR can email the URL later.
 
----
+URL: `{FRONTEND_URL}/interview-access/{token}`. Expires when `accessDate < today` (midnight Karachi).
 
-## 10. Application
+**Guest register:** live (unexpired, **today’s**) link; name+email; status `pending_approval`; sets guest cookie; `notifyHR("interview_request")`.
 
-- Fields: `jobId`, `roleSnapshot` (dept + role title at submit), `answers[]` matching that Job’s `fieldsConfig` at submit, `resumeUrl`, `status`, `source`, `campaign`, `createdAt`.
-- Applications link to **Job only** — never directly to Department or Role.
-- Status: `submitted` → `under_review` → `interview_scheduled` / `interviewed` → decided (`approved` / `rejected` / `trial`). Interview statuses are derived from interview records.
-- Duplicate reapply: flag, do not block.
+**HR:** approve / reject only from `pending_approval` on unexpired link. Approve sets `approvedAt`, emails guest with URL. Reject emails. **Revoke** only from `approved` (no email). Expired link: cannot approve/reject.
 
----
+**Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume download + add notes on those rows. Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
 
-## 11. Tags (later)
-
-Free-form `{name, color}`, many-to-many with Applications. Filtering and bulk actions.
-
----
-
-## 12. Interview process
-
-- HR schedules interviews on an application with date, time (display only), and duration. No interviewer assignment.
-- Statuses: Scheduled, Completed, Cancelled, No Show. Overdue is a display flag when still Scheduled and the date has passed.
-- HR invites guests with one department link for today. Guest submits name/email; HR approves or rejects. Link expires at midnight.
-- Notes are a separate history (author name/email + time). Mark Complete requires at least one note and is HR-only.
-- Reschedule updates the same interview in place. Cancel and No Show keep notes.
-
----
-
-## 13. Decision (later)
-
-- Approve / Reject / Trial — written reason mandatory.
-- Approve (hired) increments `Job.positionsFilled`; at capacity → `filled`.
-- Remaining applicants: manual status updates; optional bulk reject remaining.
+**UX:** Interviews page “Invite” modal: pick department (creates/reuses today’s link), copy URL, email, history table with requester pills, expand registrants, approve/reject/revoke icon actions.
 
 ---
 
 ## 14. Notifications
 
-HR in-app bell + optional browser push for: new application, interview access request pending approval. Guest interviewers are notified by email on approve/reject only (no account, no bell).
+Types: `new_application` (href `/dashboard/applications/:id`), `interview_request` (href `/dashboard/interviews?pending=1`).
+
+Shared HR feed. Insert only via `notifyHR(type, refId)`. Also SSE + optional FCM.
+
+Bell: last 20, mark one/all read, link to `/dashboard/notifications` (search, unread filter, pagination). Unread badge from `/unread-count`.
 
 ---
 
-## 15. AI agent (later)
+## 15. Emails (stubbed)
 
-1. **Smart Autofill** — resume → form prefill; candidate confirms.
-2. **Automatic Ranking** — on submit; summary + fit score stored on Application.
-3. **HR Chatbot** — read-only Q&A over stored HR data; never writes or decides.
-
----
-
-## 16. Source & campaign tracking (later)
-
-- Marketers append UTMs to the Job public URL externally; system stores `utm_source` / `utm_campaign` on Application at submit.
-- No create-campaign UI; dashboard is a live read of arrived UTMs.
-- Missing UTMs → `source: website`.
-- Ad-locked landing: tagged link → that Job only (optional unlock to full careers list).
+| Template | When |
+|---|---|
+| `interview-scheduled` / `rescheduled` / `cancelled` | candidate |
+| `application-rejected` | candidate (reason) |
+| `access-link-invite` / `approved` / `rejected` | guest |
 
 ---
 
-## 17. Public careers page (`/`)
+## 16. Cross-rules
 
-- Lists `open` Jobs grouped by department (accordion).
-- Filters: team (department) + search by role title. No office/location filter.
-- Permanent slug URL per Job; Apply form comes later.
-
----
-
-## Cross-entity rules (quick reference)
-
-- No hard delete except a zero-application Job (explicit HR action + guard).
-- Status changes that affect candidates trigger automatic notifications (when that layer exists).
-- Every HR decision requires a written reason.
-- Every Application resolves to exactly one Job; Department/Role are via Job (plus snapshots for history).
-- Fields are **not** a first-class entity — only `Job.fieldsConfig`.
-- At most one **active** posting (`draft` or `open`) may become/stay `open` per department+role pair — enforced on publish at the API.
-- AI is assist/read-only — never overrides HR decisions.
+- Applications resolve to one Job; dept/role via job + snapshot.
+- Fields are not a library — only `Job.fieldsConfig`.
+- At most one posting may **become `open`** per dept+role while any other draft/open exists.
+- No reopen; next cycle = Duplicate.
+- `positionsFilled` / `filled` unused until hire flow.
+- Scoring + Assistant sidebar links have no routes.
+- Dashboard home metrics are static placeholders.
+- Guest never sees HR panel. HR never uses guest cookie.

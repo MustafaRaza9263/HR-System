@@ -6,7 +6,7 @@ import { verifyBrowserOrigin } from "../middleware/origin.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { subscribeNotificationStream } from "./stream.js";
-import { fcmTokenSchema } from "./schemas.js";
+import { fcmTokenSchema, listNotificationsQuerySchema } from "./schemas.js";
 import {
   listHrNotifications,
   markAllHrNotificationsRead,
@@ -21,9 +21,15 @@ notificationRouter.use(authenticate);
 
 notificationRouter.get(
   "/",
-  asyncHandler(async (_request, response) => {
-    const notifications = await listHrNotifications();
-    response.status(200).json({ data: { notifications } });
+  asyncHandler(async (request, response) => {
+    const query = listNotificationsQuerySchema.parse(request.query);
+    const result = await listHrNotifications({
+      page: query.page,
+      limit: query.limit,
+      unreadOnly: query.unreadOnly === "true",
+      ...(query.q ? { q: query.q } : {}),
+    });
+    response.status(200).json({ data: result });
   }),
 );
 

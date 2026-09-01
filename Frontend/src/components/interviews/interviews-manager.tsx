@@ -3,9 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Briefcase,
   CalendarClock,
   CalendarDays,
   Clock3,
+  Phone,
   Search,
   TriangleAlert,
   UserPlus,
@@ -19,6 +21,8 @@ import { InviteInterviewersModal } from "@/components/interviews/invite-intervie
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { StatusPills, type PillTone } from "@/components/ui/status-pills";
+import { UserProfile } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import { formatInterviewWhen } from "@/lib/interviews/format";
@@ -47,18 +51,37 @@ const STATUS_OPTIONS: Array<{ value: InterviewStatus | "overdue" | ""; label: st
   { value: "cancelled", label: "Cancelled" },
 ];
 
-function statusBadge(status: DisplayStatus) {
+function statusLabel(status: DisplayStatus) {
   switch (status) {
-    case "scheduled":
-      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
-    case "overdue":
-      return "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300";
-    case "completed":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
     case "no_show":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
+      return "No-show";
+    case "scheduled":
+      return "Scheduled";
+    case "overdue":
+      return "Overdue";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
     default:
-      return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+      return status.replaceAll("_", " ");
+  }
+}
+
+function statusTone(status: DisplayStatus): PillTone {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "overdue":
+      return "danger";
+    case "cancelled":
+      return "neutral";
+    case "no_show":
+      return "warning";
+    case "scheduled":
+      return "info";
+    default:
+      return "neutral";
   }
 }
 
@@ -178,7 +201,7 @@ export function InterviewsManager() {
               <input
                 className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search by candidate, email, or job…"
+                placeholder="Search by candidate, email, phone, or job…"
                 value={query}
               />
             </label>
@@ -250,6 +273,7 @@ export function InterviewsManager() {
                     <tr>
                       <th className="px-4 py-3">Candidate</th>
                       <th className="px-4 py-3">Job</th>
+                      <th className="px-4 py-3">Phone</th>
                       <th className="px-4 py-3">When</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Actions</th>
@@ -259,22 +283,32 @@ export function InterviewsManager() {
                     {interviews.map((interview) => (
                       <tr className="align-top hover:bg-gray-50/80 dark:hover:bg-gray-900/40" key={interview.id}>
                         <td className="px-4 py-3">
-                          <Link className="font-bold text-gray-950 hover:text-indigo-600 dark:text-white" href={`/dashboard/applications/${interview.applicationId}`}>
-                            {interview.candidateName}
+                          <Link href={`/dashboard/applications/${interview.applicationId}`}>
+                            <UserProfile email={interview.candidateEmail} name={interview.candidateName} />
                           </Link>
-                          <p className="mt-0.5 text-xs text-gray-500">{interview.candidateEmail}</p>
                         </td>
-                        <td className="max-w-[220px] truncate px-4 py-3 text-gray-700 dark:text-gray-200">{interview.jobTitle}</td>
+                        <td className="max-w-[220px] px-4 py-3 align-middle">
+                          <span className="inline-flex max-w-full items-center gap-2 text-gray-700 dark:text-gray-200">
+                            <Briefcase aria-hidden className="h-4 w-4 shrink-0 text-gray-400" />
+                            <span className="truncate">{interview.jobTitle}</span>
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-middle">
+                          <span className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                            <Phone aria-hidden className="h-4 w-4 shrink-0 text-gray-400" />
+                            {interview.candidatePhone || "—"}
+                          </span>
+                        </td>
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">
                           {formatInterviewWhen(interview.date, interview.time)}
                           <span className="mt-0.5 block text-xs text-gray-400">{interview.durationMinutes} min</span>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadge(interview.displayStatus)}`}>
-                            {interview.displayStatus.replaceAll("_", " ")}
-                          </span>
+                        <td className="px-4 py-3 align-middle">
+                          <StatusPills
+                            items={[{ label: statusLabel(interview.displayStatus), tone: statusTone(interview.displayStatus) }]}
+                          />
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 align-middle">
                           <InterviewActions
                             actions={interview.actions}
                             pendingAction={

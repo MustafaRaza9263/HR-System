@@ -6,17 +6,23 @@ import {
   Building2,
   Check,
   ChevronDown,
+  CircleCheck,
   Clock3,
   Copy,
   History,
   Link2,
   Mail,
+  ShieldOff,
   User,
   X,
+  XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { Dropdown } from "@/components/ui/dropdown";
+import { StatusPills, type PillTone } from "@/components/ui/status-pills";
+import { Tooltip } from "@/components/ui/tooltip";
+import { UserProfile } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type {
@@ -39,13 +45,14 @@ function shortUrl(url: string) {
   return `${url.slice(0, 24)}…${url.slice(-8)}`;
 }
 
-function requesterSummary(link: DepartmentLink) {
-  const parts: string[] = [];
-  if (link.requesters.pending) parts.push(`${link.requesters.pending} pending`);
-  if (link.requesters.approved) parts.push(`${link.requesters.approved} approved`);
-  if (link.requesters.rejected) parts.push(`${link.requesters.rejected} rejected`);
-  if (link.requesters.revoked) parts.push(`${link.requesters.revoked} revoked`);
-  return parts.length > 0 ? parts.join(" · ") : "No requesters yet";
+function requesterPills(link: DepartmentLink) {
+  const items: Array<{ label: string; tone: PillTone }> = [];
+  if (link.requesters.pending) items.push({ label: `${link.requesters.pending} pending`, tone: "warning" });
+  if (link.requesters.approved) items.push({ label: `${link.requesters.approved} approved`, tone: "success" });
+  if (link.requesters.rejected) items.push({ label: `${link.requesters.rejected} rejected`, tone: "danger" });
+  if (link.requesters.revoked) items.push({ label: `${link.requesters.revoked} revoked`, tone: "neutral" });
+  if (items.length === 0) items.push({ label: "No requesters yet", tone: "neutral" });
+  return items;
 }
 
 function statusLabel(status: RegistrantStatus) {
@@ -61,17 +68,39 @@ function statusLabel(status: RegistrantStatus) {
   }
 }
 
-function statusBadge(status: RegistrantStatus) {
+function statusTone(status: RegistrantStatus): PillTone {
   switch (status) {
     case "pending_approval":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300";
+      return "warning";
     case "approved":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
+      return "success";
     case "rejected":
-      return "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300";
+      return "danger";
+    case "revoked":
+      return "neutral";
     default:
-      return "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300";
+      return "neutral";
   }
+}
+
+function IconAction({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip label={label}>
+      <button aria-label={label} className="icon-button" disabled={disabled} onClick={onClick} type="button">
+        {children}
+      </button>
+    </Tooltip>
+  );
 }
 
 interface DepartmentOption {
@@ -387,29 +416,20 @@ function LinkRow({
           {link.departmentName ?? "Department"}
           <span className="mt-0.5 block text-xs text-gray-400">{link.accessDate}</span>
         </td>
-        <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">{requesterSummary(link)}</td>
+        <td className="px-4 py-3 align-middle">
+          <StatusPills direction="row" items={requesterPills(link)} />
+        </td>
         <td className="px-4 py-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400"
-              onClick={onCopy}
-              type="button"
-            >
-              {copied ? <Check aria-hidden className="h-3.5 w-3.5" /> : <Copy aria-hidden className="h-3.5 w-3.5" />}
-              {copied ? "Copied" : "Copy"}
-            </button>
-            <button className="inline-flex items-center gap-1 text-xs font-bold text-gray-700 dark:text-gray-200" onClick={onToggleMail} type="button">
-              <Mail aria-hidden className="h-3.5 w-3.5" />
-              Mail
-            </button>
-            <button
-              className="inline-flex items-center gap-1 text-xs font-bold text-gray-700 dark:text-gray-200"
-              onClick={onToggleExpand}
-              type="button"
-            >
-              <ChevronDown aria-hidden className={`h-3.5 w-3.5 transition ${expanded ? "rotate-180" : ""}`} />
-              {expanded ? "Hide" : "Expand"}
-            </button>
+          <div className="flex flex-wrap items-center gap-1">
+            <IconAction label={copied ? "Copied!" : "Copy"} onClick={onCopy}>
+              {copied ? <Check aria-hidden className="h-4 w-4" /> : <Copy aria-hidden className="h-4 w-4" />}
+            </IconAction>
+            <IconAction label={mailing ? "Cancel email" : "Mail"} onClick={onToggleMail}>
+              <Mail aria-hidden className="h-4 w-4" />
+            </IconAction>
+            <IconAction label={expanded ? "Hide requesters" : "Expand"} onClick={onToggleExpand}>
+              <ChevronDown aria-hidden className={`h-4 w-4 transition-transform duration-300 ease-in-out ${expanded ? "rotate-180" : ""}`} />
+            </IconAction>
           </div>
           {mailing ? (
             <form
@@ -434,14 +454,67 @@ function LinkRow({
           ) : null}
         </td>
       </tr>
-      {expanded ? (
-        <tr>
-          <td className="bg-gray-50 px-4 py-3 dark:bg-gray-900/60" colSpan={4}>
-            <RegistrantList pendingReview={pendingReview} token={link.token} onReview={onReview} />
-          </td>
-        </tr>
-      ) : null}
+      <ExpandableRegistrants expanded={expanded} pendingReview={pendingReview} token={link.token} onReview={onReview} />
     </>
+  );
+}
+
+function ExpandableRegistrants({
+  expanded,
+  token,
+  pendingReview,
+  onReview,
+}: {
+  expanded: boolean;
+  token: string;
+  pendingReview: boolean;
+  onReview: (id: string, action: "approve" | "reject" | "revoke") => void;
+}) {
+  const [mounted, setMounted] = useState(expanded);
+  const [shown, setShown] = useState(expanded);
+
+  useEffect(() => {
+    if (expanded) {
+      setMounted(true);
+      let cancelled = false;
+      const frame = window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (!cancelled) setShown(true);
+        });
+      });
+      return () => {
+        cancelled = true;
+        window.cancelAnimationFrame(frame);
+      };
+    }
+
+    setShown(false);
+    const timeout = window.setTimeout(() => setMounted(false), 320);
+    return () => window.clearTimeout(timeout);
+  }, [expanded]);
+
+  if (!mounted) return null;
+
+  return (
+    <tr>
+      <td className="p-0" colSpan={4}>
+        <div
+          className={`grid transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none ${
+            shown ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div
+              className={`bg-gray-50 px-4 py-3 transition-opacity duration-300 ease-in-out motion-reduce:transition-none dark:bg-gray-900/60 ${
+                shown ? "opacity-100" : "opacity-0"
+              }`}
+            >
+              <RegistrantList pendingReview={pendingReview} token={token} onReview={onReview} />
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -475,13 +548,8 @@ function RegistrantList({
     <ul className="space-y-2">
       {registrants.map((item) => (
         <li className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800" key={item.id}>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{item.name}</p>
-            <p className="truncate text-xs text-gray-500">{item.email}</p>
-          </div>
-          <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadge(item.status)}`}>
-            {statusLabel(item.status)}
-          </span>
+          <UserProfile className="min-w-0 flex-1" email={item.email} name={item.name} />
+          <StatusPills items={[{ label: statusLabel(item.status), tone: statusTone(item.status) }]} />
           <RegistrantActions busy={pendingReview} registrant={item} onReview={onReview} />
         </li>
       ))}
@@ -500,22 +568,22 @@ function RegistrantActions({
 }) {
   if (registrant.status === "pending_approval") {
     return (
-      <div className="flex items-center gap-3">
-        <button className="text-xs font-bold text-emerald-600 disabled:opacity-50" disabled={busy} onClick={() => onReview(registrant.id, "approve")} type="button">
-          ✓ Approve
-        </button>
-        <button className="text-xs font-bold text-red-600 disabled:opacity-50" disabled={busy} onClick={() => onReview(registrant.id, "reject")} type="button">
-          ✕ Reject
-        </button>
+      <div className="flex items-center gap-1">
+        <IconAction disabled={busy} label="Approve" onClick={() => onReview(registrant.id, "approve")}>
+          <CircleCheck aria-hidden className="h-4 w-4" />
+        </IconAction>
+        <IconAction disabled={busy} label="Reject" onClick={() => onReview(registrant.id, "reject")}>
+          <XCircle aria-hidden className="h-4 w-4" />
+        </IconAction>
       </div>
     );
   }
   if (registrant.status === "approved") {
     return (
-      <button className="text-xs font-bold text-red-600 disabled:opacity-50" disabled={busy} onClick={() => onReview(registrant.id, "revoke")} type="button">
-        Revoke
-      </button>
+      <IconAction disabled={busy} label="Revoke" onClick={() => onReview(registrant.id, "revoke")}>
+        <ShieldOff aria-hidden className="h-4 w-4" />
+      </IconAction>
     );
   }
-  return <span className="text-xs text-gray-400">View only</span>;
+  return null;
 }

@@ -1,3 +1,5 @@
+import type { NotificationListFilters } from "@/lib/notifications/types";
+
 export const queryKeys = {
   jobRoles: {
     all: ["job-roles"] as const,
@@ -43,7 +45,15 @@ export const queryKeys = {
   },
   notifications: {
     all: ["notifications"] as const,
-    list: ["notifications", "list"] as const,
+    list: (filters?: NotificationListFilters) =>
+      [
+        "notifications",
+        "list",
+        filters?.page ?? 1,
+        filters?.limit ?? 20,
+        filters?.unreadOnly ? "unread" : "all",
+        filters?.q ?? "",
+      ] as const,
     unread: ["notifications", "unread"] as const,
   },
 } as const;
