@@ -43,13 +43,13 @@ const setupSteps = [
   {
     title: "Create your departments",
     description: "Define the teams that make up your organization.",
-    href: "/dashboard/job-roles",
+    href: "/dashboard/configuration/job-roles",
     icon: Building2,
   },
   {
     title: "Define roles and scoring",
     description: "Standardize job responsibilities and evaluation criteria.",
-    href: "/dashboard/job-roles",
+    href: "/dashboard/configuration/job-roles",
     icon: ListChecks,
   },
   {

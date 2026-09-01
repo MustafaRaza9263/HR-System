@@ -1,4 +1,5 @@
 import type { CustomField } from "@/lib/jobs/types";
+import { getStoredUtm } from "@/lib/utm";
 
 import { MAX_UPLOAD_BYTES } from "./types";
 
@@ -217,5 +218,10 @@ export function buildApplyFormData(fields: CustomField[], values: ApplyFormValue
       })),
     ),
   );
+
+  const utm = getStoredUtm();
+  if (utm.source) formData.append("utm_source", utm.source);
+  if (utm.campaign) formData.append("utm_campaign", utm.campaign);
+
   return formData;
 }

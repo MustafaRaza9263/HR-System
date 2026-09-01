@@ -14,6 +14,7 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: ["hr"], default: "hr", required: true },
     active: { type: Boolean, default: true, required: true },
+    fcmTokens: { type: [String], default: [] },
   },
   { timestamps: true, versionKey: false },
 );

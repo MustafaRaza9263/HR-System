@@ -10,7 +10,7 @@ export const notFoundHandler: RequestHandler = (_request, response) => {
   });
 };
 
-export const errorHandler: ErrorRequestHandler = (error: unknown, request, response, _next) => {
+export const errorHandler: ErrorRequestHandler = (error: unknown, _request, response, _next) => {
   if (error instanceof ZodError) {
     response.status(422).json({
       error: {
@@ -52,7 +52,7 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, request, respo
     return;
   }
 
-  request.log.error({ err: error }, "Unhandled request error");
+  response.locals.error = error instanceof Error ? error.message : "Unexpected error";
   response.status(500).json({
     error: {
       code: "INTERNAL_SERVER_ERROR",

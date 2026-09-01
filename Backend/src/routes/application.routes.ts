@@ -6,10 +6,22 @@ import { Router } from "express";
 import { Types } from "mongoose";
 
 import { authenticate } from "../middleware/authenticate.js";
+import { verifyBrowserOrigin } from "../middleware/origin.js";
 import { Application } from "../models/application.model.js";
-import { listApplicationsQuerySchema } from "../schemas/application.schema.js";
+import { Interview } from "../models/interview.model.js";
+import {
+  bulkRejectSchema,
+  listApplicationsQuerySchema,
+  rejectApplicationSchema,
+} from "../schemas/application.schema.js";
+import { createInterviewSchema } from "../schemas/interview.schema.js";
+import { sendCandidateInterviewScheduled } from "../services/email.js";
 import { ApiError } from "../utils/api-error.js";
+import { buildApplicationFilter } from "../utils/application-filter.js";
+import { assertRejectable, rejectApplications } from "../utils/application-reject.js";
+import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
 import { contentDispositionFilename, resolveUploadPath } from "../utils/uploads.js";
 
 export const applicationRouter = Router();
@@ -70,6 +82,9 @@ function serializeApplication(
     status: string;
     source: string;
     campaign?: string | null;
+    rejectionReason?: string | null;
+    rejectedAt?: Date | null;
+    completedInterviewCount?: number;
     aiScore?: number | null;
     aiSummary?: string | null;
     aiScoredAt?: Date | null;
@@ -118,6 +133,9 @@ function serializeApplication(
     status: application.status,
     source: application.source,
     campaign: application.campaign ?? null,
+    rejectionReason: application.rejectionReason ?? null,
+    rejectedAt: application.rejectedAt ?? null,
+    completedInterviewCount: application.completedInterviewCount ?? 0,
     aiScore: application.aiScore ?? null,
     aiSummary: application.aiSummary ?? null,
     aiScoredAt: application.aiScoredAt ?? null,
@@ -149,18 +167,11 @@ applicationRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const query = listApplicationsQuerySchema.parse(request.query);
-    const filter: Record<string, unknown> = {};
-
-    if (query.jobId) filter.jobId = query.jobId;
-    if (query.status) filter.status = query.status;
-
-    if (query.q) {
-      const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      filter.$or = [
-        { candidateName: { $regex: escaped, $options: "i" } },
-        { candidateEmail: { $regex: escaped, $options: "i" } },
-      ];
-    }
+    const filter = buildApplicationFilter({
+      q: query.q,
+      jobId: query.jobId,
+      status: query.status,
+    });
 
     const [applications, allForStats] = await Promise.all([
       Application.find(filter).sort({ createdAt: -1 }).lean(),
@@ -172,12 +183,46 @@ applicationRouter.get(
         applications: applications.map((item) => serializeListItem(item)),
         stats: {
           total: allForStats.length,
-          scheduled: allForStats.filter((item) => item.status === "interviewing").length,
+          scheduled: allForStats.filter((item) => item.status === "interview_scheduled").length,
           rejected: allForStats.filter((item) => item.status === "rejected").length,
           approved: allForStats.filter((item) => item.status === "approved").length,
         },
       },
     });
+  }),
+);
+
+applicationRouter.post(
+  "/bulk-reject",
+  verifyBrowserOrigin,
+  asyncHandler(async (request, response) => {
+    const input = bulkRejectSchema.parse(request.body);
+    const dryRun = input.dryRun === true;
+    if (!dryRun && !input.reason) {
+      throw new ApiError(422, "VALIDATION_ERROR", "The request contains invalid values.", {
+        fields: { reason: ["Enter a reason of at least 10 characters."] },
+      });
+    }
+
+    const filter = buildApplicationFilter({
+      q: input.q,
+      jobId: input.jobId,
+      status: input.status,
+      applicationIds: input.applicationIds,
+      excludeTerminal: true,
+    });
+
+    const matches = await Application.find(filter)
+      .select("candidateEmail candidateName roleSnapshot status")
+      .lean();
+
+    if (dryRun) {
+      response.status(200).json({ data: { count: matches.length } });
+      return;
+    }
+
+    await rejectApplications(matches, input.reason!);
+    response.status(200).json({ data: { count: matches.length } });
   }),
 );
 
@@ -244,6 +289,104 @@ applicationRouter.get(
 );
 
 applicationRouter.get(
+  "/:applicationId/interviews",
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const exists = await Application.exists({ _id: applicationId });
+    if (!exists) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+
+    const interviews = await Interview.find({ applicationId }).sort({ date: 1, time: 1 }).lean();
+    response.status(200).json({
+      data: { interviews: await serializeInterviews(interviews) },
+    });
+  }),
+);
+
+applicationRouter.post(
+  "/:applicationId/interviews",
+  verifyBrowserOrigin,
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const application = await Application.findById(applicationId);
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertRejectable(application.status);
+
+    const input = createInterviewSchema.parse(request.body);
+    const created = await Interview.create({
+      applicationId: application._id,
+      departmentId: application.roleSnapshot.departmentId,
+      date: input.date,
+      time: input.time,
+      durationMinutes: input.durationMinutes,
+      createdBy: request.auth!.user.id,
+      status: "scheduled",
+    });
+
+    await recomputeApplicationStatus(application._id);
+    await sendCandidateInterviewScheduled({
+      to: application.candidateEmail,
+      candidateName: application.candidateName,
+      jobTitle: application.roleSnapshot.title,
+      date: created.date,
+      time: created.time,
+      durationMinutes: created.durationMinutes,
+    });
+
+    response.status(201).json({ data: { interview: await serializeInterview(created.toObject()) } });
+  }),
+);
+
+applicationRouter.patch(
+  "/:applicationId/reject",
+  verifyBrowserOrigin,
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const input = rejectApplicationSchema.parse(request.body);
+    const application = await Application.findById(applicationId);
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertRejectable(application.status);
+
+    await rejectApplications(
+      [
+        {
+          _id: application._id,
+          candidateEmail: application.candidateEmail,
+          candidateName: application.candidateName,
+          roleSnapshot: application.roleSnapshot,
+        },
+      ],
+      input.reason,
+    );
+
+    const updated = await Application.findById(applicationId).lean();
+    response.status(200).json({
+      data: { application: serializeApplication(updated!) },
+    });
+  }),
+);
+
+applicationRouter.get(
   "/:applicationId",
   asyncHandler(async (request, response) => {
     const applicationId = request.params.applicationId;
@@ -255,6 +398,14 @@ applicationRouter.get(
     const application = await Application.findById(applicationId).lean();
     if (!application) {
       throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+
+    if (application.status === "submitted") {
+      await Application.updateOne(
+        { _id: application._id, status: "submitted" },
+        { $set: { status: "under_review" } },
+      ).exec();
+      application.status = "under_review";
     }
 
     response.status(200).json({

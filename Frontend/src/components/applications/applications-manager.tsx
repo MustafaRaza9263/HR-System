@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
+  Calendar,
   CalendarClock,
   CircleCheck,
   ClipboardList,
@@ -13,8 +14,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type {
   ApplicationListItem,
@@ -25,6 +28,8 @@ import type {
 import { APPLICATION_STATUSES } from "@/lib/applications/types";
 import type { JobsListResponse } from "@/lib/jobs/types";
 import { queryKeys } from "@/lib/query/query-keys";
+
+import { ReasonModal } from "./reason-modal";
 
 const emptyApps: ApplicationListItem[] = [];
 const emptyStats: ApplicationStats = {
@@ -40,8 +45,10 @@ function statusBadgeClass(status: ApplicationStatus) {
       return "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400";
     case "under_review":
       return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
-    case "interviewing":
+    case "interview_scheduled":
       return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
+    case "interviewed":
+      return "bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300";
     case "approved":
       return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
     case "rejected":
@@ -59,10 +66,18 @@ function statusLabel(status: ApplicationStatus) {
 
 export function ApplicationsManager() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobId, setJobId] = useState("");
   const [status, setStatus] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [rejectTarget, setRejectTarget] = useState<{
+    count: number;
+    jobId: string;
+    applicationIds?: string[];
+  } | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<ApplicationListItem | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -99,12 +114,99 @@ export function ApplicationsManager() {
   const stats = listQuery.data?.data.stats ?? emptyStats;
   const jobs = jobsQuery.data?.data.jobs ?? [];
 
+  const rejectableSelected = applications.filter(
+    (item) => selectedIds.includes(item.id) && item.status !== "rejected" && item.status !== "approved",
+  );
+
+  const previewMutation = useMutation({
+    mutationFn: async (body: Record<string, unknown>) =>
+      apiRequest<{ data: { count: number } }>("/applications/bulk-reject", {
+        method: "POST",
+        body: JSON.stringify({ ...body, dryRun: true }),
+      }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({
+      reason,
+      jobId: rejectJobId,
+      applicationIds,
+    }: {
+      reason: string;
+      jobId: string;
+      applicationIds?: string[];
+    }) =>
+      apiRequest<{ data: { count: number } }>("/applications/bulk-reject", {
+        method: "POST",
+        body: JSON.stringify({
+          jobId: rejectJobId,
+          q: applicationIds ? undefined : filters.q,
+          status: applicationIds ? undefined : filters.status,
+          applicationIds,
+          reason,
+          dryRun: false,
+        }),
+      }),
+    onSuccess: (result) => {
+      alerts.success(`Rejected ${result.data.count} application${result.data.count === 1 ? "" : "s"}.`);
+      setRejectTarget(null);
+      setSelectedIds([]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+    },
+    onError: (error) => {
+      alerts.error(error instanceof ApiClientError ? error.message : "Applications could not be rejected.");
+    },
+  });
+
+  async function openMatchingReject() {
+    if (!jobId) {
+      alerts.error("Filter by a job before rejecting matching applications.");
+      return;
+    }
+    try {
+      const result = await previewMutation.mutateAsync({
+        jobId,
+        q: filters.q,
+        status: filters.status,
+      });
+      if (result.data.count === 0) {
+        alerts.info("No matching applications to reject.");
+        return;
+      }
+      setRejectTarget({ count: result.data.count, jobId });
+    } catch (error) {
+      alerts.error(error instanceof ApiClientError ? error.message : "Could not count matching applications.");
+    }
+  }
+
+  function openSelectedReject() {
+    if (rejectableSelected.length === 0) {
+      alerts.error("Select applications that are not already closed.");
+      return;
+    }
+    const jobIds = new Set(rejectableSelected.map((item) => item.jobId));
+    if (jobIds.size > 1 && !jobId) {
+      alerts.error("Selected applications span multiple jobs. Filter by one job first.");
+      return;
+    }
+    const resolvedJobId = jobId || rejectableSelected[0]!.jobId;
+    setRejectTarget({
+      count: rejectableSelected.length,
+      jobId: resolvedJobId,
+      applicationIds: rejectableSelected.map((item) => item.id),
+    });
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
   return (
     <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Application metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={ClipboardList} label="Total applications" supporting="All statuses" value={stats.total} />
-          <MetricCard icon={CalendarClock} label="Scheduled" supporting="Coming later" value={stats.scheduled} />
+          <MetricCard icon={CalendarClock} label="Scheduled" supporting="Interview scheduled" value={stats.scheduled} />
           <MetricCard icon={UserX} label="Rejected" supporting="Closed as not a fit" value={stats.rejected} />
           <MetricCard icon={CircleCheck} label="Approved" supporting="Hired or offered" value={stats.approved} />
         </section>
@@ -145,6 +247,36 @@ export function ApplicationsManager() {
             />
           </div>
 
+          {selectedIds.length > 0 || jobId ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/20 dark:bg-amber-500/10">
+              <span className="font-semibold text-amber-900 dark:text-amber-200">
+                {selectedIds.length > 0 ? `${selectedIds.length} selected` : "Matching this filter"}
+              </span>
+              <div className="ml-auto flex flex-wrap gap-2">
+                {selectedIds.length > 0 ? (
+                  <button
+                    className="h-9 rounded-lg bg-red-600 px-3 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                    disabled={previewMutation.isPending || rejectMutation.isPending}
+                    onClick={openSelectedReject}
+                    type="button"
+                  >
+                    Reject selected
+                  </button>
+                ) : null}
+                {jobId ? (
+                  <button
+                    className="h-9 rounded-lg border border-red-300 bg-white px-3 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-500/40 dark:bg-transparent dark:text-red-300"
+                    disabled={previewMutation.isPending || rejectMutation.isPending}
+                    onClick={() => void openMatchingReject()}
+                    type="button"
+                  >
+                    {previewMutation.isPending ? "Counting…" : "Reject matching"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <h2 className="sr-only" id="applications-table-title">
             Applications
           </h2>
@@ -169,11 +301,15 @@ export function ApplicationsManager() {
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-400">
                     <tr>
+                      <th className="w-10 px-4 py-3">
+                        <span className="sr-only">Select</span>
+                      </th>
                       <th className="px-4 py-3">Candidate</th>
                       <th className="px-4 py-3">Job</th>
                       <th className="px-4 py-3">Department / role</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Applied</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -183,6 +319,14 @@ export function ApplicationsManager() {
                         key={application.id}
                         onClick={() => router.push(`/dashboard/applications/${application.id}`)}
                       >
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          <input
+                            aria-label={`Select ${application.candidateName}`}
+                            checked={selectedIds.includes(application.id)}
+                            onChange={() => toggleSelected(application.id)}
+                            type="checkbox"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <p className="font-bold text-gray-950 dark:text-white">{application.candidateName}</p>
                           <p className="mt-0.5 text-xs text-gray-500">{application.candidateEmail}</p>
@@ -201,6 +345,20 @@ export function ApplicationsManager() {
                         <td className="whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400">
                           {formatDistanceToNow(new Date(application.createdAt), { addSuffix: true })}
                         </td>
+                        <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                          {application.status !== "rejected" && application.status !== "approved" ? (
+                            <div className="flex justify-end">
+                              <button
+                                aria-label={`Schedule interview for ${application.candidateName}`}
+                                className="icon-button"
+                                onClick={() => setScheduleTarget(application)}
+                                type="button"
+                              >
+                                <Calendar aria-hidden className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : null}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -210,6 +368,36 @@ export function ApplicationsManager() {
           </div>
         </section>
       </div>
+
+      {rejectTarget ? (
+        <ReasonModal
+          confirmLabel={`Reject ${rejectTarget.count}`}
+          description={`This will reject ${rejectTarget.count} matching application${rejectTarget.count === 1 ? "" : "s"} and cancel any scheduled interviews.`}
+          pending={rejectMutation.isPending}
+          title="Reject applications?"
+          onCancel={() => setRejectTarget(null)}
+          onConfirm={(reason) =>
+            rejectMutation.mutate({
+              reason,
+              jobId: rejectTarget.jobId,
+              applicationIds: rejectTarget.applicationIds,
+            })
+          }
+        />
+      ) : null}
+
+      {scheduleTarget ? (
+        <ScheduleInterviewModal
+          applicant={{ name: scheduleTarget.candidateName, email: scheduleTarget.candidateEmail }}
+          applicationId={scheduleTarget.id}
+          onClose={() => setScheduleTarget(null)}
+          onSaved={() => {
+            setScheduleTarget(null);
+            void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.all });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

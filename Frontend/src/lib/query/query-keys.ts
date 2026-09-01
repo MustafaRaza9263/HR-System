@@ -19,5 +19,31 @@ export const queryKeys = {
     list: (filters?: { q?: string; jobId?: string; status?: string }) =>
       ["applications", "list", filters?.q ?? "", filters?.jobId ?? "", filters?.status ?? ""] as const,
     detail: (applicationId: string) => ["applications", "detail", applicationId] as const,
+    interviews: (applicationId: string) => ["applications", "interviews", applicationId] as const,
+  },
+  interviews: {
+    all: ["interviews"] as const,
+    list: (filters?: { q?: string; jobId?: string; status?: string; bucket?: string }) =>
+      [
+        "interviews",
+        "list",
+        filters?.q ?? "",
+        filters?.jobId ?? "",
+        filters?.status ?? "",
+        filters?.bucket ?? "",
+      ] as const,
+    pendingLinks: ["interviews", "pending-links"] as const,
+    departmentLinksAll: ["interviews", "department-links"] as const,
+    departmentLinks: (filters?: { date?: string; departmentId?: string }) =>
+      ["interviews", "department-links", filters?.date ?? "", filters?.departmentId ?? ""] as const,
+    linkRegistrants: (token: string) => ["interviews", "link-registrants", token] as const,
+  },
+  departments: {
+    list: ["departments", "list"] as const,
+  },
+  notifications: {
+    all: ["notifications"] as const,
+    list: ["notifications", "list"] as const,
+    unread: ["notifications", "unread"] as const,
   },
 } as const;

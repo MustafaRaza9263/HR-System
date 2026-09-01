@@ -1,5 +1,5 @@
-import { JobRolesManager } from "@/components/job-roles/job-roles-manager";
+import { redirect } from "next/navigation";
 
-export default function JobRolesPage() {
-  return <JobRolesManager />;
+export default function JobRolesRedirectPage() {
+  redirect("/dashboard/configuration/job-roles");
 }

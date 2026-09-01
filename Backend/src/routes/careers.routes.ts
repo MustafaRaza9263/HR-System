@@ -15,6 +15,7 @@ import { ApiError } from "../utils/api-error.js";
 import { parseAnswersJson, validateCustomFieldAnswers, type JobCustomField } from "../utils/application-answers.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { saveUpload } from "../utils/uploads.js";
+import { extractUtm } from "../utils/utm.js";
 
 export const careersRouter = Router();
 
@@ -246,6 +247,8 @@ careersRouter.post(
       }
     }
 
+    const utm = extractUtm(request);
+
     const created = await Application.create({
       jobId: job._id,
       roleSnapshot: {
@@ -264,8 +267,8 @@ careersRouter.post(
       resumeUrl: savedResume.relative,
       resumeOriginalName: savedResume.originalName,
       status: "submitted",
-      source: "website",
-      campaign: null,
+      source: utm.source,
+      campaign: utm.campaign,
       aiScore: null,
       aiSummary: null,
       aiScoredAt: null,

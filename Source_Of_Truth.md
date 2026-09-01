@@ -6,21 +6,24 @@ Business rules, entities, and flows only. No implementation or tech-stack detail
 
 ## 1. Product overview
 
-HR manages hiring structure and job postings. Candidates apply via a public careers surface (later). AI assist, notifications, and marketing attribution come after core Job CRUD.
+HR manages hiring structure, jobs, applications, interviews, and in-app notifications.
 
 ### In scope now
 
 1. HR login / register
 2. Department and Role CRUD
-3. Job creation, listing, and detail (HR-facing) — Job CRUD only
+3. Job creation, listing, and detail
+4. Public careers + apply
+5. Application listing, detail, reject / bulk reject
+6. Interview scheduling, notes, guest department-day access
+7. HR notifications (in-app bell + optional browser push)
 
 ### Explicitly later (do not build yet)
 
-- Public careers page and `/apply/[slug]`
-- Application model, submission, or listing
 - AI ranking / autofill / chatbot
-- Notifications / email
-- Source / campaign tracking
+- Tags
+- Approve / trial decision flow
+- Marketing dashboard
 
 ---
 
@@ -28,9 +31,9 @@ HR manages hiring structure and job postings. Candidates apply via a public care
 
 | Actor | Access |
 |---|---|
-| HR | Registers and logs in via email/password. Full access to departments, roles, jobs, and (later) applications, interviews, decisions, tags, marketing dashboard, chatbot. |
+| HR | Registers and logs in via email/password. Full access to departments, roles, jobs, applications, interviews, and configuration. |
 | Candidate | No account. Applies via public careers page. Identified by email/application record only. |
-| Interviewer | No account. One-time access via a single-use secure link per interview assignment. |
+| Guest interviewer | No account. Requests access via a department+day link; HR approves. Can add notes on that day's scheduled interviews only. |
 
 ---
 
@@ -203,13 +206,12 @@ Read-only: all Job fields, rendered rich-text description, status badge, positio
 
 ---
 
-## 10. Application (later)
+## 10. Application
 
-- Fields (sketch): `jobId`, `roleSnapshot` (dept + role title at submit), `answers[]` matching that Job’s `fieldsConfig` at submit, `resumeUrl`, `status`, `source`, `campaign`, `tags[]`, `createdAt`.
+- Fields: `jobId`, `roleSnapshot` (dept + role title at submit), `answers[]` matching that Job’s `fieldsConfig` at submit, `resumeUrl`, `status`, `source`, `campaign`, `createdAt`.
 - Applications link to **Job only** — never directly to Department or Role.
-- Status sketch: `submitted` → `under_review` → `interviewing` → decided (`approved` / `rejected` / `trial`).
+- Status: `submitted` → `under_review` → `interview_scheduled` / `interviewed` → decided (`approved` / `rejected` / `trial`). Interview statuses are derived from interview records.
 - Duplicate reapply: flag, do not block.
-- Misroute fix: logged reassignment (`originalJobId`, `reassignedBy`, `reason`).
 
 ---
 
@@ -219,10 +221,13 @@ Free-form `{name, color}`, many-to-many with Applications. Filtering and bulk ac
 
 ---
 
-## 12. Interview process (later)
+## 12. Interview process
 
-- Rounds per Application; interviewer has no account — single-use secure link for notes + complete.
-- Link expires after submit or date; cancel requires reason + candidate notify.
+- HR schedules interviews on an application with date, time (display only), and duration. No interviewer assignment.
+- Statuses: Scheduled, Completed, Cancelled, No Show. Overdue is a display flag when still Scheduled and the date has passed.
+- HR invites guests with one department link for today. Guest submits name/email; HR approves or rejects. Link expires at midnight.
+- Notes are a separate history (author name/email + time). Mark Complete requires at least one note and is HR-only.
+- Reschedule updates the same interview in place. Cancel and No Show keep notes.
 
 ---
 
@@ -234,9 +239,9 @@ Free-form `{name, color}`, many-to-many with Applications. Filtering and bulk ac
 
 ---
 
-## 14. Notifications (later)
+## 14. Notifications
 
-Email on: apply confirmation, interview scheduled (+ reminder), interview cancelled, final decision. System-triggered only.
+HR in-app bell + optional browser push for: new application, interview access request pending approval. Guest interviewers are notified by email on approve/reject only (no account, no bell).
 
 ---
 

@@ -41,7 +41,12 @@ export function DashboardHeader({ user, onMenuClick }: DashboardHeaderProps) {
 
 function resolveTitle(pathname: string) {
   if (pathname === "/dashboard") return "Dashboard";
-  if (pathname === "/dashboard/job-roles") return "Job Roles";
+  if (pathname.startsWith("/dashboard/configuration/job-roles") || pathname === "/dashboard/job-roles") {
+    return "Job Roles";
+  }
+  if (pathname.startsWith("/dashboard/configuration")) return "Configuration";
+  if (pathname.startsWith("/dashboard/interviews")) return "Interviews";
+  if (pathname.startsWith("/dashboard/applications")) return "Applications";
   if (pathname === "/dashboard/jobs/new") return "Create job";
   if (pathname.startsWith("/dashboard/jobs/") && pathname.endsWith("/edit")) return "Edit job";
   if (pathname.startsWith("/dashboard/jobs/") && pathname !== "/dashboard/jobs") return "Job detail";

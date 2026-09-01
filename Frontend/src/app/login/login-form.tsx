@@ -54,6 +54,7 @@ export function LoginForm() {
         method: "POST",
         body: JSON.stringify(parsed.data),
       });
+      void import("@/lib/notifications/fcm").then(({ registerHrPush }) => registerHrPush()).catch(() => undefined);
       router.replace("/dashboard");
       router.refresh();
     } catch (error) {

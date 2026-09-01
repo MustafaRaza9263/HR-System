@@ -2,30 +2,23 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
-import { pinoHttp } from "pino-http";
 
 import { env } from "./config/env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { apiRouter } from "./routes/index.js";
+import { requestLogger } from "./utils/logger.js";
 
 export const app = express();
 
 app.disable("x-powered-by");
 app.set("trust proxy", env.TRUST_PROXY);
+app.use(requestLogger);
 app.use(
-  pinoHttp({
-    redact: {
-      paths: [
-        "req.headers.cookie",
-        "req.headers.authorization",
-        "req.body.password",
-        "res.headers[\"set-cookie\"]",
-      ],
-      censor: "[REDACTED]",
-    },
+  helmet({
+    // Frontend (Next.js) reads this API from another origin, including the SSE stream.
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
 );
-app.use(helmet());
 app.use(
   cors({
     credentials: true,

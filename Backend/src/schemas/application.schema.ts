@@ -5,11 +5,36 @@ const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Select a valid id.");
 export const applicationStatusEnum = z.enum([
   "submitted",
   "under_review",
-  "interviewing",
+  "interview_scheduled",
+  "interviewed",
   "approved",
   "rejected",
   "trial",
 ]);
+
+export const TERMINAL_APPLICATION_STATUSES = ["approved", "rejected"] as const;
+
+export const rejectApplicationSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Enter a reason of at least 10 characters.")
+    .max(500, "Reason cannot exceed 500 characters."),
+});
+
+export const bulkRejectSchema = z.object({
+  jobId: objectId,
+  q: z.string().trim().max(200).optional(),
+  status: applicationStatusEnum.optional(),
+  applicationIds: z.array(objectId).max(500, "Select at most 500 applications.").optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Enter a reason of at least 10 characters.")
+    .max(500, "Reason cannot exceed 500 characters.")
+    .optional(),
+  dryRun: z.boolean().optional(),
+});
 
 export const applySystemFieldsSchema = z.object({
   candidateName: z.string().trim().min(1, "Enter your name.").max(120),

@@ -1,11 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft, Download } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { ApplicationInterviews } from "@/components/applications/application-interviews";
+import { ReasonModal } from "@/components/applications/reason-modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload, apiRequest } from "@/lib/api";
 import type { ApplicationAnswer, ApplicationDetailResponse, ApplicationStatus } from "@/lib/applications/types";
@@ -17,8 +19,10 @@ function statusBadgeClass(status: ApplicationStatus) {
       return "bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400";
     case "under_review":
       return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
-    case "interviewing":
+    case "interview_scheduled":
       return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
+    case "interviewed":
+      return "bg-violet-100 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300";
     case "approved":
       return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
     case "rejected":
@@ -42,7 +46,10 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function ApplicationDetail({ applicationId }: { applicationId: string }) {
+  const queryClient = useQueryClient();
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [tab, setTab] = useState<"profile" | "interviews">("profile");
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   const detailQuery = useQuery({
     queryKey: queryKeys.applications.detail(applicationId),
@@ -52,6 +59,25 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
   const application = detailQuery.data?.data.application;
   const experienceEntries = application?.experienceEntries ?? [];
   const educationEntries = application?.educationEntries ?? [];
+  const canReject = application && application.status !== "rejected" && application.status !== "approved";
+
+  const rejectMutation = useMutation({
+    mutationFn: async (reason: string) =>
+      apiRequest<ApplicationDetailResponse>(`/applications/${applicationId}/reject`, {
+        method: "PATCH",
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.applications.detail(applicationId), result);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.interviews(applicationId) });
+      setRejectOpen(false);
+      alerts.success("Application rejected.");
+    },
+    onError: (error) => {
+      alerts.error(errorMessage(error, "Application could not be rejected."));
+    },
+  });
 
   async function download(path: string, filename: string, key: string) {
     setDownloading(key);
@@ -105,6 +131,15 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                   {application.status.replaceAll("_", " ")}
                 </span>
               </div>
+              {canReject ? (
+                <button
+                  className="mt-4 h-10 rounded-xl border border-red-200 bg-white px-4 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-500/40 dark:bg-transparent dark:text-red-300"
+                  onClick={() => setRejectOpen(true)}
+                  type="button"
+                >
+                  Reject
+                </button>
+              ) : null}
 
               <dl className="mt-5 grid gap-4 sm:grid-cols-2">
                 <div>
@@ -129,6 +164,19 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                     {application.roleSnapshot.departmentName} / {application.roleSnapshot.roleName}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Source</dt>
+                  <dd className="mt-1 text-sm font-medium">
+                    {application.source}
+                    {application.campaign ? ` · ${application.campaign}` : ""}
+                  </dd>
+                </div>
+                {application.rejectionReason ? (
+                  <div className="sm:col-span-2">
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Rejection reason</dt>
+                    <dd className="mt-1 text-sm font-medium">{application.rejectionReason}</dd>
+                  </div>
+                ) : null}
               </dl>
 
               {application.hasResume ? (
@@ -150,6 +198,31 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
               ) : null}
             </header>
 
+            <div className="flex gap-2">
+              <button
+                className={`h-10 rounded-xl px-4 text-sm font-bold ${tab === "profile" ? "bg-indigo-600 text-white" : "bg-white text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"}`}
+                onClick={() => setTab("profile")}
+                type="button"
+              >
+                Profile
+              </button>
+              <button
+                className={`h-10 rounded-xl px-4 text-sm font-bold ${tab === "interviews" ? "bg-indigo-600 text-white" : "bg-white text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"}`}
+                onClick={() => setTab("interviews")}
+                type="button"
+              >
+                Interviews
+              </button>
+            </div>
+
+            {tab === "interviews" ? (
+              <ApplicationInterviews
+                applicant={{ name: application.candidateName, email: application.candidateEmail }}
+                applicationId={application.id}
+                canSchedule={application.status !== "rejected" && application.status !== "approved"}
+              />
+            ) : (
+              <>
             {application.answers.some((item) => item.section === "personal") ? (
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 dark:border-gray-700 dark:bg-gray-800/70">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">Personal</h2>
@@ -257,9 +330,22 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                 </div>
               )}
             </section>
+              </>
+            )}
           </>
         ) : null}
       </div>
+
+      {rejectOpen ? (
+        <ReasonModal
+          confirmLabel="Reject"
+          description="The candidate will be notified. Any scheduled interviews will be cancelled."
+          pending={rejectMutation.isPending}
+          title="Reject application?"
+          onCancel={() => setRejectOpen(false)}
+          onConfirm={(reason) => rejectMutation.mutate(reason)}
+        />
+      ) : null}
     </div>
   );
 }

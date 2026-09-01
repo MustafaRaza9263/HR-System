@@ -1,7 +1,7 @@
 import type { CookieOptions, Response } from "express";
 
 import { env } from "../config/env.js";
-import { SESSION_COOKIE_NAME } from "../constants/auth.js";
+import { GUEST_ACCESS_COOKIE_NAME, SESSION_COOKIE_NAME } from "../constants/auth.js";
 
 function baseCookieOptions(): CookieOptions {
   return {
@@ -22,4 +22,11 @@ export function setSessionCookie(response: Response, token: string, expiresAt: D
 
 export function clearSessionCookie(response: Response): void {
   response.clearCookie(SESSION_COOKIE_NAME, baseCookieOptions());
+}
+
+export function setGuestAccessCookie(response: Response, token: string, expiresAt: Date): void {
+  response.cookie(GUEST_ACCESS_COOKIE_NAME, token, {
+    ...baseCookieOptions(),
+    expires: expiresAt,
+  });
 }

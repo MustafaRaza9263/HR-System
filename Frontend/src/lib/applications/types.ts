@@ -3,7 +3,8 @@ import type { CustomField, FieldSection, JobStatus, JobType, RichTextDoc } from 
 export type ApplicationStatus =
   | "submitted"
   | "under_review"
-  | "interviewing"
+  | "interview_scheduled"
+  | "interviewed"
   | "approved"
   | "rejected"
   | "trial";
@@ -106,6 +107,9 @@ export interface ApplicationDetail {
   status: ApplicationStatus;
   source: string;
   campaign: string | null;
+  rejectionReason: string | null;
+  rejectedAt: string | null;
+  completedInterviewCount: number;
   aiScore: number | null;
   aiSummary: string | null;
   aiScoredAt: string | null;
@@ -120,7 +124,8 @@ export interface ApplicationDetailResponse {
 export const APPLICATION_STATUSES: ApplicationStatus[] = [
   "submitted",
   "under_review",
-  "interviewing",
+  "interview_scheduled",
+  "interviewed",
   "approved",
   "rejected",
   "trial",

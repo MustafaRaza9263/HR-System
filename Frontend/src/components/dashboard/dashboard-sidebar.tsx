@@ -3,6 +3,7 @@
 import {
   Bot,
   BriefcaseBusiness,
+  CalendarClock,
   ClipboardList,
   LayoutDashboard,
   ListChecks,
@@ -26,12 +27,12 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Job Roles", href: "/dashboard/job-roles", icon: BriefcaseBusiness },
   { label: "Jobs", href: "/dashboard/jobs", icon: BriefcaseBusiness },
   { label: "Applications", href: "/dashboard/applications", icon: ClipboardList },
+  { label: "Interviews", href: "/dashboard/interviews", icon: CalendarClock },
   { label: "Scoring", href: "/dashboard/scoring", icon: ListChecks },
   { label: "Assistant", href: "/dashboard/assistant", icon: Bot },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings },
+  { label: "Configuration", href: "/dashboard/configuration", icon: Settings },
 ];
 
 const SIDEBAR_COLLAPSED_KEY = "hr-sidebar-collapsed";

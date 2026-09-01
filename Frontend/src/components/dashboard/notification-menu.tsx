@@ -1,39 +1,56 @@
 "use client";
 
-import { Bell, CheckCheck, ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { Bell, CheckCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export interface NotificationItem {
-  id: string;
-  title: string;
-  description: string;
-  href?: string;
-  unread?: boolean;
-}
+import { apiRequest, getApiBaseUrl } from "@/lib/api";
+import type { HrNotification, NotificationsListResponse, UnreadCountResponse } from "@/lib/notifications/types";
+import { queryKeys } from "@/lib/query/query-keys";
 
-interface NotificationMenuProps {
-  items?: NotificationItem[];
-  onMarkAllRead?: () => void;
-}
-
-export function NotificationMenu({
-  items = [],
-  onMarkAllRead,
-}: NotificationMenuProps) {
+export function NotificationMenu() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const unreadCount = items.filter((item) => item.unread).length;
+
+  const listQuery = useQuery({
+    queryKey: queryKeys.notifications.list,
+    queryFn: async () => apiRequest<NotificationsListResponse>("/notifications"),
+  });
+  const unreadQuery = useQuery({
+    queryKey: queryKeys.notifications.unread,
+    queryFn: async () => apiRequest<UnreadCountResponse>("/notifications/unread-count"),
+  });
+
+  const items = listQuery.data?.data.notifications ?? [];
+  const unreadCount = unreadQuery.data?.data.count ?? items.filter((item) => !item.isRead).length;
+
+  useEffect(() => {
+    const source = new EventSource(`${getApiBaseUrl()}/notifications/stream`, { withCredentials: true });
+    source.addEventListener("notification", (event) => {
+      const incoming = JSON.parse((event as MessageEvent).data) as HrNotification;
+      queryClient.setQueryData<NotificationsListResponse>(queryKeys.notifications.list, (current) => {
+        const existing = current?.data.notifications ?? [];
+        if (existing.some((item) => item.id === incoming.id)) return current;
+        return { data: { notifications: [incoming, ...existing] } };
+      });
+      queryClient.setQueryData<UnreadCountResponse>(queryKeys.notifications.unread, (current) => ({
+        data: { count: (current?.data.count ?? 0) + 1 },
+      }));
+      void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.pendingLinks });
+    });
+    return () => source.close();
+  }, [queryClient]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
     }
-
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setOpen(false);
     }
-
     document.addEventListener("mousedown", closeOnOutsideClick);
     window.addEventListener("keydown", closeOnEscape);
     return () => {
@@ -41,6 +58,38 @@ export function NotificationMenu({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, []);
+
+  const readMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest(`/notifications/${id}/read`, { method: "PATCH" }),
+    onSuccess: (_result, id) => {
+      queryClient.setQueryData<NotificationsListResponse>(queryKeys.notifications.list, (current) => {
+        if (!current) return current;
+        return {
+          data: {
+            notifications: current.data.notifications.map((item) => (item.id === id ? { ...item, isRead: true } : item)),
+          },
+        };
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.unread });
+    },
+  });
+
+  const readAllMutation = useMutation({
+    mutationFn: async () => apiRequest("/notifications/read-all", { method: "PATCH" }),
+    onSuccess: () => {
+      queryClient.setQueryData<NotificationsListResponse>(queryKeys.notifications.list, (current) => {
+        if (!current) return current;
+        return { data: { notifications: current.data.notifications.map((item) => ({ ...item, isRead: true })) } };
+      });
+      queryClient.setQueryData<UnreadCountResponse>(queryKeys.notifications.unread, { data: { count: 0 } });
+    },
+  });
+
+  function openItem(item: HrNotification) {
+    if (!item.isRead) readMutation.mutate(item.id);
+    setOpen(false);
+    router.push(item.href);
+  }
 
   return (
     <div className="relative" ref={containerRef}>
@@ -71,35 +120,37 @@ export function NotificationMenu({
           <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-5 py-4 dark:border-gray-800 dark:bg-gray-800/40">
             <div>
               <h2 className="text-sm font-bold text-gray-900 dark:text-white">Notifications</h2>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Updates from your HR workspace</p>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Live hiring updates</p>
             </div>
-            {unreadCount > 0 && onMarkAllRead ? (
-              <button className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400" onClick={onMarkAllRead} type="button">
+            {unreadCount > 0 ? (
+              <button
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                onClick={() => readAllMutation.mutate()}
+                type="button"
+              >
                 <CheckCheck aria-hidden className="h-3.5 w-3.5" />
                 Mark all read
               </button>
             ) : null}
           </div>
-
           <div className="max-h-[420px] overflow-y-auto">
             {items.length ? (
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {items.map((item) => (
-                  <div className={item.unread ? "bg-indigo-50/60 p-4 dark:bg-gray-800/70" : "p-4"} key={item.id}>
+                  <button
+                    className={`block w-full p-4 text-left ${item.isRead ? "" : "bg-indigo-50/60 dark:bg-gray-800/70"}`}
+                    key={item.id}
+                    onClick={() => openItem(item)}
+                    type="button"
+                  >
                     <div className="flex items-start gap-3">
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.unread ? "bg-indigo-500" : "bg-gray-300 dark:bg-gray-700"}`} />
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.isRead ? "bg-gray-300 dark:bg-gray-700" : "bg-indigo-500"}`} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-gray-900 dark:text-white">{item.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{item.description}</p>
-                        {item.href ? (
-                          <Link className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400" href={item.href} onClick={() => setOpen(false)}>
-                            View details
-                            <ExternalLink aria-hidden className="h-3 w-3" />
-                          </Link>
-                        ) : null}
+                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{item.body}</p>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : (
@@ -108,7 +159,7 @@ export function NotificationMenu({
                   <Bell aria-hidden className="h-6 w-6" />
                 </span>
                 <p className="mt-4 text-sm font-bold text-gray-900 dark:text-white">You are all caught up</p>
-                <p className="mt-1 max-w-52 text-xs leading-5 text-gray-500 dark:text-gray-400">New hiring and workspace updates will appear here.</p>
+                <p className="mt-1 max-w-52 text-xs leading-5 text-gray-500 dark:text-gray-400">New applications and interview access requests will appear here.</p>
               </div>
             )}
           </div>

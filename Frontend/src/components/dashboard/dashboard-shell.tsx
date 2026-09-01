@@ -14,6 +14,12 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
+    void import("@/lib/notifications/fcm")
+      .then(({ registerHrPush }) => registerHrPush())
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     const mobileViewport = window.matchMedia("(max-width: 767px)");
     const resetDrawer = () => setMobileSidebarOpen(false);
 

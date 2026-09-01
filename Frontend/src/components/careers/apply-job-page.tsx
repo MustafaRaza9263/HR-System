@@ -43,19 +43,20 @@ function scrollToPersonalSection() {
   const target = document.getElementById(PERSONAL_SECTION_ID);
   if (!target) return;
 
-  const top = target.getBoundingClientRect().top + window.scrollY;
+  const section = target;
+  const top = section.getBoundingClientRect().top + window.scrollY;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (reduceMotion) {
     window.scrollTo(0, top);
-    target.focus({ preventScroll: true });
+    section.focus({ preventScroll: true });
     return;
   }
 
   const start = window.scrollY;
   const distance = top - start;
   if (Math.abs(distance) < 1) {
-    target.focus({ preventScroll: true });
+    section.focus({ preventScroll: true });
     return;
   }
 
@@ -72,7 +73,7 @@ function scrollToPersonalSection() {
       requestAnimationFrame(step);
       return;
     }
-    target.focus({ preventScroll: true });
+    section.focus({ preventScroll: true });
   }
 
   requestAnimationFrame(step);
