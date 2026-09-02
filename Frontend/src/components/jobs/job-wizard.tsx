@@ -7,7 +7,6 @@ import {
   CirclePlus,
   Pencil,
   Trash2,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RichTextEditor } from "@/components/jobs/rich-text-editor";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import {
@@ -682,19 +682,6 @@ function FieldEditorModal({
   const [draft, setDraft] = useState<CustomField>(field);
   const [optionsText, setOptionsText] = useState((field.constraint?.options ?? []).join("\n"));
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onClose]);
-
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const label = draft.label.trim().replace(/\s+/g, " ");
@@ -742,25 +729,28 @@ function FieldEditorModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[1000] grid place-items-center bg-black/55 p-3 backdrop-blur-sm sm:p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-      role="presentation"
-    >
-      <form
-        aria-label="Edit application field"
-        className="flex max-h-[calc(100svh-1.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        onSubmit={submit}
-      >
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800">
-          <h2 className="text-lg font-bold text-gray-950 dark:text-white">Application field</h2>
-          <button aria-label="Close modal" className="icon-button" onClick={onClose} type="button">
-            <X className="h-5 w-5" />
+    <Modal
+      as="form"
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold dark:border-gray-600 dark:bg-gray-800"
+            onClick={close}
+            type="button"
+          >
+            Cancel
           </button>
-        </header>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5">
+          <button className="h-11 rounded-xl bg-indigo-600 text-sm font-bold text-white" type="submit">
+            Save field
+          </button>
+        </div>
+      )}
+      maxWidth="max-w-lg"
+      onClose={onClose}
+      onSubmit={submit}
+      title="Application field"
+    >
+      <div className="space-y-4">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Label <span className="text-red-500">*</span></span>
             <input
@@ -868,20 +858,7 @@ function FieldEditorModal({
               />
             </label>
           ) : null}
-        </div>
-        <footer className="grid shrink-0 grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-700 dark:bg-gray-800/70">
-          <button
-            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold dark:border-gray-600 dark:bg-gray-800"
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button className="h-11 rounded-xl bg-indigo-600 text-sm font-bold text-white" type="submit">
-            Save field
-          </button>
-        </footer>
-      </form>
-    </div>
+      </div>
+    </Modal>
   );
 }

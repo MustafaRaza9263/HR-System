@@ -21,6 +21,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type { Job, JobStats, JobsListResponse } from "@/lib/jobs/types";
@@ -426,19 +427,6 @@ function CloseJobModal({
 }) {
   const [reason, setReason] = useState("");
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pending) onCancel();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onCancel, pending]);
-
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const clean = reason.trim();
@@ -450,49 +438,15 @@ function CloseJobModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !pending) onCancel();
-      }}
-      role="presentation"
-    >
-      <form
-        aria-labelledby="close-job-title"
-        aria-modal="true"
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        onSubmit={submit}
-        role="dialog"
-      >
-        <div className="p-6">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
-            <XCircle aria-hidden className="h-5 w-5" />
-          </span>
-          <h2 className="mt-4 text-lg font-bold text-gray-950 dark:text-white" id="close-job-title">
-            Close job?
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
-            Closing <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span> removes it from open listings. A reason is required.
-          </p>
-          <label className="mt-4 block">
-            <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">
-              Close reason <span className="text-red-500">*</span>
-            </span>
-            <textarea
-              autoFocus
-              className="min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              maxLength={500}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="e.g. Hiring freeze, role filled externally…"
-              value={reason}
-            />
-          </label>
-        </div>
-        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+    <Modal
+      as="form"
+      closeDisabled={pending}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
           <button
             className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
             disabled={pending}
-            onClick={onCancel}
+            onClick={close}
             type="button"
           >
             Cancel
@@ -504,9 +458,32 @@ function CloseJobModal({
           >
             {pending ? "Closing..." : "Close job"}
           </button>
-        </footer>
-      </form>
-    </div>
+        </div>
+      )}
+      onClose={onCancel}
+      onSubmit={submit}
+      subtitle={
+        <>
+          Closing <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span> removes it from
+          open listings. A reason is required.
+        </>
+      }
+      title="Close job?"
+    >
+      <label className="block">
+        <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">
+          Close reason <span className="text-red-500">*</span>
+        </span>
+        <textarea
+          autoFocus
+          className="min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          maxLength={500}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="e.g. Hiring freeze, role filled externally…"
+          value={reason}
+        />
+      </label>
+    </Modal>
   );
 }
 
@@ -521,49 +498,15 @@ function DeleteJobModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pending) onCancel();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onCancel, pending]);
-
   return (
-    <div
-      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !pending) onCancel();
-      }}
-      role="presentation"
-    >
-      <section
-        aria-labelledby="delete-job-title"
-        aria-modal="true"
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        role="dialog"
-      >
-        <div className="p-6">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
-            <Trash2 aria-hidden className="h-5 w-5" />
-          </span>
-          <h2 className="mt-4 text-lg font-bold text-gray-950 dark:text-white" id="delete-job-title">
-            Delete draft?
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
-            This permanently deletes <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span>. This cannot be undone.
-          </p>
-        </div>
-        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+    <Modal
+      closeDisabled={pending}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
           <button
             className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
             disabled={pending}
-            onClick={onCancel}
+            onClick={close}
             type="button"
           >
             Cancel
@@ -576,8 +519,20 @@ function DeleteJobModal({
           >
             {pending ? "Deleting..." : "Delete"}
           </button>
-        </footer>
-      </section>
-    </div>
+        </div>
+      )}
+      onClose={onCancel}
+      subtitle={
+        <>
+          This permanently deletes <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span>.
+          This cannot be undone.
+        </>
+      }
+      title="Delete draft?"
+    >
+      <span className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+        <Trash2 aria-hidden className="h-5 w-5" />
+      </span>
+    </Modal>
   );
 }

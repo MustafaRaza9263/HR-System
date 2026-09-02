@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
+import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 
 export function ReasonModal({
@@ -25,19 +26,6 @@ export function ReasonModal({
 }) {
   const [reason, setReason] = useState("");
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pending) onCancel();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onCancel, pending]);
-
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const clean = reason.trim();
@@ -49,46 +37,15 @@ export function ReasonModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !pending) onCancel();
-      }}
-      role="presentation"
-    >
-      <form
-        aria-labelledby="reason-modal-title"
-        aria-modal="true"
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        onSubmit={submit}
-        role="dialog"
-      >
-        <div className="p-6">
-          <h2 className="text-lg font-bold text-gray-950 dark:text-white" id="reason-modal-title">
-            {title}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{description}</p>
-          <label className="mt-4 block">
-            <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">
-              Reason <span className="text-red-500">*</span>
-            </span>
-            <textarea
-              autoFocus
-              className="min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              maxLength={maxLength}
-              onChange={(event) => setReason(event.target.value)}
-              value={reason}
-            />
-            <span className="mt-1 block text-xs text-gray-400">
-              {reason.trim().length}/{maxLength} · minimum {minLength} characters
-            </span>
-          </label>
-        </div>
-        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+    <Modal
+      as="form"
+      closeDisabled={pending}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
           <button
             className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
             disabled={pending}
-            onClick={onCancel}
+            onClick={close}
             type="button"
           >
             Cancel
@@ -100,8 +57,28 @@ export function ReasonModal({
           >
             {pending ? "Working..." : confirmLabel}
           </button>
-        </footer>
-      </form>
-    </div>
+        </div>
+      )}
+      onClose={onCancel}
+      onSubmit={submit}
+      subtitle={description}
+      title={title}
+    >
+      <label className="block">
+        <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">
+          Reason <span className="text-red-500">*</span>
+        </span>
+        <textarea
+          autoFocus
+          className="min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          maxLength={maxLength}
+          onChange={(event) => setReason(event.target.value)}
+          value={reason}
+        />
+        <span className="mt-1 block text-xs text-gray-400">
+          {reason.trim().length}/{maxLength} · minimum {minLength} characters
+        </span>
+      </label>
+    </Modal>
   );
 }

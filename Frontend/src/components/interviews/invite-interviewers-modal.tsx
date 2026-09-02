@@ -14,12 +14,13 @@ import {
   Mail,
   ShieldOff,
   User,
-  X,
   XCircle,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Modal } from "@/components/ui/modal";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { Tooltip } from "@/components/ui/tooltip";
 import { UserProfile } from "@/components/ui/user-profile";
@@ -53,6 +54,12 @@ function requesterPills(link: DepartmentLink) {
   if (link.requesters.revoked) items.push({ label: `${link.requesters.revoked} revoked`, tone: "neutral" });
   if (items.length === 0) items.push({ label: "No requesters yet", tone: "neutral" });
   return items;
+}
+
+function linkStatusPills(link: DepartmentLink): Array<{ label: string; tone: PillTone }> {
+  return link.expired
+    ? [{ label: "Expired", tone: "danger" }]
+    : [{ label: "Active", tone: "success" }];
 }
 
 function statusLabel(status: RegistrantStatus) {
@@ -117,19 +124,6 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
   const [mailToken, setMailToken] = useState<string | null>(null);
   const [mailEmail, setMailEmail] = useState("");
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onClose]);
 
   const departmentsQuery = useQuery({
     queryKey: queryKeys.departments.list,
@@ -211,32 +205,32 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <div
-      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-3 backdrop-blur-sm sm:p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-      role="presentation"
+    <Modal
+      bodyClassName="flex min-h-0 flex-col"
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+          <span className="inline-flex items-center gap-1.5">
+            <Clock3 aria-hidden className="h-3.5 w-3.5" />
+            Link expires at midnight
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <User aria-hidden className="h-3.5 w-3.5" />
+            Guest access: department+day
+          </span>
+        </div>
+      }
+      height="max-h-full h-[85dvh] md:h-[40rem]"
+      maxWidth="max-w-5xl"
+      onClose={onClose}
+      padded={false}
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Link2 aria-hidden className="h-5 w-5 text-indigo-600" />
+          Invite interviewer
+        </span>
+      }
     >
-      <div
-        aria-labelledby="invite-interviewer-title"
-        aria-modal="true"
-        className="flex h-[40rem] max-h-[calc(100svh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        role="dialog"
-      >
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 px-5 sm:px-6 dark:border-gray-800">
-          <div className="flex items-center gap-2">
-            <Link2 aria-hidden className="h-5 w-5 text-indigo-600" />
-            <h2 className="text-lg font-bold text-gray-950 dark:text-white" id="invite-interviewer-title">
-              Invite interviewer
-            </h2>
-          </div>
-          <button aria-label="Close modal" className="icon-button" onClick={onClose} type="button">
-            <X aria-hidden className="h-5 w-5" />
-          </button>
-        </header>
-
-        <div className="shrink-0 px-5 pt-4 sm:px-6">
+      <div className="shrink-0 px-5 pt-4 sm:px-6">
           <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800/70">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
               <label className="min-w-0 flex-1">
@@ -316,9 +310,11 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
               <table className="min-w-full text-left text-sm">
                 <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                   <tr>
+                    <th className="px-4 py-3">Created At</th>
                     <th className="px-4 py-3">Link</th>
                     <th className="px-4 py-3">Department</th>
                     <th className="px-4 py-3">Requesters</th>
+                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Action</th>
                   </tr>
                 </thead>
@@ -359,19 +355,7 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
             ) : null}
           </div>
         </section>
-
-        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3 text-xs text-gray-500 sm:px-6 dark:border-gray-700 dark:bg-gray-800/70">
-          <span className="inline-flex items-center gap-1.5">
-            <Clock3 aria-hidden className="h-3.5 w-3.5" />
-            Link expires at midnight
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <User aria-hidden className="h-3.5 w-3.5" />
-            Guest access: department+day
-          </span>
-        </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -407,6 +391,9 @@ function LinkRow({
   return (
     <>
       <tr className="align-middle">
+        <td className="whitespace-nowrap px-4 py-3">
+          <DateTimeDisplay value={link.createdAt} />
+        </td>
         <td className="max-w-[220px] px-4 py-3">
           <span className="block truncate font-mono text-xs text-gray-600 dark:text-gray-300" title={link.url}>
             {shortUrl(link.url)}
@@ -418,6 +405,9 @@ function LinkRow({
         </td>
         <td className="px-4 py-3 align-middle">
           <StatusPills direction="row" items={requesterPills(link)} />
+        </td>
+        <td className="px-4 py-3 align-middle">
+          <StatusPills items={linkStatusPills(link)} />
         </td>
         <td className="px-4 py-3">
           <div className="flex flex-wrap items-center gap-1">
@@ -497,7 +487,7 @@ function ExpandableRegistrants({
 
   return (
     <tr>
-      <td className="p-0" colSpan={4}>
+      <td className="p-0" colSpan={6}>
         <div
           className={`grid transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none ${
             shown ? "grid-rows-[1fr]" : "grid-rows-[0fr]"

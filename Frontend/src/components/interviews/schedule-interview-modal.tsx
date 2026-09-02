@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type { Interview, InterviewResponse } from "@/lib/interviews/types";
@@ -65,76 +66,15 @@ export function ScheduleInterviewModal({
   });
 
   return (
-    <div
-      className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saveMutation.isPending) onClose();
-      }}
-      role="presentation"
-    >
-      <form
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        onSubmit={(event) => {
-          event.preventDefault();
-          saveMutation.mutate();
-        }}
-      >
-        <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 dark:bg-[#2a2150] dark:text-indigo-300">
-              {getInitials(applicant.name)}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-base font-bold text-gray-950 dark:text-white">{applicant.name}</p>
-              <p className="truncate text-sm text-gray-500 dark:text-gray-400">{applicant.email}</p>
-            </div>
-          </div>
-          <h2 className="mt-4 text-lg font-bold text-gray-950 dark:text-white">
-            {reschedule ? "Reschedule interview" : "Schedule interview"}
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">Date, time, and duration only. Time is shown for planning and is not used for status rules.</p>
-        </div>
-
-        <div className="space-y-4 px-6 py-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-bold">Date</span>
-              <input
-                className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                onChange={(event) => setDate(event.target.value)}
-                required
-                type="date"
-                value={date}
-              />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-bold">Time (PKT)</span>
-              <input
-                className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                onChange={(event) => setTime(event.target.value)}
-                type="time"
-                value={time}
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold">Duration (minutes)</span>
-            <input
-              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              max={240}
-              min={15}
-              onChange={(event) => setDuration(event.target.value)}
-              type="number"
-              value={duration}
-            />
-          </label>
-        </div>
-
-        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+    <Modal
+      as="form"
+      closeDisabled={saveMutation.isPending}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
           <button
             className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
             disabled={saveMutation.isPending}
-            onClick={onClose}
+            onClick={close}
             type="button"
           >
             Cancel
@@ -146,8 +86,61 @@ export function ScheduleInterviewModal({
           >
             {saveMutation.isPending ? "Saving..." : reschedule ? "Reschedule" : "Schedule"}
           </button>
-        </footer>
-      </form>
-    </div>
+        </div>
+      )}
+      maxWidth="max-w-lg"
+      onClose={onClose}
+      onSubmit={(event) => {
+        event.preventDefault();
+        saveMutation.mutate();
+      }}
+      subtitle="Date, time, and duration only. Time is shown for planning and is not used for status rules."
+      title={reschedule ? "Reschedule interview" : "Schedule interview"}
+    >
+      <div className="flex items-center gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 dark:bg-[#2a2150] dark:text-indigo-300">
+          {getInitials(applicant.name)}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-base font-bold text-gray-950 dark:text-white">{applicant.name}</p>
+          <p className="truncate text-sm text-gray-500 dark:text-gray-400">{applicant.email}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold">Date</span>
+            <input
+              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              onChange={(event) => setDate(event.target.value)}
+              required
+              type="date"
+              value={date}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold">Time (PKT)</span>
+            <input
+              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              onChange={(event) => setTime(event.target.value)}
+              type="time"
+              value={time}
+            />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-2 block text-sm font-bold">Duration (minutes)</span>
+          <input
+            className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+            max={240}
+            min={15}
+            onChange={(event) => setDuration(event.target.value)}
+            type="number"
+            value={duration}
+          />
+        </label>
+      </div>
+    </Modal>
   );
 }

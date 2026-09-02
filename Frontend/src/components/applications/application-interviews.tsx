@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { CalendarClock, CalendarPlus, CircleCheck, LoaderCircle, UserX, XCircle, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
+import { InterviewActionConfirmModal } from "@/components/interviews/interview-action-confirm-modal";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Tooltip } from "@/components/ui/tooltip";
 import { alerts } from "@/lib/alerts";
@@ -34,6 +35,7 @@ function interviewBadge(status: DisplayStatus) {
 }
 
 type PendingAction = { kind: "reschedule"; interview: Interview } | null;
+type ConfirmTarget = { interview: Interview; action: "cancel" | "no_show" };
 
 export function ApplicationInterviews({
   applicationId,
@@ -47,6 +49,7 @@ export function ApplicationInterviews({
   const queryClient = useQueryClient();
   const [scheduling, setScheduling] = useState(false);
   const [pending, setPending] = useState<PendingAction>(null);
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 
   const interviewsQuery = useQuery({
@@ -139,7 +142,9 @@ export function ApplicationInterviews({
                 pendingAction={actionMutation.isPending ? actionMutation.variables?.action : undefined}
                 onAction={(action) => {
                   if (action === "reschedule") setPending({ kind: "reschedule", interview });
-                  else actionMutation.mutate({ interviewId: interview.id, action });
+                  else if (action === "cancel" || action === "no_show") {
+                    setConfirmTarget({ interview, action });
+                  } else actionMutation.mutate({ interviewId: interview.id, action });
                 }}
               />
 
@@ -194,6 +199,21 @@ export function ApplicationInterviews({
             setScheduling(false);
             invalidate();
           }}
+        />
+      ) : null}
+
+      {confirmTarget ? (
+        <InterviewActionConfirmModal
+          action={confirmTarget.action}
+          candidateName={applicant.name}
+          pending={actionMutation.isPending}
+          onCancel={() => setConfirmTarget(null)}
+          onConfirm={() =>
+            actionMutation.mutate(
+              { interviewId: confirmTarget.interview.id, action: confirmTarget.action },
+              { onSuccess: () => setConfirmTarget(null) },
+            )
+          }
         />
       ) : null}
 

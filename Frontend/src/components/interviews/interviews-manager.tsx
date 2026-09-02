@@ -17,6 +17,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { InterviewActions } from "@/components/applications/application-interviews";
+import { InterviewActionConfirmModal } from "@/components/interviews/interview-action-confirm-modal";
 import { InviteInterviewersModal } from "@/components/interviews/invite-interviewers-modal";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -100,6 +101,10 @@ export function InterviewsManager() {
   const [bucket, setBucket] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<InterviewListItem | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{
+    interview: InterviewListItem;
+    action: "cancel" | "no_show";
+  } | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -318,7 +323,9 @@ export function InterviewsManager() {
                             }
                             onAction={(action) => {
                               if (action === "reschedule") setRescheduleTarget(interview);
-                              else actionMutation.mutate({ interviewId: interview.id, action });
+                              else if (action === "cancel" || action === "no_show") {
+                                setConfirmTarget({ interview, action });
+                              } else actionMutation.mutate({ interviewId: interview.id, action });
                             }}
                           />
                         </td>
@@ -333,6 +340,20 @@ export function InterviewsManager() {
       </div>
 
       {inviteOpen ? <InviteInterviewersModal onClose={() => setInviteOpen(false)} /> : null}
+      {confirmTarget ? (
+        <InterviewActionConfirmModal
+          action={confirmTarget.action}
+          candidateName={confirmTarget.interview.candidateName}
+          pending={actionMutation.isPending}
+          onCancel={() => setConfirmTarget(null)}
+          onConfirm={() =>
+            actionMutation.mutate(
+              { interviewId: confirmTarget.interview.id, action: confirmTarget.action },
+              { onSuccess: () => setConfirmTarget(null) },
+            )
+          }
+        />
+      ) : null}
       {rescheduleTarget ? (
         <ScheduleInterviewModal
           applicant={{ name: rescheduleTarget.candidateName, email: rescheduleTarget.candidateEmail }}

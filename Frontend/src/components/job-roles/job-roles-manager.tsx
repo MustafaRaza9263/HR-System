@@ -11,13 +11,13 @@ import {
   Pencil,
   Power,
   Search,
-  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { AppIcon } from "@/components/ui/app-icon";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -391,39 +391,27 @@ function StatusConfirmationModal({ target, pending, onCancel, onConfirm }: Statu
   const activating = target.item.status === "inactive";
   const action = activating ? "Activate" : "Deactivate";
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pending) onCancel();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onCancel, pending]);
-
   return (
-    <div className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !pending) onCancel(); }} role="presentation">
-      <section aria-labelledby="status-confirmation-title" aria-modal="true" className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900" role="dialog">
-        <div className="p-6">
-          <span className={`grid h-11 w-11 place-items-center rounded-xl ${activating ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"}`}>
-            <Power aria-hidden className="h-5 w-5" />
-          </span>
-          <h2 className="mt-4 text-lg font-bold text-gray-950 dark:text-white" id="status-confirmation-title">{action} {target.kind}?</h2>
-          <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
-            {activating
-              ? `${target.item.name} will become available for active workflows.`
-              : `${target.item.name} will be hidden from new selections while historical records remain unchanged.`}
-          </p>
-        </div>
-        <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
-          <button className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700" disabled={pending} onClick={onCancel} type="button">Cancel</button>
+    <Modal
+      closeDisabled={pending}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
+          <button className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700" disabled={pending} onClick={close} type="button">Cancel</button>
           <button className={`h-11 rounded-xl text-sm font-bold text-white transition disabled:opacity-50 ${activating ? "bg-emerald-600 hover:bg-emerald-700" : "bg-amber-600 hover:bg-amber-700"}`} disabled={pending} onClick={onConfirm} type="button">{pending ? "Updating..." : action}</button>
-        </footer>
-      </section>
-    </div>
+        </div>
+      )}
+      onClose={onCancel}
+      subtitle={
+        activating
+          ? `${target.item.name} will become available for active workflows.`
+          : `${target.item.name} will be hidden from new selections while historical records remain unchanged.`
+      }
+      title={`${action} ${target.kind}?`}
+    >
+      <span className={`grid h-11 w-11 place-items-center rounded-xl ${activating ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"}`}>
+        <Power aria-hidden className="h-5 w-5" />
+      </span>
+    </Modal>
   );
 }
 
@@ -480,19 +468,6 @@ function EntityEditor({ editor, departments, onClose, onDepartmentSaved, onRoleS
   });
   const saving = saveMutation.isPending;
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !saving) onClose();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [onClose, saving]);
-
   function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanName = name.trim().replace(/\s+/g, " ");
@@ -511,17 +486,23 @@ function EntityEditor({ editor, departments, onClose, onDepartmentSaved, onRoleS
   const title = `${editing ? "Edit" : "Create"} ${isDepartment ? "department" : "role"}`;
 
   return (
-    <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/55 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-      <form aria-label={title} className="flex h-[620px] max-h-[calc(100svh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900" onSubmit={save}>
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 px-5 sm:px-6 dark:border-gray-800">
-          <div>
-            <h2 className="text-lg font-bold text-gray-950 dark:text-white">{title}</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{isDepartment ? "Organize related job roles under one category." : "Add a reusable title to a department."}</p>
-          </div>
-          <button aria-label="Close modal" className="icon-button" disabled={saving} onClick={onClose} type="button"><X aria-hidden className="h-5 w-5" /></button>
-        </header>
-
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+    <Modal
+      as="form"
+      closeDisabled={saving}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
+          <button className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700" disabled={saving} onClick={close} type="button">Cancel</button>
+          <button className="h-11 rounded-xl bg-indigo-600 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={saving} type="submit">{saving ? "Saving..." : "Save"}</button>
+        </div>
+      )}
+      height="max-h-full h-[85dvh] md:h-[620px]"
+      maxWidth="max-w-2xl"
+      onClose={onClose}
+      onSubmit={save}
+      subtitle={isDepartment ? "Organize related job roles under one category." : "Add a reusable title to a department."}
+      title={title}
+    >
+      <div className="space-y-5">
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">Name <span className="text-red-500">*</span></span>
             <input autoFocus className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400" maxLength={100} onChange={(event) => setName(event.target.value)} placeholder={isDepartment ? "e.g. Engineering" : "e.g. Senior Developer"} value={name} />
@@ -544,13 +525,7 @@ function EntityEditor({ editor, departments, onClose, onDepartmentSaved, onRoleS
           ) : null}
 
           <IconPicker label={`${isDepartment ? "Department" : "Role"} icon`} onChange={setIcon} value={icon} />
-        </div>
-
-        <footer className="grid shrink-0 grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 sm:px-6 dark:border-gray-700 dark:bg-gray-800/70">
-          <button className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700" disabled={saving} onClick={onClose} type="button">Cancel</button>
-          <button className="h-11 rounded-xl bg-indigo-600 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={saving} type="submit">{saving ? "Saving..." : "Save"}</button>
-        </footer>
-      </form>
-    </div>
+      </div>
+    </Modal>
   );
 }

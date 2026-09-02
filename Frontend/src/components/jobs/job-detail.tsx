@@ -10,9 +10,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
+import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type { Job, JobResponse } from "@/lib/jobs/types";
@@ -80,20 +81,6 @@ export function JobDetail({ jobId }: { jobId: string }) {
     },
     onError: (error) => alerts.error(errorMessage(error, "Job could not be duplicated.")),
   });
-
-  useEffect(() => {
-    if (!closeOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !closeMutation.isPending) setCloseOpen(false);
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [closeOpen, closeMutation.isPending]);
 
   if (jobQuery.isPending) {
     return (
@@ -221,42 +208,15 @@ export function JobDetail({ jobId }: { jobId: string }) {
       </div>
 
       {closeOpen ? (
-        <div
-          className="fixed inset-0 z-[1100] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !closeMutation.isPending) setCloseOpen(false);
-          }}
-          role="presentation"
-        >
-          <form
-            aria-modal="true"
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const clean = closeReason.trim();
-              if (!clean) {
-                alerts.error("Enter a close reason.");
-                return;
-              }
-              closeMutation.mutate(clean);
-            }}
-            role="dialog"
-          >
-            <div className="p-6">
-              <h2 className="text-lg font-bold">Close job?</h2>
-              <p className="mt-2 text-sm text-gray-500">A close reason is required.</p>
-              <textarea
-                autoFocus
-                className="mt-4 min-h-24 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
-                onChange={(event) => setCloseReason(event.target.value)}
-                value={closeReason}
-              />
-            </div>
-            <footer className="grid grid-cols-2 gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/70">
+        <Modal
+          as="form"
+          closeDisabled={closeMutation.isPending}
+          footer={(close) => (
+            <div className="grid grid-cols-2 gap-3">
               <button
                 className="h-11 rounded-xl border border-gray-300 text-sm font-bold dark:border-gray-600"
                 disabled={closeMutation.isPending}
-                onClick={() => setCloseOpen(false)}
+                onClick={close}
                 type="button"
               >
                 Cancel
@@ -268,9 +228,28 @@ export function JobDetail({ jobId }: { jobId: string }) {
               >
                 {closeMutation.isPending ? "Closing..." : "Close job"}
               </button>
-            </footer>
-          </form>
-        </div>
+            </div>
+          )}
+          onClose={() => setCloseOpen(false)}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const clean = closeReason.trim();
+            if (!clean) {
+              alerts.error("Enter a close reason.");
+              return;
+            }
+            closeMutation.mutate(clean);
+          }}
+          subtitle="A close reason is required."
+          title="Close job?"
+        >
+          <textarea
+            autoFocus
+            className="min-h-24 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
+            onChange={(event) => setCloseReason(event.target.value)}
+            value={closeReason}
+          />
+        </Modal>
       ) : null}
     </div>
   );

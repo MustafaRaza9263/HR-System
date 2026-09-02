@@ -108,6 +108,7 @@ Frontend/src
 | `UserProfile` | Name + email + initials avatar in tables |
 | `DateTimeDisplay` | Absolute date + time (not relative) in HR tables |
 | `Dropdown` | Filters and selects |
+| `Modal` | All dialogs. Desktop: centered card. Mobile: iOS bottom sheet with slide open/close. Do not copy overlay CSS per screen. |
 | Rounded-2xl bordered table card | All list tables |
 | Gray-50 thead, uppercase xs | Table headers |
 | `h-11`/`h-12` rounded-xl inputs | Forms |
@@ -302,7 +303,7 @@ Completed: locked (no status change, no new notes). Cancel/no-show keep notes. R
 
 **Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited.
 
-**HR list:** search name/email/phone/job. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, phone, when, status pills, icon actions. Invite modal from this page.
+**HR list:** search name/email/phone/job. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, phone, when, status pills, icon actions. Cancel and no-show open a confirmation modal. Invite modal from this page.
 
 ---
 
@@ -318,7 +319,7 @@ URL: `{FRONTEND_URL}/interview-access/{token}`. Expires when `accessDate < today
 
 **Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume download + add notes on those rows. Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
 
-**UX:** Interviews page “Invite” modal: pick department (creates/reuses today’s link), copy URL, email, history table with requester pills, expand registrants, approve/reject/revoke icon actions.
+**UX:** Interviews page “Invite” modal: pick department (creates/reuses today’s link), copy URL, email, history table with created-at, requester pills, Active/Expired status pills, expand registrants, approve/reject/revoke icon actions.
 
 ---
 
