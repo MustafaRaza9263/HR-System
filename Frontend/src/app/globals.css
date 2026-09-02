@@ -120,6 +120,15 @@ input {
   color: #ffffff;
 }
 
+.hr-secondary-btn:hover:not(:disabled) {
+  background-color: #f5f5f5;
+}
+
+[data-theme="dark"] .hr-secondary-btn:hover:not(:disabled) {
+  background-color: #404040;
+  color: #ffffff;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;

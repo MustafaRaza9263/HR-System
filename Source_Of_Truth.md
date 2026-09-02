@@ -104,7 +104,7 @@ Frontend/src
 | Pattern | Use |
 |---|---|
 | `MetricCard` | List page stat row |
-| `StatusPills` + tone | Application/interview/registrant status (success/danger/warning/info/neutral) |
+| `StatusPills` + tone | Application/interview/registrant status (success/danger/warning/info/sky/violet/neutral) |
 | `UserProfile` | Name + email + initials avatar in tables |
 | `DateTimeDisplay` | Absolute date + time (not relative) in HR tables |
 | `Dropdown` | Filters and selects |
@@ -141,7 +141,7 @@ All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inact
 | Role | name, normalizedName, departmentId, icon, status, createdBy | Unique `(departmentId, normalizedName)` |
 | Job | see §9 | slug unique when string; `wizardStep` 1–4 |
 | Application | see §10 | links **jobId only**; `roleSnapshot` frozen at apply |
-| Interview | applicationId, departmentId (copied from snapshot), date, time, durationMinutes 15–240, status, createdBy | |
+| Interview | applicationId, departmentId (copied from snapshot), label (required, ≤80), date, time, durationMinutes 15–240, status, createdBy | |
 | InterviewNote | interviewId, authorName, authorEmail, content ≤2000, createdAt | Separate collection |
 | DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
 | LinkRegistrant | linkToken, name, email, status, requestedAt, approvedAt | |
@@ -184,11 +184,14 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/department-links/:token/registrants` | |
 | POST | `/department-links/:token/send-email` | `{ email }` |
 | PATCH | `/link-registrants/:id/approve` `/reject` `/revoke` | |
-| GET | `/interview-access/:token` | public state + expired flag |
+| GET | `/interview-access/:token` | public state + expired flag + `expiresAt` |
 | POST | `/interview-access/:token/register` | live link only |
 | GET | `/interview-access/:token/interviews` | approved guest |
 | GET | `…/interviews/:id/resume` | approved guest, scheduled, same dept+date |
+| GET | `…/interviews/:id/application` | same; application profile (no status side effect) |
+| GET | `…/interviews/:id/files/:fieldId` | same; custom-field file |
 | POST | `…/interviews/:id/notes` | same |
+| PATCH | `…/interviews/:id/complete` | same; requires ≥1 note |
 | GET | `/notifications` | HR; `q, unreadOnly, page, limit≤50` default 20 |
 | GET | `/notifications/unread-count` `/stream` | SSE `notification` events |
 | PATCH | `/notifications/read-all` `/:id/read` | |
@@ -277,7 +280,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then `notifyHR("new_application")` async.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved. Row click → detail (profile + interviews tabs). Row actions: view resume (modal), schedule interview. Reject from list or detail.
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved. Row click → detail (profile + interviews tabs). Row actions: view resume (modal), schedule interview. Reject from list or detail. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -293,17 +296,19 @@ On success: `applicationCount++` only if job still `open` (else delete created r
 |---|---|
 | reschedule, cancel | always while scheduled |
 | no_show | date is today or passed |
-| mark_complete | date today/passed **and** ≥1 note |
+| mark_complete | date today/passed; completing requires ≥1 note (HR or interviewer). Confirmation modal. |
 
-Completed: locked (no status change, no new notes). Cancel/no-show keep notes. Reschedule updates the **same** row (date/time/duration), stays `scheduled`.
+Completed: locked for status changes. **Notes:** writable on `scheduled` and `completed`; not on `cancelled` or `no_show`. Cancel/no-show keep existing notes. Reschedule updates the **same** row (label/date/time/duration), stays `scheduled`.
 
-**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status.
+**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Requires `label`, date, time, duration. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status.
 
 **Complete:** increments `completedInterviewCount`. **Cancel:** emails candidate. **No-show:** no email.
 
-**Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited.
+**Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal cards: compact `UserProfile` initials, note text, and bottom-left calendar/clock timestamp.
 
-**HR list:** search name/email/phone/job. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, phone, when, status pills, icon actions. Cancel and no-show open a confirmation modal. Invite modal from this page.
+**HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Cancel, no-show, and complete open a confirmation modal; complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
+
+**UX — schedule modal:** required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled).
 
 ---
 
@@ -317,15 +322,17 @@ URL: `{FRONTEND_URL}/interview-access/{token}`. Expires when `accessDate < today
 
 **HR:** approve / reject only from `pending_approval` on unexpired link. Approve sets `approvedAt`, emails guest with URL. Reject emails. **Revoke** only from `approved` (no email). Expired link: cannot approve/reject.
 
-**Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume download + add notes on those rows. Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
+**Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume preview + application details + add notes + mark complete (requires ≥1 note) on those rows. Mark complete notifies HR (`interview_completed`). Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
 
-**UX:** Interviews page “Invite” modal: pick department (creates/reuses today’s link), copy URL, email, history table with created-at, requester pills, Active/Expired status pills, expand registrants, approve/reject/revoke icon actions.
+**UX — guest `/interview-access/[token]`:** Header `HR System` (left) · `Interviewer Portal` (center) · initials avatar (right). Avatar opens name, email, status, expires-at. **Expired or invalid link:** no header — centered expiry/unavailable card only. Approved view is a table (Candidate, Job, Label, Duration, icon actions: mark complete, view CV modal, view application modal, add note modal). Register / pending / rejected / revoked stay as centered cards under the header.
+
+**UX — HR Interviews “Invite” modal:** pick department (creates/reuses today’s link), copy URL, email, history table with created-at, requester pills, Active/Expired status pills, expand registrants, approve/reject/revoke icon actions.
 
 ---
 
 ## 14. Notifications
 
-Types: `new_application` (href `/dashboard/applications/:id`), `interview_request` (href `/dashboard/interviews?pending=1`).
+Types: `new_application` (href `/dashboard/applications/:id`), `interview_request` (href `/dashboard/interviews?pending=1`), `interview_completed` (href `/dashboard/interviews`; guest mark-complete: “[interviewer] completed interview with [candidate] for [role]”).
 
 Shared HR feed. Insert only via `notifyHR(type, refId)`. Also SSE + optional FCM.
 

@@ -18,8 +18,11 @@ import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { setGuestAccessCookie } from "../utils/cookies.js";
 import { endOfAccessInstant, isAccessDateExpired, todayCalendarDate } from "../utils/date-state.js";
+import { recomputeApplicationStatus } from "../utils/application-status.js";
+import { assertCanWriteNotes, canMarkComplete } from "../utils/interview-rules.js";
 import { logger } from "../utils/logger.js";
 import { assertObjectId } from "../utils/object-id.js";
+import { serializeApplication } from "../utils/serialize-application.js";
 import { serializeInterview } from "../utils/serialize-interview.js";
 import { signGuestAccessToken, verifyGuestAccessToken } from "../utils/token.js";
 import { contentDispositionFilename, resolveUploadPath } from "../utils/uploads.js";
@@ -84,6 +87,7 @@ function publicState(input: {
   return {
     token: input.token,
     accessDate: input.accessDate,
+    expiresAt: endOfAccessInstant(input.accessDate).toISOString(),
     departmentName: input.departmentName ?? null,
     session: input.registrant
       ? {
@@ -196,6 +200,39 @@ async function requireApprovedRegistrant(request: Request) {
   return { link, registrant };
 }
 
+async function loadGuestInterview(request: Request) {
+  const { link, registrant } = await requireApprovedRegistrant(request);
+  const interviewId = request.params.interviewId;
+  if (typeof interviewId !== "string") {
+    throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
+  }
+  assertObjectId(interviewId, "INTERVIEW_NOT_FOUND", "Interview was not found.");
+  const interview = await Interview.findOne({
+    _id: interviewId,
+    departmentId: link.departmentId,
+    date: link.accessDate,
+    status: "scheduled",
+  });
+  if (!interview) {
+    throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
+  }
+  return { link, registrant, interview };
+}
+
+async function streamStoredFile(response: Response, relativePath: string, filename: string, disposition: "inline" | "attachment") {
+  const absolute = resolveUploadPath(relativePath);
+  try {
+    await access(absolute);
+  } catch {
+    throw new ApiError(404, "FILE_NOT_FOUND", "File was not found.");
+  }
+  const safeName = contentDispositionFilename(filename);
+  response.setHeader("Content-Type", mimeFor(safeName));
+  response.setHeader("Content-Disposition", `${disposition}; filename="${safeName}"`);
+  response.setHeader("Cache-Control", "private, max-age=300");
+  createReadStream(absolute).pipe(response);
+}
+
 interviewAccessRouter.get(
   "/:token/interviews",
   asyncHandler(async (request, response) => {
@@ -239,61 +276,61 @@ interviewAccessRouter.get(
 interviewAccessRouter.get(
   "/:token/interviews/:interviewId/resume",
   asyncHandler(async (request, response) => {
-    const { link } = await requireApprovedRegistrant(request);
-    const interviewId = request.params.interviewId;
-    if (typeof interviewId !== "string") {
-      throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
-    }
-    assertObjectId(interviewId, "INTERVIEW_NOT_FOUND", "Interview was not found.");
-    const interview = await Interview.findOne({
-      _id: interviewId,
-      departmentId: link.departmentId,
-      date: link.accessDate,
-      status: "scheduled",
-    }).lean();
-    if (!interview) {
-      throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
-    }
+    const { interview } = await loadGuestInterview(request);
     const application = await Application.findById(interview.applicationId)
       .select("resumeUrl resumeOriginalName")
       .lean();
     if (!application) {
       throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
     }
-    const absolute = resolveUploadPath(application.resumeUrl);
     try {
-      await access(absolute);
-    } catch {
-      throw new ApiError(404, "RESUME_NOT_FOUND", "Resume file was not found.");
+      await streamStoredFile(response, application.resumeUrl, application.resumeOriginalName, "inline");
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "FILE_NOT_FOUND") {
+        throw new ApiError(404, "RESUME_NOT_FOUND", "Resume file was not found.");
+      }
+      throw error;
     }
-    const filename = contentDispositionFilename(application.resumeOriginalName);
-    response.setHeader("Content-Type", mimeFor(filename));
-    response.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    createReadStream(absolute).pipe(response);
+  }),
+);
+
+interviewAccessRouter.get(
+  "/:token/interviews/:interviewId/application",
+  asyncHandler(async (request, response) => {
+    const { interview } = await loadGuestInterview(request);
+    const application = await Application.findById(interview.applicationId).lean();
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    response.status(200).json({ data: { application: serializeApplication(application) } });
+  }),
+);
+
+interviewAccessRouter.get(
+  "/:token/interviews/:interviewId/files/:fieldId",
+  asyncHandler(async (request, response) => {
+    const { interview } = await loadGuestInterview(request);
+    const fieldId = request.params.fieldId;
+    if (typeof fieldId !== "string") {
+      throw new ApiError(404, "FILE_NOT_FOUND", "File was not found.");
+    }
+    const application = await Application.findById(interview.applicationId).select("answers").lean();
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    const answer = application.answers.find((item) => item.fieldId === fieldId && item.type === "file");
+    if (!answer || typeof answer.value !== "string" || !answer.value) {
+      throw new ApiError(404, "FILE_NOT_FOUND", "File was not found.");
+    }
+    await streamStoredFile(response, answer.value, answer.fileName ?? "attachment", "attachment");
   }),
 );
 
 interviewAccessRouter.post(
   "/:token/interviews/:interviewId/notes",
   asyncHandler(async (request, response) => {
-    const { link, registrant } = await requireApprovedRegistrant(request);
-    const interviewId = request.params.interviewId;
-    if (typeof interviewId !== "string") {
-      throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
-    }
-    assertObjectId(interviewId, "INTERVIEW_NOT_FOUND", "Interview was not found.");
-    const interview = await Interview.findOne({
-      _id: interviewId,
-      departmentId: link.departmentId,
-      date: link.accessDate,
-      status: "scheduled",
-    });
-    if (!interview) {
-      throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
-    }
-    if (interview.status === "completed") {
-      throw new ApiError(403, "INTERVIEW_LOCKED", "Notes cannot be added to a completed interview.");
-    }
+    const { registrant, interview } = await loadGuestInterview(request);
+    assertCanWriteNotes(interview.status);
 
     const input = interviewNoteSchema.parse(request.body);
     await InterviewNote.create({
@@ -304,5 +341,30 @@ interviewAccessRouter.post(
     });
 
     response.status(201).json({ data: { interview: await serializeInterview(interview.toObject()) } });
+  }),
+);
+
+interviewAccessRouter.patch(
+  "/:token/interviews/:interviewId/complete",
+  asyncHandler(async (request, response) => {
+    const { registrant, interview } = await loadGuestInterview(request);
+    if (!(await canMarkComplete(interview))) {
+      throw new ApiError(
+        400,
+        "INTERVIEW_NOTES_REQUIRED",
+        "Add at least one note before marking this interview complete.",
+      );
+    }
+
+    interview.status = "completed";
+    await interview.save();
+    await Application.updateOne({ _id: interview.applicationId }, { $inc: { completedInterviewCount: 1 } }).exec();
+    await recomputeApplicationStatus(interview.applicationId);
+
+    void notifyHR("interview_completed", `${interview._id.toString()}:${registrant._id.toString()}`).catch((error) => {
+      logger.error("notifyHR interview_completed failed", error);
+    });
+
+    response.status(200).json({ data: { interview: await serializeInterview(interview.toObject()) } });
   }),
 );

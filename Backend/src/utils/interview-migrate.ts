@@ -31,6 +31,11 @@ function asDate(value: unknown): Date | null {
 }
 
 export async function migrateInterviewDocuments(): Promise<void> {
+  await Interview.collection.updateMany(
+    { $or: [{ label: { $exists: false } }, { label: null }, { label: "" }] },
+    { $set: { label: "Interview" } },
+  );
+
   const legacy = (await Interview.collection
     .find({
       $or: [{ date: { $exists: false } }, { date: null }, { departmentId: { $exists: false } }, { departmentId: null }],

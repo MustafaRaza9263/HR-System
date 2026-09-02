@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Clock3,
   Phone,
+  FilePlus,
   Search,
   TriangleAlert,
   UserPlus,
@@ -16,13 +17,15 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { InterviewActions } from "@/components/applications/application-interviews";
+import { COMPLETE_NOTE_REQUIRED, completeDisabledReasons, InterviewActions, notesWriteLocked } from "@/components/applications/application-interviews";
 import { InterviewActionConfirmModal } from "@/components/interviews/interview-action-confirm-modal";
+import { InterviewNoteModal } from "@/components/interviews/interview-note-modal";
 import { InviteInterviewersModal } from "@/components/interviews/invite-interviewers-modal";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
+import { Tooltip } from "@/components/ui/tooltip";
 import { UserProfile } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
@@ -101,9 +104,10 @@ export function InterviewsManager() {
   const [bucket, setBucket] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<InterviewListItem | null>(null);
+  const [noteTarget, setNoteTarget] = useState<InterviewListItem | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{
     interview: InterviewListItem;
-    action: "cancel" | "no_show";
+    action: "cancel" | "no_show" | "mark_complete";
   } | null>(null);
 
   useEffect(() => {
@@ -152,6 +156,9 @@ export function InterviewsManager() {
   const stats = listQuery.data?.data.stats ?? emptyStats;
   const jobs = jobsQuery.data?.data.jobs ?? [];
   const hasPending = (pendingQuery.data?.data.requests.length ?? 0) > 0;
+  const liveNoteTarget = noteTarget
+    ? (interviews.find((item) => item.id === noteTarget.id) ?? noteTarget)
+    : null;
 
   function invalidateBoard() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.all });
@@ -174,6 +181,24 @@ export function InterviewsManager() {
       invalidateBoard();
     },
     onError: (error) => alerts.error(errorMessage(error, "Action could not be completed.")),
+  });
+
+  const noteMutation = useMutation({
+    mutationFn: async ({ interviewId, content }: { interviewId: string; content: string }) =>
+      apiRequest<InterviewResponse>(`/interviews/${interviewId}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      }),
+    onSuccess: (result, variables) => {
+      alerts.success("Note added.");
+      invalidateBoard();
+      setNoteTarget((current) =>
+        current && current.id === variables.interviewId
+          ? { ...current, notes: result.data.interview.notes }
+          : current,
+      );
+    },
+    onError: (error) => alerts.error(errorMessage(error, "Note could not be saved.")),
   });
 
   function toggleBucket(next: string) {
@@ -206,7 +231,7 @@ export function InterviewsManager() {
               <input
                 className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search by candidate, email, phone, or job…"
+                placeholder="Search by candidate, email, phone, job, or label…"
                 value={query}
               />
             </label>
@@ -278,6 +303,7 @@ export function InterviewsManager() {
                     <tr>
                       <th className="px-4 py-3">Candidate</th>
                       <th className="px-4 py-3">Job</th>
+                      <th className="px-4 py-3">Label</th>
                       <th className="px-4 py-3">Phone</th>
                       <th className="px-4 py-3">When</th>
                       <th className="px-4 py-3">Status</th>
@@ -298,6 +324,9 @@ export function InterviewsManager() {
                             <span className="truncate">{interview.jobTitle}</span>
                           </span>
                         </td>
+                        <td className="max-w-[180px] px-4 py-3 align-middle">
+                          <span className="block truncate font-medium text-gray-800 dark:text-gray-100">{interview.label}</span>
+                        </td>
                         <td className="whitespace-nowrap px-4 py-3 align-middle">
                           <span className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-300">
                             <Phone aria-hidden className="h-4 w-4 shrink-0 text-gray-400" />
@@ -314,20 +343,37 @@ export function InterviewsManager() {
                           />
                         </td>
                         <td className="px-4 py-3 align-middle">
-                          <InterviewActions
-                            actions={interview.actions}
-                            pendingAction={
-                              actionMutation.isPending && actionMutation.variables?.interviewId === interview.id
-                                ? actionMutation.variables.action
-                                : undefined
-                            }
-                            onAction={(action) => {
-                              if (action === "reschedule") setRescheduleTarget(interview);
-                              else if (action === "cancel" || action === "no_show") {
-                                setConfirmTarget({ interview, action });
-                              } else actionMutation.mutate({ interviewId: interview.id, action });
-                            }}
-                          />
+                          <div className="flex items-center gap-1">
+                            <InterviewActions
+                              actions={interview.actions}
+                              disabledReasons={completeDisabledReasons(interview.notes.length)}
+                              pendingAction={
+                                actionMutation.isPending && actionMutation.variables?.interviewId === interview.id
+                                  ? actionMutation.variables.action
+                                  : undefined
+                              }
+                              onAction={(action) => {
+                                if (action === "reschedule") setRescheduleTarget(interview);
+                                else if (action === "cancel" || action === "no_show" || action === "mark_complete") {
+                                  if (action === "mark_complete" && interview.notes.length === 0) {
+                                    alerts.error(COMPLETE_NOTE_REQUIRED);
+                                    return;
+                                  }
+                                  setConfirmTarget({ interview, action });
+                                } else actionMutation.mutate({ interviewId: interview.id, action });
+                              }}
+                            />
+                            <Tooltip label={notesWriteLocked(interview.status) ? "View notes" : "Add note"}>
+                              <button
+                                aria-label={notesWriteLocked(interview.status) ? "View notes" : "Add note"}
+                                className="icon-button"
+                                onClick={() => setNoteTarget(interview)}
+                                type="button"
+                              >
+                                <FilePlus aria-hidden className="h-4 w-4" />
+                              </button>
+                            </Tooltip>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -364,6 +410,18 @@ export function InterviewsManager() {
             setRescheduleTarget(null);
             invalidateBoard();
           }}
+        />
+      ) : null}
+      {liveNoteTarget ? (
+        <InterviewNoteModal
+          candidateName={liveNoteTarget.candidateName}
+          locked={notesWriteLocked(liveNoteTarget.status)}
+          notes={liveNoteTarget.notes}
+          onClose={() => setNoteTarget(null)}
+          onSubmit={async (content) => {
+            await noteMutation.mutateAsync({ interviewId: liveNoteTarget.id, content });
+          }}
+          pending={noteMutation.isPending}
         />
       ) : null}
     </div>

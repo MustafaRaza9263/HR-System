@@ -39,14 +39,17 @@ export function ScheduleInterviewModal({
   onSaved: () => void;
 }) {
   const reschedule = Boolean(interview);
+  const [label, setLabel] = useState(interview?.label ?? "");
   const [date, setDate] = useState(interview?.date ?? "");
   const [time, setTime] = useState(interview?.time ?? "09:00");
   const [duration, setDuration] = useState(interview ? String(interview.durationMinutes) : "45");
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const trimmedLabel = label.trim();
+      if (!trimmedLabel) throw new ApiClientError(422, "VALIDATION_ERROR", "Enter a label.");
       if (!date) throw new ApiClientError(422, "VALIDATION_ERROR", "Select an interview date.");
-      const body = { date, time: time || "09:00", durationMinutes: Number(duration) };
+      const body = { label: trimmedLabel, date, time: time || "09:00", durationMinutes: Number(duration) };
       if (reschedule && interview) {
         return apiRequest<InterviewResponse>(`/interviews/${interview.id}/reschedule`, {
           method: "PATCH",
@@ -72,7 +75,7 @@ export function ScheduleInterviewModal({
       footer={(close) => (
         <div className="grid grid-cols-2 gap-3">
           <button
-            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-white"
             disabled={saveMutation.isPending}
             onClick={close}
             type="button"
@@ -94,7 +97,7 @@ export function ScheduleInterviewModal({
         event.preventDefault();
         saveMutation.mutate();
       }}
-      subtitle="Date, time, and duration only. Time is shown for planning and is not used for status rules."
+      subtitle="Label, date, time, and duration. Time is shown for planning and is not used for status rules."
       title={reschedule ? "Reschedule interview" : "Schedule interview"}
     >
       <div className="flex items-center gap-3">
@@ -110,6 +113,18 @@ export function ScheduleInterviewModal({
       <div className="mt-5 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
+            <span className="mb-2 block text-sm font-bold">Label</span>
+            <input
+              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              maxLength={80}
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="e.g. Technical round"
+              required
+              type="text"
+              value={label}
+            />
+          </label>
+          <label className="block">
             <span className="mb-2 block text-sm font-bold">Date</span>
             <input
               className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -119,6 +134,8 @@ export function ScheduleInterviewModal({
               value={date}
             />
           </label>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Time (PKT)</span>
             <input
@@ -128,18 +145,18 @@ export function ScheduleInterviewModal({
               value={time}
             />
           </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold">Duration (minutes)</span>
+            <input
+              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              max={240}
+              min={15}
+              onChange={(event) => setDuration(event.target.value)}
+              type="number"
+              value={duration}
+            />
+          </label>
         </div>
-        <label className="block">
-          <span className="mb-2 block text-sm font-bold">Duration (minutes)</span>
-          <input
-            className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-            max={240}
-            min={15}
-            onChange={(event) => setDuration(event.target.value)}
-            type="number"
-            value={duration}
-          />
-        </label>
       </div>
     </Modal>
   );

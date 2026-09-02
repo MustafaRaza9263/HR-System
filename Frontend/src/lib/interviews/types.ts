@@ -16,6 +16,7 @@ export interface Interview {
   id: string;
   applicationId: string;
   departmentId: string;
+  label: string;
   date: string;
   time: string;
   durationMinutes: number;
@@ -123,6 +124,7 @@ export interface AccessSession {
 export interface AccessState {
   token: string;
   accessDate: string;
+  expiresAt: string;
   departmentName: string | null;
   session: AccessSession | null;
 }
@@ -131,17 +133,17 @@ export interface AccessLinkResponse {
   data: { expired: boolean; state: AccessState };
 }
 
+export interface AccessInterview extends Interview {
+  candidateName: string;
+  candidateEmail: string;
+  jobTitle: string;
+  resumeOriginalName: string;
+  resumePath: string;
+}
+
 export interface AccessInterviewsResponse {
   data: {
-    interviews: Array<
-      Interview & {
-        candidateName: string;
-        candidateEmail: string;
-        jobTitle: string;
-        resumeOriginalName: string;
-        resumePath: string;
-      }
-    >;
+    interviews: AccessInterview[];
     registrant: { name: string | null; email: string | null };
   };
 }

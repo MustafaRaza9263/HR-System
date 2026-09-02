@@ -30,20 +30,23 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function ResumeViewerModal({
   applicationId,
+  resumePath,
   candidateName,
   candidateEmail,
   resumeFileName,
   onClose,
 }: {
   applicationId: string;
+  resumePath?: string;
   candidateName: string;
   candidateEmail: string;
   resumeFileName?: string;
   onClose: () => void;
 }) {
+  const path = resumePath ?? `/applications/${applicationId}/resume`;
   const resumeQuery = useQuery({
-    queryKey: queryKeys.applications.resume(applicationId),
-    queryFn: () => apiBlob(`/applications/${applicationId}/resume`),
+    queryKey: [...queryKeys.applications.resume(applicationId), path],
+    queryFn: () => apiBlob(path),
     staleTime: Infinity,
     gcTime: 10 * 60 * 1000,
   });

@@ -6,6 +6,7 @@ interface InterviewLike {
   _id: { toString(): string };
   applicationId: { toString(): string };
   departmentId: { toString(): string };
+  label?: string | null;
   date: string;
   time: string;
   durationMinutes: number;
@@ -27,6 +28,7 @@ export interface SerializedInterview {
   id: string;
   applicationId: string;
   departmentId: string;
+  label: string;
   date: string;
   time: string;
   durationMinutes: number;
@@ -67,6 +69,7 @@ export function isSerializableInterview(interview: {
   _id?: { toString(): string };
   applicationId?: { toString(): string } | null;
   departmentId?: { toString(): string } | null;
+  label?: unknown;
   date?: unknown;
   time?: unknown;
   durationMinutes?: unknown;
@@ -102,6 +105,7 @@ export async function serializeInterview(
     id: interview._id.toString(),
     applicationId: interview.applicationId.toString(),
     departmentId: interview.departmentId.toString(),
+    label: typeof interview.label === "string" && interview.label.trim() ? interview.label.trim() : "Interview",
     date: interview.date,
     time: interview.time,
     durationMinutes: interview.durationMinutes,

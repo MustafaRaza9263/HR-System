@@ -67,17 +67,19 @@ function statusLabel(status: ApplicationStatus) {
 
 function statusTone(status: ApplicationStatus): PillTone {
   switch (status) {
+    case "submitted":
+      return "sky";
+    case "under_review":
+      return "warning";
+    case "interview_scheduled":
+      return "info";
+    case "interviewed":
+    case "trial":
+      return "violet";
     case "approved":
       return "success";
     case "rejected":
       return "danger";
-    case "under_review":
-      return "warning";
-    case "submitted":
-    case "interview_scheduled":
-    case "interviewed":
-    case "trial":
-      return "info";
     default:
       return "neutral";
   }

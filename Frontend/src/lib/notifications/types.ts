@@ -1,4 +1,4 @@
-export type NotificationType = "interview_request" | "new_application";
+export type NotificationType = "interview_request" | "new_application" | "interview_completed";
 
 export interface HrNotification {
   id: string;

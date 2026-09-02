@@ -1,17 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { CalendarClock, CalendarPlus, CircleCheck, LoaderCircle, UserX, XCircle, type LucideIcon } from "lucide-react";
+import { CalendarClock, CalendarPlus, CircleCheck, FilePlus, LoaderCircle, UserX, XCircle, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
 import { InterviewActionConfirmModal } from "@/components/interviews/interview-action-confirm-modal";
+import { InterviewNoteModal } from "@/components/interviews/interview-note-modal";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Tooltip } from "@/components/ui/tooltip";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import { formatInterviewWhen } from "@/lib/interviews/format";
-import type { DisplayStatus, Interview, InterviewAction, InterviewResponse, InterviewsListResponse } from "@/lib/interviews/types";
+import type { DisplayStatus, Interview, InterviewAction, InterviewResponse, InterviewStatus, InterviewsListResponse } from "@/lib/interviews/types";
 import { queryKeys } from "@/lib/query/query-keys";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -35,7 +35,17 @@ function interviewBadge(status: DisplayStatus) {
 }
 
 type PendingAction = { kind: "reschedule"; interview: Interview } | null;
-type ConfirmTarget = { interview: Interview; action: "cancel" | "no_show" };
+type ConfirmTarget = { interview: Interview; action: "cancel" | "no_show" | "mark_complete" };
+
+export const COMPLETE_NOTE_REQUIRED = "Add at least one note before marking this interview complete.";
+
+export function completeDisabledReasons(notesCount: number): Partial<Record<InterviewAction, string>> | undefined {
+  return notesCount === 0 ? { mark_complete: COMPLETE_NOTE_REQUIRED } : undefined;
+}
+
+export function notesWriteLocked(status: InterviewStatus) {
+  return status === "cancelled" || status === "no_show";
+}
 
 export function ApplicationInterviews({
   applicationId,
@@ -50,7 +60,7 @@ export function ApplicationInterviews({
   const [scheduling, setScheduling] = useState(false);
   const [pending, setPending] = useState<PendingAction>(null);
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
-  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [noteTarget, setNoteTarget] = useState<Interview | null>(null);
 
   const interviewsQuery = useQuery({
     queryKey: queryKeys.applications.interviews(applicationId),
@@ -58,6 +68,9 @@ export function ApplicationInterviews({
   });
 
   const interviews = interviewsQuery.data?.data.interviews ?? [];
+  const liveNoteTarget = noteTarget
+    ? (interviews.find((item) => item.id === noteTarget.id) ?? noteTarget)
+    : null;
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.applications.interviews(applicationId) });
@@ -90,10 +103,14 @@ export function ApplicationInterviews({
         method: "POST",
         body: JSON.stringify({ content }),
       }),
-    onSuccess: (_result, variables) => {
-      setNoteDrafts((current) => ({ ...current, [variables.interviewId]: "" }));
+    onSuccess: (result, variables) => {
       alerts.success("Note added.");
       invalidate();
+      setNoteTarget((current) =>
+        current && current.id === variables.interviewId
+          ? { ...current, notes: result.data.interview.notes }
+          : current,
+      );
     },
     onError: (error) => alerts.error(errorMessage(error, "Note could not be saved.")),
   });
@@ -122,12 +139,13 @@ export function ApplicationInterviews({
 
       <div className="mt-4 space-y-4">
         {interviews.map((interview) => {
-          const locked = interview.status === "completed";
+          const locked = notesWriteLocked(interview.status);
           return (
             <article className="rounded-xl border border-gray-200 p-4 dark:border-gray-700" key={interview.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-bold text-gray-950 dark:text-white">
+                  <p className="text-sm font-bold text-gray-950 dark:text-white">{interview.label}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">
                     {formatInterviewWhen(interview.date, interview.time)} · {interview.durationMinutes} min
                   </p>
                 </div>
@@ -136,54 +154,32 @@ export function ApplicationInterviews({
                 </span>
               </div>
 
-              <InterviewActions
-                actions={interview.actions}
-                className="mt-3"
-                pendingAction={actionMutation.isPending ? actionMutation.variables?.action : undefined}
-                onAction={(action) => {
-                  if (action === "reschedule") setPending({ kind: "reschedule", interview });
-                  else if (action === "cancel" || action === "no_show") {
-                    setConfirmTarget({ interview, action });
-                  } else actionMutation.mutate({ interviewId: interview.id, action });
-                }}
-              />
-
-              <div className="mt-4 space-y-2">
-                {interview.notes.map((note) => (
-                  <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-gray-900/70" key={note.id}>
-                    <p className="font-semibold text-gray-800 dark:text-gray-200">
-                      {note.authorName} · {format(new Date(note.createdAt), "d MMM, HH:mm")}
-                    </p>
-                    <p className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-gray-300">{note.content}</p>
-                  </div>
-                ))}
-                {locked ? (
-                  <p className="text-xs text-gray-400">Notes are locked on completed interviews.</p>
-                ) : (
-                  <form
-                    className="flex gap-2"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const content = (noteDrafts[interview.id] ?? "").trim();
-                      if (!content) return;
-                      noteMutation.mutate({ interviewId: interview.id, content });
-                    }}
+              <div className="mt-3 flex flex-wrap items-center gap-1">
+                <InterviewActions
+                  actions={interview.actions}
+                  disabledReasons={completeDisabledReasons(interview.notes.length)}
+                  pendingAction={actionMutation.isPending ? actionMutation.variables?.action : undefined}
+                  onAction={(action) => {
+                    if (action === "reschedule") setPending({ kind: "reschedule", interview });
+                    else if (action === "cancel" || action === "no_show" || action === "mark_complete") {
+                      if (action === "mark_complete" && interview.notes.length === 0) {
+                        alerts.error(COMPLETE_NOTE_REQUIRED);
+                        return;
+                      }
+                      setConfirmTarget({ interview, action });
+                    } else actionMutation.mutate({ interviewId: interview.id, action });
+                  }}
+                />
+                <Tooltip label={locked ? "View notes" : "Add note"}>
+                  <button
+                    aria-label={locked ? "View notes" : "Add note"}
+                    className="icon-button"
+                    onClick={() => setNoteTarget(interview)}
+                    type="button"
                   >
-                    <input
-                      className="h-10 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                      onChange={(event) => setNoteDrafts((current) => ({ ...current, [interview.id]: event.target.value }))}
-                      placeholder="Add a note…"
-                      value={noteDrafts[interview.id] ?? ""}
-                    />
-                    <button
-                      className="h-10 rounded-lg bg-gray-900 px-3 text-xs font-bold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
-                      disabled={noteMutation.isPending}
-                      type="submit"
-                    >
-                      Add
-                    </button>
-                  </form>
-                )}
+                    <FilePlus aria-hidden className="h-4 w-4" />
+                  </button>
+                </Tooltip>
               </div>
             </article>
           );
@@ -229,6 +225,18 @@ export function ApplicationInterviews({
           }}
         />
       ) : null}
+      {liveNoteTarget ? (
+        <InterviewNoteModal
+          candidateName={applicant.name}
+          locked={notesWriteLocked(liveNoteTarget.status)}
+          notes={liveNoteTarget.notes}
+          onClose={() => setNoteTarget(null)}
+          onSubmit={async (content) => {
+            await noteMutation.mutateAsync({ interviewId: liveNoteTarget.id, content });
+          }}
+          pending={noteMutation.isPending}
+        />
+      ) : null}
     </section>
   );
 }
@@ -250,11 +258,13 @@ const ACTION_ICONS: Record<InterviewAction, LucideIcon> = {
 export function InterviewActions({
   actions,
   pendingAction,
+  disabledReasons,
   onAction,
   className,
 }: {
   actions: InterviewAction[];
   pendingAction?: InterviewAction;
+  disabledReasons?: Partial<Record<InterviewAction, string>>;
   onAction: (action: InterviewAction) => void;
   className?: string;
 }) {
@@ -264,13 +274,14 @@ export function InterviewActions({
     <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`.trim()}>
       {actions.map((action) => {
         const Icon = ACTION_ICONS[action];
-        const label = pendingAction === action ? "Saving…" : ACTION_LABELS[action];
+        const blocked = disabledReasons?.[action];
+        const label = pendingAction === action ? "Saving…" : blocked ?? ACTION_LABELS[action];
         return (
           <Tooltip key={action} label={label}>
             <button
               aria-label={label}
               className="icon-button"
-              disabled={Boolean(pendingAction)}
+              disabled={Boolean(pendingAction) || Boolean(blocked)}
               onClick={() => onAction(action)}
               type="button"
             >

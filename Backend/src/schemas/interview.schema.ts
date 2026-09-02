@@ -14,14 +14,21 @@ const durationMinutes = z.coerce
   .int()
   .min(15, "Duration must be at least 15 minutes.")
   .max(240, "Duration cannot exceed 240 minutes.");
+const interviewLabel = z
+  .string()
+  .trim()
+  .min(1, "Enter a label.")
+  .max(80, "Label cannot exceed 80 characters.");
 
 export const createInterviewSchema = z.object({
+  label: interviewLabel,
   date: calendarDate,
   time: clockTime,
   durationMinutes,
 });
 
 export const rescheduleInterviewSchema = z.object({
+  label: interviewLabel,
   date: calendarDate,
   time: clockTime,
   durationMinutes,

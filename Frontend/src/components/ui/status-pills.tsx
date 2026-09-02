@@ -1,4 +1,4 @@
-export type PillTone = "success" | "danger" | "warning" | "info" | "neutral";
+export type PillTone = "success" | "danger" | "warning" | "info" | "neutral" | "sky" | "violet";
 
 export interface StatusPillItem {
   label: string;
@@ -20,6 +20,8 @@ const TONE_CLASS: Record<PillTone, string> = {
   danger: "border-red-500/70 text-red-600 dark:border-red-400/80 dark:text-red-400",
   warning: "border-amber-500/70 text-amber-700 dark:border-amber-400/80 dark:text-amber-400",
   info: "border-indigo-400/80 text-indigo-600 dark:border-indigo-400/80 dark:text-indigo-300",
+  sky: "border-sky-400/80 text-sky-600 dark:border-sky-400/80 dark:text-sky-300",
+  violet: "border-violet-400/80 text-violet-600 dark:border-violet-400/80 dark:text-violet-300",
   neutral: "border-gray-400/70 text-gray-600 dark:border-gray-500 dark:text-gray-400",
 };
 

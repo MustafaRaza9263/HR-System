@@ -19,7 +19,7 @@ import { ApiError } from "../utils/api-error.js";
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { shiftCalendarDate, todayCalendarDate } from "../utils/date-state.js";
-import { assertNotCompleted, assertScheduled, canMarkComplete } from "../utils/interview-rules.js";
+import { assertNotCompleted, assertScheduled, assertCanWriteNotes, canMarkComplete } from "../utils/interview-rules.js";
 import { assertObjectId } from "../utils/object-id.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
 
@@ -95,7 +95,7 @@ interviewRouter.get(
       if (query.bucket === "overdue" && item.displayStatus !== "overdue") return false;
       if (query.q) {
         const needle = query.q.toLocaleLowerCase();
-        const haystack = `${item.candidateName} ${item.candidateEmail} ${item.candidatePhone} ${item.jobTitle}`.toLocaleLowerCase();
+        const haystack = `${item.label} ${item.candidateName} ${item.candidateEmail} ${item.candidatePhone} ${item.jobTitle}`.toLocaleLowerCase();
         if (!haystack.includes(needle)) return false;
       }
       return true;
@@ -117,6 +117,7 @@ interviewRouter.patch(
     const interview = await loadInterview(interviewId);
     assertScheduled(interview.status);
 
+    interview.label = input.label;
     interview.date = input.date;
     interview.time = input.time;
     interview.durationMinutes = input.durationMinutes;
@@ -129,6 +130,7 @@ interviewRouter.patch(
       to: application.candidateEmail,
       candidateName: application.candidateName,
       jobTitle: application.roleSnapshot.title,
+      label: interview.label,
       date: interview.date,
       time: interview.time,
       durationMinutes: interview.durationMinutes,
@@ -227,9 +229,7 @@ interviewRouter.post(
       throw new ApiError(404, "INTERVIEW_NOT_FOUND", "Interview was not found.");
     }
     const interview = await loadInterview(interviewId);
-    if (interview.status === "completed") {
-      throw new ApiError(403, "INTERVIEW_LOCKED", "Notes cannot be added to a completed interview.");
-    }
+    assertCanWriteNotes(interview.status);
     const input = interviewNoteSchema.parse(request.body);
     const hr = request.auth!.user;
     await InterviewNote.create({

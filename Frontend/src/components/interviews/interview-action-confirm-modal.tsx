@@ -1,8 +1,47 @@
 "use client";
 
-import { UserX, XCircle } from "lucide-react";
+import { CircleCheck, UserX, XCircle, type LucideIcon } from "lucide-react";
 
 import { Modal } from "@/components/ui/modal";
+
+type ConfirmableAction = "cancel" | "no_show" | "mark_complete";
+
+const COPY: Record<
+  ConfirmableAction,
+  {
+    title: string;
+    subtitle: (name: string) => string;
+    confirm: string;
+    icon: LucideIcon;
+    iconClass: string;
+    buttonClass: string;
+  }
+> = {
+  cancel: {
+    title: "Cancel interview?",
+    subtitle: (name) => `${name} will be emailed. Notes on this interview will be kept.`,
+    confirm: "Cancel interview",
+    icon: XCircle,
+    iconClass: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
+    buttonClass: "bg-red-600 hover:bg-red-700",
+  },
+  no_show: {
+    title: "Mark as no-show?",
+    subtitle: (name) => `${name} will be recorded as a no-show. The candidate will not be emailed.`,
+    confirm: "Mark no-show",
+    icon: UserX,
+    iconClass: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+    buttonClass: "bg-amber-600 hover:bg-amber-700",
+  },
+  mark_complete: {
+    title: "Mark interview complete?",
+    subtitle: (name) => `${name}'s interview will be locked. Notes cannot be added or changed after this.`,
+    confirm: "Mark complete",
+    icon: CircleCheck,
+    iconClass: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+    buttonClass: "bg-emerald-600 hover:bg-emerald-700",
+  },
+};
 
 export function InterviewActionConfirmModal({
   action,
@@ -11,13 +50,14 @@ export function InterviewActionConfirmModal({
   onCancel,
   onConfirm,
 }: {
-  action: "cancel" | "no_show";
+  action: ConfirmableAction;
   candidateName: string;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const cancelling = action === "cancel";
+  const copy = COPY[action];
+  const Icon = copy.icon;
 
   return (
     <Modal
@@ -33,33 +73,21 @@ export function InterviewActionConfirmModal({
             Go back
           </button>
           <button
-            className={`h-11 rounded-xl text-sm font-bold text-white transition disabled:opacity-50 ${
-              cancelling ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"
-            }`}
+            className={`h-11 rounded-xl text-sm font-bold text-white transition disabled:opacity-50 ${copy.buttonClass}`}
             disabled={pending}
             onClick={onConfirm}
             type="button"
           >
-            {pending ? "Working..." : cancelling ? "Cancel interview" : "Mark no-show"}
+            {pending ? "Working..." : copy.confirm}
           </button>
         </div>
       )}
       onClose={onCancel}
-      subtitle={
-        cancelling
-          ? `${candidateName} will be emailed. Notes on this interview will be kept.`
-          : `${candidateName} will be recorded as a no-show. The candidate will not be emailed.`
-      }
-      title={cancelling ? "Cancel interview?" : "Mark as no-show?"}
+      subtitle={copy.subtitle(candidateName)}
+      title={copy.title}
     >
-      <span
-        className={`grid h-11 w-11 place-items-center rounded-xl ${
-          cancelling
-            ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
-            : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
-        }`}
-      >
-        {cancelling ? <XCircle aria-hidden className="h-5 w-5" /> : <UserX aria-hidden className="h-5 w-5" />}
+      <span className={`grid h-11 w-11 place-items-center rounded-xl ${copy.iconClass}`}>
+        <Icon aria-hidden className="h-5 w-5" />
       </span>
     </Modal>
   );

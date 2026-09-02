@@ -26,6 +26,7 @@ export function sendCandidateInterviewScheduled(input: {
   to: string;
   candidateName: string;
   jobTitle: string;
+  label: string;
   date: string;
   time: string;
   durationMinutes: number;
@@ -37,6 +38,7 @@ export function sendCandidateInterviewRescheduled(input: {
   to: string;
   candidateName: string;
   jobTitle: string;
+  label: string;
   date: string;
   time: string;
   durationMinutes: number;

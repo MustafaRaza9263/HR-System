@@ -1,5 +1,5 @@
 import { formatDistanceToNow, isValid } from "date-fns";
-import { Bell, CalendarClock, ClipboardList, type LucideIcon } from "lucide-react";
+import { Bell, CalendarClock, CircleCheck, ClipboardList, type LucideIcon } from "lucide-react";
 
 import type { NotificationType } from "./types";
 
@@ -22,6 +22,11 @@ const META: Record<NotificationType, NotificationMeta> = {
     icon: CalendarClock,
     iconClass: "text-amber-500",
     label: "Interview access",
+  },
+  interview_completed: {
+    icon: CircleCheck,
+    iconClass: "text-emerald-500",
+    label: "Interview completed",
   },
 };
 

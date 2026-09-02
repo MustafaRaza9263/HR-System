@@ -7,6 +7,7 @@ const interviewSchema = new Schema(
   {
     applicationId: { type: Schema.Types.ObjectId, ref: "Application", required: true, index: true },
     departmentId: { type: Schema.Types.ObjectId, ref: "Department", required: true, index: true },
+    label: { type: String, required: true, trim: true, minlength: 1, maxlength: 80 },
     date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/, index: true },
     time: { type: String, required: true, match: /^\d{2}:\d{2}$/ },
     durationMinutes: { type: Number, required: true, min: 15, max: 240 },

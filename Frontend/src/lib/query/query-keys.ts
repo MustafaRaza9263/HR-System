@@ -24,6 +24,13 @@ export const queryKeys = {
     interviews: (applicationId: string) => ["applications", "interviews", applicationId] as const,
     resume: (applicationId: string) => ["application-resume", applicationId] as const,
   },
+  interviewAccess: {
+    state: (token: string) => ["interview-access", token] as const,
+    interviews: (token: string) => ["interview-access", token, "interviews"] as const,
+    application: (token: string, interviewId: string) =>
+      ["interview-access", token, "application", interviewId] as const,
+    resume: (token: string, interviewId: string) => ["interview-access", token, "resume", interviewId] as const,
+  },
   interviews: {
     all: ["interviews"] as const,
     list: (filters?: { q?: string; jobId?: string; status?: string; bucket?: string }) =>

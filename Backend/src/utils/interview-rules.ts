@@ -32,8 +32,7 @@ export async function getInterviewActions(interview: {
   const actions: InterviewAction[] = ["reschedule", "cancel"];
   if (dateState === "future") return actions;
 
-  actions.push("no_show");
-  if (await canMarkComplete(interview)) actions.push("mark_complete");
+  actions.push("no_show", "mark_complete");
   return actions;
 }
 
@@ -46,5 +45,15 @@ export function assertScheduled(status: string) {
 export function assertNotCompleted(status: string) {
   if (status === "completed") {
     throw new ApiError(403, "INTERVIEW_LOCKED", "Completed interviews cannot be changed.");
+  }
+}
+
+export function canWriteNotes(status: string) {
+  return status === "scheduled" || status === "completed";
+}
+
+export function assertCanWriteNotes(status: string) {
+  if (!canWriteNotes(status)) {
+    throw new ApiError(403, "INTERVIEW_LOCKED", "Notes cannot be added to a cancelled or no-show interview.");
   }
 }

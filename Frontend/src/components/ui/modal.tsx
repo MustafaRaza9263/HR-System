@@ -220,7 +220,7 @@ export function Modal({
         </div>
       </div>
       {footer ? (
-        <div className="shrink-0 border-t border-gray-200 bg-gray-50 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-gray-700 dark:bg-gray-800/70 md:px-6 md:pb-4">
+        <div className="w-full shrink-0 border-t border-gray-200 bg-gray-50 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:border-gray-700 dark:bg-gray-800/70 md:px-6 md:pb-4">
           {typeof footer === "function" ? footer(handleClose) : footer}
         </div>
       ) : null}

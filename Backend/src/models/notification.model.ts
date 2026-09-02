@@ -1,6 +1,6 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
 
-export const NOTIFICATION_TYPES = ["interview_request", "new_application"] as const;
+export const NOTIFICATION_TYPES = ["interview_request", "new_application", "interview_completed"] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 const notificationSchema = new Schema(

@@ -1,6 +1,7 @@
 import { Application } from "../models/application.model.js";
 import { Department } from "../models/department.model.js";
 import { DepartmentAccessLink } from "../models/department-access-link.model.js";
+import { Interview } from "../models/interview.model.js";
 import { LinkRegistrant } from "../models/link-registrant.model.js";
 import type { NotificationType } from "../models/notification.model.js";
 
@@ -43,10 +44,30 @@ const builders: Record<NotificationType, ContentBuilder> = {
       href: "/dashboard/interviews?pending=1",
     };
   },
+  interview_completed: async (refId) => {
+    const [interviewId, registrantId] = refId.split(":");
+    const interview = interviewId ? await Interview.findById(interviewId).select("applicationId").lean() : null;
+    const application = interview
+      ? await Application.findById(interview.applicationId).select("candidateName roleSnapshot").lean()
+      : null;
+    const registrant =
+      registrantId && registrantId.length === 24 ? await LinkRegistrant.findById(registrantId).select("name").lean() : null;
+    const interviewer = registrant?.name?.trim() || "An interviewer";
+    const candidate = application?.candidateName?.trim() || "a candidate";
+    const title = application?.roleSnapshot.title?.trim() || "a role";
+    const department = application?.roleSnapshot.departmentName?.trim();
+    const roleStuff = department && department !== title ? `${title} · ${department}` : title;
+    return {
+      title: "Interview completed",
+      body: `${interviewer} completed interview with ${candidate} for ${roleStuff}.`,
+      href: "/dashboard/interviews",
+    };
+  },
 };
 
 export function hrefForNotification(type: NotificationType, refId: string): string {
   if (type === "new_application") return `/dashboard/applications/${refId}`;
+  if (type === "interview_completed") return "/dashboard/interviews";
   return "/dashboard/interviews?pending=1";
 }
 
