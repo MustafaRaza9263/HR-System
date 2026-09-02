@@ -21,6 +21,7 @@ import { buildApplicationFilter } from "../utils/application-filter.js";
 import { assertRejectable, rejectApplications } from "../utils/application-reject.js";
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { assertNoDuplicateInterviewSlot } from "../utils/interview-rules.js";
 import { serializeApplication, serializeListItem } from "../utils/serialize-application.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
 import { contentDispositionFilename, resolveUploadPath } from "../utils/uploads.js";
@@ -209,6 +210,11 @@ applicationRouter.post(
     assertRejectable(application.status);
 
     const input = createInterviewSchema.parse(request.body);
+    await assertNoDuplicateInterviewSlot({
+      applicationId: application._id,
+      date: input.date,
+      time: input.time,
+    });
     const created = await Interview.create({
       applicationId: application._id,
       departmentId: application.roleSnapshot.departmentId,

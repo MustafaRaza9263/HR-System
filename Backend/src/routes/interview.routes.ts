@@ -19,7 +19,13 @@ import { ApiError } from "../utils/api-error.js";
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { shiftCalendarDate, todayCalendarDate } from "../utils/date-state.js";
-import { assertNotCompleted, assertScheduled, assertCanWriteNotes, canMarkComplete } from "../utils/interview-rules.js";
+import {
+  assertCanWriteNotes,
+  assertNoDuplicateInterviewSlot,
+  assertNotCompleted,
+  assertScheduled,
+  canMarkComplete,
+} from "../utils/interview-rules.js";
 import { assertObjectId } from "../utils/object-id.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
 
@@ -116,6 +122,12 @@ interviewRouter.patch(
     const input = rescheduleInterviewSchema.parse(request.body);
     const interview = await loadInterview(interviewId);
     assertScheduled(interview.status);
+    await assertNoDuplicateInterviewSlot({
+      applicationId: interview.applicationId,
+      date: input.date,
+      time: input.time,
+      excludeInterviewId: interview._id,
+    });
 
     interview.label = input.label;
     interview.date = input.date;

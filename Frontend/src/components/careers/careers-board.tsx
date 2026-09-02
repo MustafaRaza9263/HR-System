@@ -156,6 +156,7 @@ export function CareersBoard() {
                 return (
                   <section className="border-t border-neutral-200 dark:border-gray-800" key={group.id}>
                     <button
+                      aria-controls={`roles-${group.id}`}
                       aria-expanded={isOpen}
                       className="flex w-full items-center gap-4 py-5 text-left transition hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
                       onClick={() => toggleTeam(group.id)}
@@ -170,33 +171,44 @@ export function CareersBoard() {
                       </span>
                     </button>
 
-                    {isOpen ? (
-                      <ul className="pb-1">
-                        {group.jobs.map((job) => (
-                          <li
-                            className="grid grid-cols-1 items-center gap-3 border-t border-neutral-100 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] sm:gap-6 dark:border-gray-900"
-                            key={job.id}
-                          >
-                            <span className="text-sm font-medium text-neutral-900 sm:col-start-2 dark:text-white">{job.title}</span>
-                            <div className="sm:col-start-3 sm:justify-self-end">
-                              {job.slug ? (
-                                <Link
-                                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3.5 text-sm font-semibold text-neutral-800 transition hover:border-neutral-400 hover:bg-neutral-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
-                                  href={`/apply/${job.slug}`}
-                                >
-                                  Apply
-                                  <ArrowRight aria-hidden className="h-3.5 w-3.5" />
-                                </Link>
-                              ) : (
-                                <span className="inline-flex h-9 items-center rounded-lg border border-dashed border-neutral-300 px-3.5 text-sm text-neutral-400">
-                                  Unavailable
-                                </span>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
+                    <div
+                      className={`grid transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none ${
+                        isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      }`}
+                      id={`roles-${group.id}`}
+                    >
+                      <div className="min-h-0 overflow-hidden" inert={!isOpen}>
+                        <ul
+                          className={`pb-1 transition-opacity duration-300 ease-in-out motion-reduce:transition-none ${
+                            isOpen ? "opacity-100" : "opacity-0"
+                          }`}
+                        >
+                          {group.jobs.map((job) => (
+                            <li
+                              className="grid grid-cols-1 items-center gap-3 border-t border-neutral-100 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] sm:gap-6 dark:border-gray-900"
+                              key={job.id}
+                            >
+                              <span className="text-sm font-medium text-neutral-900 sm:col-start-2 dark:text-white">{job.title}</span>
+                              <div className="sm:col-start-3 sm:justify-self-end">
+                                {job.slug ? (
+                                  <Link
+                                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3.5 text-sm font-semibold text-neutral-800 transition hover:border-neutral-400 hover:bg-neutral-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
+                                    href={`/apply/${job.slug}`}
+                                  >
+                                    Apply
+                                    <ArrowRight aria-hidden className="h-3.5 w-3.5" />
+                                  </Link>
+                                ) : (
+                                  <span className="inline-flex h-9 items-center rounded-lg border border-dashed border-neutral-300 px-3.5 text-sm text-neutral-400">
+                                    Unavailable
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
                   </section>
                 );
               })

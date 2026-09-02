@@ -1,3 +1,6 @@
+import type { Types } from "mongoose";
+
+import { Interview } from "../models/interview.model.js";
 import { InterviewNote } from "../models/interview-note.model.js";
 import { ApiError } from "./api-error.js";
 import { getDateStateFromCalendarDate } from "./date-state.js";
@@ -39,6 +42,31 @@ export async function getInterviewActions(interview: {
 export function assertScheduled(status: string) {
   if (status !== "scheduled") {
     throw new ApiError(409, "INTERVIEW_NOT_ACTIVE", "This interview is no longer scheduled.");
+  }
+}
+
+export async function assertNoDuplicateInterviewSlot(input: {
+  applicationId: Types.ObjectId | string;
+  date: string;
+  time: string;
+  excludeInterviewId?: Types.ObjectId | string;
+}) {
+  const filter: Record<string, unknown> = {
+    applicationId: input.applicationId,
+    date: input.date,
+    time: input.time,
+    status: "scheduled",
+  };
+  if (input.excludeInterviewId) {
+    filter._id = { $ne: input.excludeInterviewId };
+  }
+  const exists = await Interview.exists(filter);
+  if (exists) {
+    throw new ApiError(
+      409,
+      "INTERVIEW_SLOT_TAKEN",
+      "This candidate already has an interview scheduled at this date and time.",
+    );
   }
 }
 

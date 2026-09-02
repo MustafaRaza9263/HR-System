@@ -300,7 +300,7 @@ On success: `applicationCount++` only if job still `open` (else delete created r
 
 Completed: locked for status changes. **Notes:** writable on `scheduled` and `completed`; not on `cancelled` or `no_show`. Cancel/no-show keep existing notes. Reschedule updates the **same** row (label/date/time/duration), stays `scheduled`.
 
-**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Requires `label`, date, time, duration. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status.
+**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Requires `label`, date, time, duration. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status. **Conflict:** no other `scheduled` interview for the same application with the same `date` + `time` (409 `INTERVIEW_SLOT_TAKEN`). Duration and label are not part of the check. Cancelled / completed / no-show rows do not block. Same rule on reschedule (exclude the row being updated).
 
 **Complete:** increments `completedInterviewCount`. **Cancel:** emails candidate. **No-show:** no email.
 
