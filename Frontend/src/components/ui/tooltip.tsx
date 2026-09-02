@@ -13,12 +13,13 @@ import {
   useInteractions,
   useRole,
 } from "@floating-ui/react";
-import { type CSSProperties, type ReactNode, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 interface TooltipProps {
   children: ReactNode;
   label: string;
   className?: string;
+  disabled?: boolean;
 }
 
 const ARROW_OPPOSITE = {
@@ -28,9 +29,10 @@ const ARROW_OPPOSITE = {
   left: "right",
 } as const;
 
-export function Tooltip({ children, label, className = "" }: TooltipProps) {
+export function Tooltip({ children, label, className = "", disabled = false }: TooltipProps) {
   const arrowRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
+  const visible = open && !disabled;
 
   const { refs, floatingStyles, context, middlewareData, placement } = useFloating({
     middleware: [
@@ -40,16 +42,20 @@ export function Tooltip({ children, label, className = "" }: TooltipProps) {
       arrow({ element: arrowRef, padding: 6 }),
     ],
     onOpenChange: setOpen,
-    open,
+    open: visible,
     placement: "top",
     strategy: "fixed",
     whileElementsMounted: autoUpdate,
   });
 
-  const hover = useHover(context, { move: false });
-  const focus = useFocus(context);
+  const hover = useHover(context, { enabled: !disabled, move: false });
+  const focus = useFocus(context, { enabled: !disabled });
   const role = useRole(context, { role: "tooltip" });
   const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus, role]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   const side = (placement.split("-")[0] ?? "top") as keyof typeof ARROW_OPPOSITE;
   const arrowX = middlewareData.arrow?.x;
@@ -70,7 +76,7 @@ export function Tooltip({ children, label, className = "" }: TooltipProps) {
         {children}
       </div>
 
-      {open ? (
+      {visible ? (
         <FloatingPortal>
           <div
             className="pointer-events-none z-[1200] w-max max-w-[min(20rem,calc(100vw-1rem))] rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"

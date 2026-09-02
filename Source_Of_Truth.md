@@ -12,9 +12,9 @@ HR hiring workspace: departments/roles → jobs → public apply → application
 |---|---|
 | HR register/login | Password reset, MFA, email verify, RBAC |
 | Dept + Role CRUD (soft inactive) | Role JD template (`defaultDescription` does not exist) |
-| Job 4-step wizard, list, detail, publish/close/duplicate/delete | Auto-`filled` on hire; reopen closed/filled |
+| Job 4-step wizard, list, detail, publish/close/duplicate/delete | Reopen closed |
 | Public careers + apply | Duplicate-apply flag; tags; AI score/chat |
-| Application list/detail, reject + bulk reject | Approve / trial decision UI |
+| Application list/detail, reject + bulk reject, approve/trial from list | Approve / trial on application detail |
 | Interview schedule/notes/actions | Interviewer assignment; time-based overdue |
 | Dept-day guest invite + approve/reject/revoke | Marketing dashboard |
 | HR bell + SSE + optional FCM | |
@@ -112,6 +112,8 @@ Frontend/src
 | Rounded-2xl bordered table card | All list tables |
 | Gray-50 thead, uppercase xs | Table headers |
 | `h-11`/`h-12` rounded-xl inputs | Forms |
+| `ToggleRow` | Full-width setting switch (title + description + ON/OFF) |
+| `TagInput` | Type-and-enter chips (select field options) |
 | Primary CTA indigo-600 | Create / Publish / View all |
 | Dark: `data-theme` on `<html>`, localStorage `hr-theme` | Theme |
 | Sidebar | Dashboard, Jobs, Applications, Interviews, Scoring*, Assistant*, Configuration. Collapse key `hr-sidebar-collapsed`. \*Nav only — no pages. |
@@ -168,12 +170,14 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET/PATCH/DELETE | `/jobs/:jobId` | PATCH/DELETE **draft only**; DELETE also `applicationCount===0` |
 | POST | `/jobs/:id/publish` `/close` `/duplicate` | see §9 |
 | GET | `/careers/jobs` | `open` only |
-| GET | `/careers/jobs/:slug` | not draft; closed/filled still 200 (apply blocked) |
+| GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
 | POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit |
 | GET | `/applications` | HR; `q, jobId, status` + stats |
 | POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason |
 | GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
 | PATCH | `/applications/:id/reject` | reason ≥10 ≤500 |
+| PATCH | `/applications/:id/approve` | reason ≥10 ≤500 |
+| PATCH | `/applications/:id/trial` | no body |
 | GET | `/applications/:id/resume` `/files/:fieldId` | HR download |
 | GET/POST | `/applications/:id/interviews` | POST = schedule |
 | GET | `/interviews` | HR; filter `q, jobId, status, bucket` |
@@ -212,9 +216,9 @@ Frontend routes: `/` careers, `/apply/[slug]`, `/login` `/register`, `/dashboard
 
 ## 10. Job
 
-**Statuses:** `draft` → `open` → `closed` (HR) or `filled` (reserved; never set yet).
+**Statuses:** `draft` → `open` → `closed` (HR).
 
-**Fields:** title, departmentId, roleId, description (TipTap JSON), descriptionPlain, jobType (`Full-time` \| `Part-time` \| `Contract` \| `Temporary` \| `Internship` \| `Fresher`), positionsAvailable ≥1, positionsFilled (system), salaryMin/Max ≥0, fieldsConfig.customFields[], status, closeReason, applicationCount, wizardStep, slug (null until publish), publishedAt, closedAt, createdBy.
+**Fields:** title, departmentId, roleId, description (TipTap JSON), descriptionPlain, jobType (`Full-time` \| `Part-time` \| `Contract` \| `Temporary` \| `Internship` \| `Fresher`), salaryMin/Max ≥0, fieldsConfig.customFields[], status, closeReason, applicationCount, wizardStep, slug (null until publish), publishedAt, closedAt, createdBy.
 
 **fieldsConfig.customFields[]:** `{ id, label, type: text|textarea|number|select|date|checkbox|file, required, constraint?, section: personal|experience|education }`. Max 50. Select needs ≥1 option. Empty list allowed.
 
@@ -224,33 +228,33 @@ Pages: `/dashboard/jobs/new`, resume `/dashboard/jobs/:id/edit` at saved `wizard
 
 Each **Next** upserts draft (`POST /jobs` then `PATCH`). Stay on step until save succeeds.
 
-1. **Basics** — active dept → roles of that dept → title auto-fills from role name until user edits title → jobType, positions, salary (`max ≥ min` when both set).
+1. **Basics** — active dept → roles of that dept → title auto-fills from role name until user edits title → jobType, salary (`max ≥ min` when both set).
 2. **Description** — TipTap (bold/italic/lists/headings). Blank JSON allowed on draft; **required to publish**. Does not read/write Role.
-3. **Fields** — add/edit/remove custom fields only. No section toggles.
+3. **Fields** — add/edit/remove custom fields only. Field editor: required is a full-line toggle; select options are type-and-enter chips. No section toggles.
 4. **Review** — public-style preview. **Publish** or leave as draft (no slug).
 
 **Publish (`POST …/publish`) — API-enforced:**
 
 1. Status must be `draft`.
 2. Complete: non-empty title, jobType, both salaries, salaryMax ≥ min, description present.
-3. **Conflict:** no other job with same `departmentId+roleId` and status `draft` or `open` (exclude self). 409 `JOB_DEPARTMENT_ROLE_CONFLICT` names title/status/slug. Closed/filled do **not** block.
+3. **Conflict:** no other job with same `departmentId+roleId` and status `draft` or `open` (exclude self). 409 `JOB_DEPARTMENT_ROLE_CONFLICT` names title/status/slug. Closed does **not** block.
 4. Slug = `slugify(title)-` + 4 hex chars; retry on collision. `status=open`, `publishedAt=now`, `wizardStep=4`.
 
 Multiple drafts for same dept+role are allowed until one publishes.
 
-**Close:** only `open`; `closeReason` required; sets `closed` + `closedAt`.
+**Close:** only `open`; `closeReason` required; sets `closed` + `closedAt`. 409 `JOB_HAS_PENDING_APPLICATIONS` (with `pendingCount`) if any application is not `approved`/`rejected`. `trial` counts as pending. No force-close.
 
-**Duplicate:** only `filled`/`closed`. New **draft** copies content/fields; resets slug, counts, positionsFilled, wizardStep=1, new createdBy.
+**Duplicate:** only `closed`. New **draft** copies content/fields; resets slug, counts, wizardStep=1, new createdBy.
 
 **Delete:** only `draft` with `applicationCount===0`.
 
-**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role. Columns: title, dept, role, status, filled/available, type, createdAt, applicants, icon actions.
+**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role. Columns: title, dept, role, status, type, createdAt, applicants, icon actions.
 
 | Status | Actions |
 |---|---|
 | draft | Continue editing, Delete (if 0 apps) |
 | open | View, Close (modal + reason) |
-| filled/closed | View, Duplicate |
+| closed | View, Duplicate |
 
 ---
 
@@ -261,16 +265,17 @@ Multiple drafts for same dept+role are allowed until one publishes.
 **Status (stored):** `submitted` → `under_review` → `interview_scheduled` \| `interviewed` → `approved` \| `rejected` \| `trial`.
 
 - Opening detail: first GET while `submitted` sets `under_review`.
-- Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`/`trial`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`.
+- Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`. `trial` is not locked — a later interview write overwrites it (timestamp `trialAt` remains).
 - **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**, emails candidate. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count.
-- Approve/trial: schema only; no HR endpoints yet. `trial` still locked against interview recompute.
+- **Approve** (list): not if `approved` or `rejected`. Reason required (≥10 ≤500) stored as `decisionReason` + `approvedAt`. Does **not** cancel interviews. Emails candidate. Terminal.
+- **Trial** (list): not if `approved` or `rejected`. No reason. Sets `trialAt`. Does **not** cancel interviews. Emails candidate. Not terminal — can still approve, reject, or schedule more interviews. Re-trial allowed (refreshes `trialAt`, re-emails).
 - Reapply: **not blocked and not flagged**.
 
 ### Workflow — public apply
 
 `/` lists `open` jobs grouped by department accordion. Filters: team + search title/dept/jobType. Apply → `/apply/[slug]`. Apply page: no brand header; eyebrow is department name only; no divider before the description; Source Serif 4 on this route only. After the JD: divider, sans “Apply for this job”, serif “* indicates a required field”. Apply now scrolls to that heading with a gap below the viewport top and focuses the name field.
 
-Closed/filled slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
+Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
 
 **Required system fields:** name, email, phone, resume (pdf/doc/docx ≤5MB). **Required sections:** ≥1 experience (company, title, startDate; end ≥ start), ≥1 education (school, degree). Max 8 each.
 
@@ -280,7 +285,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then `notifyHR("new_application")` async.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved. Row click → detail (profile + interviews tabs). Row actions: view resume (modal), schedule interview. Reject from list or detail. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Row click → detail (profile + interviews tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -346,6 +351,8 @@ Bell: last 20, mark one/all read, link to `/dashboard/notifications` (search, un
 |---|---|
 | `interview-scheduled` / `rescheduled` / `cancelled` | candidate |
 | `application-rejected` | candidate (reason) |
+| `application-approved` | candidate (reason) |
+| `application-trial` | candidate |
 | `access-link-invite` / `approved` / `rejected` | guest |
 
 ---
@@ -356,7 +363,7 @@ Bell: last 20, mark one/all read, link to `/dashboard/notifications` (search, un
 - Fields are not a library — only `Job.fieldsConfig`.
 - At most one posting may **become `open`** per dept+role while any other draft/open exists.
 - No reopen; next cycle = Duplicate.
-- `positionsFilled` / `filled` unused until hire flow.
+- Hiring capacity is not tracked (no positions / `filled`). Approved count is a list metric only.
 - Scoring + Assistant sidebar links have no routes.
 - Dashboard home metrics are static placeholders.
 - Guest never sees HR panel. HR never uses guest cookie.

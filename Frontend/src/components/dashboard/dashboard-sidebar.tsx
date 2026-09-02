@@ -1,12 +1,10 @@
 "use client";
 
 import {
-  Bot,
   BriefcaseBusiness,
   CalendarClock,
   ClipboardList,
   LayoutDashboard,
-  ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -30,8 +28,6 @@ const navigation: NavigationItem[] = [
   { label: "Jobs", href: "/dashboard/jobs", icon: BriefcaseBusiness },
   { label: "Applications", href: "/dashboard/applications", icon: ClipboardList },
   { label: "Interviews", href: "/dashboard/interviews", icon: CalendarClock },
-  { label: "Scoring", href: "/dashboard/scoring", icon: ListChecks },
-  { label: "Assistant", href: "/dashboard/assistant", icon: Bot },
   { label: "Configuration", href: "/dashboard/configuration", icon: Settings },
 ];
 

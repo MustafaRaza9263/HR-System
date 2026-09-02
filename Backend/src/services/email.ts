@@ -56,6 +56,23 @@ export function sendCandidateInterviewCancelled(input: {
   return sendEmailBestEffort({ to: input.to, template: "interview-cancelled", data: input });
 }
 
+export function sendCandidateApplicationApproved(input: {
+  to: string;
+  candidateName: string;
+  jobTitle: string;
+  reason: string;
+}) {
+  return sendEmailBestEffort({ to: input.to, template: "application-approved", data: input });
+}
+
+export function sendCandidateApplicationTrial(input: {
+  to: string;
+  candidateName: string;
+  jobTitle: string;
+}) {
+  return sendEmailBestEffort({ to: input.to, template: "application-trial", data: input });
+}
+
 export function sendAccessApprovedEmail(input: { to: string; name: string; accessUrl: string; departmentName: string }) {
   return sendEmailBestEffort({ to: input.to, template: "access-link-approved", data: input });
 }

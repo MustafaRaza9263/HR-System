@@ -16,7 +16,6 @@ export interface PublicJob {
   departmentId: string;
   departmentName: string;
   jobType: string | null;
-  positionsAvailable: number;
   publishedAt: string | null;
 }
 

@@ -8,6 +8,7 @@ import {
   CircleCheck,
   ClipboardList,
   FileText,
+  FlaskConical,
   Search,
   UserX,
 } from "lucide-react";
@@ -18,12 +19,14 @@ import { ScheduleInterviewModal } from "@/components/interviews/schedule-intervi
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { Modal } from "@/components/ui/modal";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { Tooltip } from "@/components/ui/tooltip";
 import { UserProfile } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type {
+  ApplicationDetailResponse,
   ApplicationListItem,
   ApplicationStats,
   ApplicationStatus,
@@ -60,8 +63,6 @@ function statusLabel(status: ApplicationStatus) {
       return "Rejected";
     case "trial":
       return "Trial";
-    default:
-      return status.replaceAll("_", " ");
   }
 }
 
@@ -85,6 +86,10 @@ function statusTone(status: ApplicationStatus): PillTone {
   }
 }
 
+function isUnlocked(status: ApplicationStatus) {
+  return status !== "approved" && status !== "rejected";
+}
+
 export function ApplicationsManager() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -100,6 +105,9 @@ export function ApplicationsManager() {
   } | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<ApplicationListItem | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ApplicationListItem | null>(null);
+  const [approveTarget, setApproveTarget] = useState<ApplicationListItem | null>(null);
+  const [trialTarget, setTrialTarget] = useState<ApplicationListItem | null>(null);
+  const [rowRejectTarget, setRowRejectTarget] = useState<ApplicationListItem | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -137,7 +145,7 @@ export function ApplicationsManager() {
   const jobs = jobsQuery.data?.data.jobs ?? [];
 
   const rejectableSelected = applications.filter(
-    (item) => selectedIds.includes(item.id) && item.status !== "rejected" && item.status !== "approved",
+    (item) => selectedIds.includes(item.id) && isUnlocked(item.status),
   );
 
   const previewMutation = useMutation({
@@ -177,6 +185,51 @@ export function ApplicationsManager() {
     },
     onError: (error) => {
       alerts.error(error instanceof ApiClientError ? error.message : "Applications could not be rejected.");
+    },
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+      apiRequest<ApplicationDetailResponse>(`/applications/${id}/approve`, {
+        method: "PATCH",
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      alerts.success("Application approved.");
+      setApproveTarget(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+    },
+    onError: (error) => {
+      alerts.error(error instanceof ApiClientError ? error.message : "Application could not be approved.");
+    },
+  });
+
+  const trialMutation = useMutation({
+    mutationFn: async (id: string) =>
+      apiRequest<ApplicationDetailResponse>(`/applications/${id}/trial`, { method: "PATCH" }),
+    onSuccess: () => {
+      alerts.success("Candidate moved to trial.");
+      setTrialTarget(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+    },
+    onError: (error) => {
+      alerts.error(error instanceof ApiClientError ? error.message : "Application could not be moved to trial.");
+    },
+  });
+
+  const rowRejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+      apiRequest<ApplicationDetailResponse>(`/applications/${id}/reject`, {
+        method: "PATCH",
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      alerts.success("Application rejected.");
+      setRowRejectTarget(null);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+    },
+    onError: (error) => {
+      alerts.error(error instanceof ApiClientError ? error.message : "Application could not be rejected.");
     },
   });
 
@@ -376,17 +429,49 @@ export function ApplicationsManager() {
                                 <FileText aria-hidden className="h-4 w-4" />
                               </button>
                             </Tooltip>
-                            {application.status !== "rejected" && application.status !== "approved" ? (
-                              <Tooltip label="Schedule interview">
-                                <button
-                                  aria-label={`Schedule interview for ${application.candidateName}`}
-                                  className="icon-button"
-                                  onClick={() => setScheduleTarget(application)}
-                                  type="button"
-                                >
-                                  <Calendar aria-hidden className="h-4 w-4" />
-                                </button>
-                              </Tooltip>
+                            {isUnlocked(application.status) ? (
+                              <>
+                                <Tooltip label="Schedule interview">
+                                  <button
+                                    aria-label={`Schedule interview for ${application.candidateName}`}
+                                    className="icon-button"
+                                    onClick={() => setScheduleTarget(application)}
+                                    type="button"
+                                  >
+                                    <Calendar aria-hidden className="h-4 w-4" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip label="Move to trial">
+                                  <button
+                                    aria-label={`Move ${application.candidateName} to trial`}
+                                    className="icon-button"
+                                    onClick={() => setTrialTarget(application)}
+                                    type="button"
+                                  >
+                                    <FlaskConical aria-hidden className="h-4 w-4" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip label="Approve">
+                                  <button
+                                    aria-label={`Approve ${application.candidateName}`}
+                                    className="icon-button"
+                                    onClick={() => setApproveTarget(application)}
+                                    type="button"
+                                  >
+                                    <CircleCheck aria-hidden className="h-4 w-4" />
+                                  </button>
+                                </Tooltip>
+                                <Tooltip label="Reject">
+                                  <button
+                                    aria-label={`Reject ${application.candidateName}`}
+                                    className="icon-button"
+                                    onClick={() => setRowRejectTarget(application)}
+                                    type="button"
+                                  >
+                                    <UserX aria-hidden className="h-4 w-4" />
+                                  </button>
+                                </Tooltip>
+                              </>
                             ) : null}
                           </div>
                         </td>
@@ -414,6 +499,38 @@ export function ApplicationsManager() {
               applicationIds: rejectTarget.applicationIds,
             })
           }
+        />
+      ) : null}
+
+      {rowRejectTarget ? (
+        <ReasonModal
+          confirmLabel="Reject"
+          description={`${rowRejectTarget.candidateName} will be emailed and any scheduled interviews will be cancelled.`}
+          pending={rowRejectMutation.isPending}
+          title="Reject application?"
+          onCancel={() => setRowRejectTarget(null)}
+          onConfirm={(reason) => rowRejectMutation.mutate({ id: rowRejectTarget.id, reason })}
+        />
+      ) : null}
+
+      {approveTarget ? (
+        <ReasonModal
+          confirmClassName="bg-emerald-600 hover:bg-emerald-700"
+          confirmLabel="Approve"
+          description={`${approveTarget.candidateName} will be emailed. This closes the application.`}
+          pending={approveMutation.isPending}
+          title="Approve application?"
+          onCancel={() => setApproveTarget(null)}
+          onConfirm={(reason) => approveMutation.mutate({ id: approveTarget.id, reason })}
+        />
+      ) : null}
+
+      {trialTarget ? (
+        <TrialConfirmModal
+          candidateName={trialTarget.candidateName}
+          pending={trialMutation.isPending}
+          onCancel={() => setTrialTarget(null)}
+          onConfirm={() => trialMutation.mutate(trialTarget.id)}
         />
       ) : null}
 
@@ -476,5 +593,50 @@ function EmptyState({ hasQuery }: { hasQuery: boolean }) {
         {hasQuery ? "Try another search or clear filters." : "Applications appear here after candidates apply from careers."}
       </p>
     </div>
+  );
+}
+
+function TrialConfirmModal({
+  candidateName,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  candidateName: string;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      closeDisabled={pending}
+      footer={(close) => (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            className="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:hover:text-white"
+            disabled={pending}
+            onClick={close}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="h-11 rounded-xl bg-violet-600 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-50"
+            disabled={pending}
+            onClick={onConfirm}
+            type="button"
+          >
+            {pending ? "Working..." : "Move to trial"}
+          </button>
+        </div>
+      )}
+      onClose={onCancel}
+      subtitle={`${candidateName} will be emailed. You can still approve, reject, or schedule interviews later.`}
+      title="Move to trial?"
+    >
+      <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
+        <FlaskConical aria-hidden className="h-5 w-5" />
+      </span>
+    </Modal>
   );
 }

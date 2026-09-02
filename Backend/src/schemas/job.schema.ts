@@ -86,7 +86,6 @@ export const createJobDraftSchema = z
     description: richTextDescriptionSchema.optional(),
     descriptionPlain: z.string().max(50000).optional(),
     jobType: jobTypeEnum.nullable().optional(),
-    positionsAvailable: z.number().int().min(1).default(1),
     salaryMin: z.number().min(0).nullable().optional(),
     salaryMax: z.number().min(0).nullable().optional(),
     fieldsConfig: fieldsConfigSchema.optional(),
@@ -116,7 +115,6 @@ export const updateJobDraftSchema = z
     description: richTextDescriptionSchema.optional(),
     descriptionPlain: z.string().max(50000).optional(),
     jobType: jobTypeEnum.nullable().optional(),
-    positionsAvailable: z.number().int().min(1).optional(),
     salaryMin: z.number().min(0).nullable().optional(),
     salaryMax: z.number().min(0).nullable().optional(),
     fieldsConfig: fieldsConfigSchema.optional(),
@@ -149,5 +147,5 @@ export const listJobsQuerySchema = z.object({
   q: z.string().trim().max(200).optional(),
   departmentId: objectId.optional(),
   roleId: objectId.optional(),
-  status: z.enum(["draft", "open", "filled", "closed"]).optional(),
+  status: z.enum(["draft", "open", "closed"]).optional(),
 });

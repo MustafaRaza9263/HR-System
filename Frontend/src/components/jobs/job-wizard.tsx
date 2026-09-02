@@ -10,12 +10,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { RichTextEditor } from "@/components/jobs/rich-text-editor";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Modal } from "@/components/ui/modal";
+import { TagInput, commitTagDraft } from "@/components/ui/tag-input";
+import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import {
@@ -71,7 +73,6 @@ interface WizardFormState {
   departmentId: string;
   roleId: string;
   jobType: JobType | "";
-  positionsAvailable: number;
   salaryMin: string;
   salaryMax: string;
   description: RichTextDoc;
@@ -86,7 +87,6 @@ function jobToForm(job: Job): WizardFormState {
     departmentId: job.departmentId,
     roleId: job.roleId,
     jobType: job.jobType ?? "",
-    positionsAvailable: job.positionsAvailable,
     salaryMin: job.salaryMin === null ? "" : String(job.salaryMin),
     salaryMax: job.salaryMax === null ? "" : String(job.salaryMax),
     description: job.description ?? emptyRichTextDoc(),
@@ -102,7 +102,6 @@ function emptyForm(): WizardFormState {
     departmentId: "",
     roleId: "",
     jobType: "",
-    positionsAvailable: 1,
     salaryMin: "",
     salaryMax: "",
     description: emptyRichTextDoc(),
@@ -227,10 +226,6 @@ export function JobWizard({ jobId }: JobWizardProps) {
         alerts.error("Select a job type.");
         return null;
       }
-      if (form.positionsAvailable < 1) {
-        alerts.error("Positions available must be at least 1.");
-        return null;
-      }
       const min = form.salaryMin === "" ? null : Number(form.salaryMin);
       const max = form.salaryMax === "" ? null : Number(form.salaryMax);
       if (min === null || max === null || Number.isNaN(min) || Number.isNaN(max)) {
@@ -258,7 +253,6 @@ export function JobWizard({ jobId }: JobWizardProps) {
       description: form.description,
       descriptionPlain: form.descriptionPlain,
       jobType: form.jobType || null,
-      positionsAvailable: form.positionsAvailable,
       salaryMin: min !== null && !Number.isNaN(min) ? min : null,
       salaryMax: max !== null && !Number.isNaN(max) ? max : null,
       fieldsConfig: { customFields: form.customFields },
@@ -430,32 +424,15 @@ export function JobWizard({ jobId }: JobWizardProps) {
                 />
               </label>
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-bold">Job type <span className="text-red-500">*</span></span>
-                  <Dropdown
-                    onChange={(next) => setForm((current) => ({ ...current, jobType: next as JobType | "" }))}
-                    options={JOB_TYPES.map((type) => ({ value: type, label: type }))}
-                    placeholder="Select type"
-                    value={form.jobType}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-bold">Positions available <span className="text-red-500">*</span></span>
-                  <input
-                    className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-                    min={1}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        positionsAvailable: Math.max(1, Number(event.target.value) || 1),
-                      }))
-                    }
-                    type="number"
-                    value={form.positionsAvailable}
-                  />
-                </label>
-              </div>
+              <label className="block">
+                <span className="mb-2 block text-sm font-bold">Job type <span className="text-red-500">*</span></span>
+                <Dropdown
+                  onChange={(next) => setForm((current) => ({ ...current, jobType: next as JobType | "" }))}
+                  options={JOB_TYPES.map((type) => ({ value: type, label: type }))}
+                  placeholder="Select type"
+                  value={form.jobType}
+                />
+              </label>
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <label className="block">
@@ -578,8 +555,6 @@ export function JobWizard({ jobId }: JobWizardProps) {
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                   {form.jobType || "Type TBD"}
                   {" · "}
-                  {form.positionsAvailable} open
-                  {" · "}
                   {form.salaryMin && form.salaryMax ? `${form.salaryMin} – ${form.salaryMax}` : "Salary TBD"}
                 </p>
                 <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
@@ -679,8 +654,10 @@ function FieldEditorModal({
   onClose: () => void;
   onSave: (field: CustomField) => void;
 }) {
+  const optionsId = useId();
   const [draft, setDraft] = useState<CustomField>(field);
-  const [optionsText, setOptionsText] = useState((field.constraint?.options ?? []).join("\n"));
+  const [options, setOptions] = useState(field.constraint?.options ?? []);
+  const [optionDraft, setOptionDraft] = useState("");
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -708,15 +685,12 @@ function FieldEditorModal({
       }
     }
     if (draft.type === "select") {
-      const options = optionsText
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
-      if (options.length < 1) {
-        alerts.error("Add at least one select option (one per line).");
+      const nextOptions = commitTagDraft(options, optionDraft);
+      if (nextOptions.length < 1) {
+        alerts.error("Add at least one select option.");
         return;
       }
-      constraint.options = options;
+      constraint.options = nextOptions;
     } else {
       delete constraint.options;
     }
@@ -777,15 +751,12 @@ function FieldEditorModal({
               value={draft.section}
             />
           </label>
-          <label className="flex items-center gap-3 text-sm font-bold">
-            <input
-              checked={draft.required}
-              className="h-4 w-4"
-              onChange={(event) => setDraft((current) => ({ ...current, required: event.target.checked }))}
-              type="checkbox"
-            />
-            Required
-          </label>
+          <ToggleRow
+            checked={draft.required}
+            description="When on, candidates must complete this field before they can apply."
+            onChange={(required) => setDraft((current) => ({ ...current, required }))}
+            title="Required"
+          />
 
           {draft.type === "text" || draft.type === "textarea" ? (
             <label className="block">
@@ -848,15 +819,19 @@ function FieldEditorModal({
           ) : null}
 
           {draft.type === "select" ? (
-            <label className="block">
-              <span className="mb-2 block text-sm font-bold">Options (one per line) <span className="text-red-500">*</span></span>
-              <textarea
-                className="min-h-28 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
-                onChange={(event) => setOptionsText(event.target.value)}
-                placeholder={"Option A\nOption B"}
-                value={optionsText}
+            <div>
+              <label className="mb-2 block text-sm font-bold" htmlFor={optionsId}>
+                Options <span className="text-red-500">*</span>
+              </label>
+              <TagInput
+                draft={optionDraft}
+                id={optionsId}
+                onChange={setOptions}
+                onDraftChange={setOptionDraft}
+                placeholder="Type and press Enter"
+                values={options}
               />
-            </label>
+            </div>
           ) : null}
       </div>
     </Modal>

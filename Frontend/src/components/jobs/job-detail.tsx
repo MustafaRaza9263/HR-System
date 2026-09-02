@@ -15,7 +15,7 @@ import { useState } from "react";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
-import { ApiClientError, apiRequest } from "@/lib/api";
+import { ApiClientError, apiRequest, pendingApplicationsCloseCount } from "@/lib/api";
 import type { Job, JobResponse } from "@/lib/jobs/types";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -35,8 +35,6 @@ function statusBadgeClass(status: Job["status"]) {
       return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
     case "closed":
       return "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
-    case "filled":
-      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
     default:
       return "bg-gray-100 text-gray-600";
   }
@@ -47,6 +45,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
   const queryClient = useQueryClient();
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
+  const [closePendingCount, setClosePendingCount] = useState<number | null>(null);
 
   const jobQuery = useQuery({
     queryKey: queryKeys.jobs.detail(jobId),
@@ -61,11 +60,16 @@ export function JobDetail({ jobId }: { jobId: string }) {
       }),
     onSuccess: (result) => {
       setCloseOpen(false);
+      setClosePendingCount(null);
       alerts.success("Job closed.");
       queryClient.setQueryData(queryKeys.jobs.detail(jobId), result);
       void queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
     },
-    onError: (error) => alerts.error(errorMessage(error, "Job could not be closed.")),
+    onError: (error) => {
+      const count = pendingApplicationsCloseCount(error);
+      setClosePendingCount(count);
+      if (count === null) alerts.error(errorMessage(error, "Job could not be closed."));
+    },
   });
 
   const duplicateMutation = useMutation({
@@ -127,14 +131,17 @@ export function JobDetail({ jobId }: { jobId: string }) {
             {job.status === "open" ? (
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-300 px-4 text-sm font-bold text-amber-700 dark:border-amber-500/40 dark:text-amber-400"
-                onClick={() => setCloseOpen(true)}
+                onClick={() => {
+                  setClosePendingCount(null);
+                  setCloseOpen(true);
+                }}
                 type="button"
               >
                 <XCircle className="h-4 w-4" />
                 Close
               </button>
             ) : null}
-            {job.status === "filled" || job.status === "closed" ? (
+            {job.status === "closed" ? (
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-300 px-4 text-sm font-bold dark:border-gray-600"
                 disabled={duplicateMutation.isPending}
@@ -167,7 +174,6 @@ export function JobDetail({ jobId }: { jobId: string }) {
 
           <dl className="mt-6 grid gap-4 sm:grid-cols-2">
             <DetailItem label="Job type" value={job.jobType ?? "—"} />
-            <DetailItem label="Positions" value={`${job.positionsFilled}/${job.positionsAvailable}`} />
             <DetailItem
               label="Salary"
               value={
@@ -230,7 +236,10 @@ export function JobDetail({ jobId }: { jobId: string }) {
               </button>
             </div>
           )}
-          onClose={() => setCloseOpen(false)}
+          onClose={() => {
+            setCloseOpen(false);
+            setClosePendingCount(null);
+          }}
           onSubmit={(event) => {
             event.preventDefault();
             const clean = closeReason.trim();
@@ -249,6 +258,11 @@ export function JobDetail({ jobId }: { jobId: string }) {
             onChange={(event) => setCloseReason(event.target.value)}
             value={closeReason}
           />
+          {closePendingCount ? (
+            <p className="mt-3 text-sm font-semibold text-amber-800 dark:text-amber-200">
+              {closePendingCount} application{closePendingCount === 1 ? "" : "s"} still need a decision
+            </p>
+          ) : null}
         </Modal>
       ) : null}
     </div>

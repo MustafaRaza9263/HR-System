@@ -19,7 +19,6 @@ export interface PublicJobDetail {
   roleName: string;
   description: RichTextDoc;
   jobType: JobType | null;
-  positionsAvailable: number;
   salaryMin: number | null;
   salaryMax: number | null;
   fieldsConfig: { customFields: CustomField[] };
@@ -110,6 +109,9 @@ export interface ApplicationDetail {
   campaign: string | null;
   rejectionReason: string | null;
   rejectedAt: string | null;
+  decisionReason: string | null;
+  approvedAt: string | null;
+  trialAt: string | null;
   completedInterviewCount: number;
   aiScore: number | null;
   aiSummary: string | null;

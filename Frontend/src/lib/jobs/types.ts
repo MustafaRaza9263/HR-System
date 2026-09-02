@@ -1,4 +1,4 @@
-export type JobStatus = "draft" | "open" | "filled" | "closed";
+export type JobStatus = "draft" | "open" | "closed";
 
 export type JobType =
   | "Full-time"
@@ -56,8 +56,6 @@ export interface Job {
   description: RichTextDoc;
   descriptionPlain: string;
   jobType: JobType | null;
-  positionsAvailable: number;
-  positionsFilled: number;
   salaryMin: number | null;
   salaryMax: number | null;
   fieldsConfig: FieldsConfig;
@@ -99,7 +97,6 @@ export interface JobDraftPayload {
   description?: RichTextDoc;
   descriptionPlain?: string;
   jobType?: JobType | null;
-  positionsAvailable?: number;
   salaryMin?: number | null;
   salaryMax?: number | null;
   fieldsConfig?: FieldsConfig;

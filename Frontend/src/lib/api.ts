@@ -10,6 +10,7 @@ interface ApiErrorBody {
     code?: string;
     message?: string;
     fields?: Record<string, string[]>;
+    pendingCount?: number;
   };
 }
 
@@ -19,6 +20,7 @@ export class ApiClientError extends Error {
     public readonly code: string,
     message: string,
     public readonly fields?: Record<string, string[]>,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -36,12 +38,22 @@ export function getApiBaseUrl() {
 async function throwIfFailed(response: Response) {
   if (response.ok) return;
   const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+  const payload = body.error ?? {};
+  const details: Record<string, unknown> = {};
+  if (typeof payload.pendingCount === "number") details.pendingCount = payload.pendingCount;
   throw new ApiClientError(
     response.status,
-    body.error?.code ?? "REQUEST_FAILED",
-    body.error?.message ?? "The request could not be completed.",
-    body.error?.fields,
+    payload.code ?? "REQUEST_FAILED",
+    payload.message ?? "The request could not be completed.",
+    payload.fields,
+    Object.keys(details).length > 0 ? details : undefined,
   );
+}
+
+export function pendingApplicationsCloseCount(error: unknown): number | null {
+  if (!(error instanceof ApiClientError) || error.code !== "JOB_HAS_PENDING_APPLICATIONS") return null;
+  const count = error.details?.pendingCount;
+  return typeof count === "number" && count > 0 ? count : null;
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {

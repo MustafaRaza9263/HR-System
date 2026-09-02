@@ -14,13 +14,16 @@ export const applicationStatusEnum = z.enum([
 
 export const TERMINAL_APPLICATION_STATUSES = ["approved", "rejected"] as const;
 
-export const rejectApplicationSchema = z.object({
+export const decisionReasonSchema = z.object({
   reason: z
     .string()
     .trim()
     .min(10, "Enter a reason of at least 10 characters.")
     .max(500, "Reason cannot exceed 500 characters."),
 });
+
+export const rejectApplicationSchema = decisionReasonSchema;
+export const approveApplicationSchema = decisionReasonSchema;
 
 export const bulkRejectSchema = z.object({
   jobId: objectId,

@@ -10,6 +10,7 @@ import { verifyBrowserOrigin } from "../middleware/origin.js";
 import { Application } from "../models/application.model.js";
 import { Interview } from "../models/interview.model.js";
 import {
+  approveApplicationSchema,
   bulkRejectSchema,
   listApplicationsQuerySchema,
   rejectApplicationSchema,
@@ -18,7 +19,7 @@ import { createInterviewSchema } from "../schemas/interview.schema.js";
 import { sendCandidateInterviewScheduled } from "../services/email.js";
 import { ApiError } from "../utils/api-error.js";
 import { buildApplicationFilter } from "../utils/application-filter.js";
-import { assertRejectable, rejectApplications } from "../utils/application-reject.js";
+import { approveApplication, assertRejectable, markApplicationTrial, rejectApplications } from "../utils/application-reject.js";
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertNoDuplicateInterviewSlot } from "../utils/interview-rules.js";
@@ -269,6 +270,70 @@ applicationRouter.patch(
       ],
       input.reason,
     );
+
+    const updated = await Application.findById(applicationId).lean();
+    response.status(200).json({
+      data: { application: serializeApplication(updated!) },
+    });
+  }),
+);
+
+applicationRouter.patch(
+  "/:applicationId/approve",
+  verifyBrowserOrigin,
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const input = approveApplicationSchema.parse(request.body);
+    const application = await Application.findById(applicationId);
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertRejectable(application.status);
+
+    await approveApplication(
+      {
+        _id: application._id,
+        candidateEmail: application.candidateEmail,
+        candidateName: application.candidateName,
+        roleSnapshot: application.roleSnapshot,
+      },
+      input.reason,
+    );
+
+    const updated = await Application.findById(applicationId).lean();
+    response.status(200).json({
+      data: { application: serializeApplication(updated!) },
+    });
+  }),
+);
+
+applicationRouter.patch(
+  "/:applicationId/trial",
+  verifyBrowserOrigin,
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const application = await Application.findById(applicationId);
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertRejectable(application.status);
+
+    await markApplicationTrial({
+      _id: application._id,
+      candidateEmail: application.candidateEmail,
+      candidateName: application.candidateName,
+      roleSnapshot: application.roleSnapshot,
+    });
 
     const updated = await Application.findById(applicationId).lean();
     response.status(200).json({

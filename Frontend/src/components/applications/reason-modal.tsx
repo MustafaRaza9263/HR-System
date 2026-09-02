@@ -12,6 +12,7 @@ export function ReasonModal({
   pending,
   minLength = 10,
   maxLength = 500,
+  confirmClassName = "bg-red-600 hover:bg-red-700",
   onCancel,
   onConfirm,
 }: {
@@ -21,6 +22,7 @@ export function ReasonModal({
   pending: boolean;
   minLength?: number;
   maxLength?: number;
+  confirmClassName?: string;
   onCancel: () => void;
   onConfirm: (reason: string) => void;
 }) {
@@ -51,7 +53,7 @@ export function ReasonModal({
             Cancel
           </button>
           <button
-            className="h-11 rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+            className={`h-11 rounded-xl text-sm font-bold text-white disabled:opacity-50 ${confirmClassName}`}
             disabled={pending}
             type="submit"
           >

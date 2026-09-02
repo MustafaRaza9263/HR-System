@@ -41,6 +41,9 @@ export interface ApplicationLike {
   campaign?: string | null;
   rejectionReason?: string | null;
   rejectedAt?: Date | null;
+  decisionReason?: string | null;
+  approvedAt?: Date | null;
+  trialAt?: Date | null;
   completedInterviewCount?: number;
   aiScore?: number | null;
   aiSummary?: string | null;
@@ -93,6 +96,9 @@ export function serializeApplication(application: ApplicationLike) {
     campaign: application.campaign ?? null,
     rejectionReason: application.rejectionReason ?? null,
     rejectedAt: application.rejectedAt ?? null,
+    decisionReason: application.decisionReason ?? null,
+    approvedAt: application.approvedAt ?? null,
+    trialAt: application.trialAt ?? null,
     completedInterviewCount: application.completedInterviewCount ?? 0,
     aiScore: application.aiScore ?? null,
     aiSummary: application.aiSummary ?? null,

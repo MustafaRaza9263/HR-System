@@ -5,9 +5,11 @@ import { Types } from "mongoose";
 
 import { authenticate } from "../middleware/authenticate.js";
 import { verifyBrowserOrigin } from "../middleware/origin.js";
+import { Application } from "../models/application.model.js";
 import { Department } from "../models/department.model.js";
 import { Job } from "../models/job.model.js";
 import { Role } from "../models/role.model.js";
+import { TERMINAL_APPLICATION_STATUSES } from "../schemas/application.schema.js";
 import {
   closeJobSchema,
   createJobDraftSchema,
@@ -66,8 +68,6 @@ function serializeJob(
     description?: unknown;
     descriptionPlain?: string | null;
     jobType?: string | null;
-    positionsAvailable: number;
-    positionsFilled: number;
     salaryMin?: number | null;
     salaryMax?: number | null;
     fieldsConfig?: { customFields?: unknown[] } | null;
@@ -93,8 +93,6 @@ function serializeJob(
     description: job.description ?? null,
     descriptionPlain: job.descriptionPlain ?? "",
     jobType: job.jobType ?? null,
-    positionsAvailable: job.positionsAvailable,
-    positionsFilled: job.positionsFilled,
     salaryMin: job.salaryMin ?? null,
     salaryMax: job.salaryMax ?? null,
     fieldsConfig: { customFields: job.fieldsConfig?.customFields ?? [] },
@@ -277,7 +275,6 @@ jobRouter.post(
       description: input.description ?? null,
       descriptionPlain: input.descriptionPlain ?? "",
       jobType: input.jobType ?? null,
-      positionsAvailable: input.positionsAvailable,
       salaryMin: input.salaryMin ?? null,
       salaryMax: input.salaryMax ?? null,
       fieldsConfig: input.fieldsConfig ?? { customFields: [] },
@@ -330,7 +327,6 @@ jobRouter.patch(
     if (input.description !== undefined) update.description = input.description;
     if (input.descriptionPlain !== undefined) update.descriptionPlain = input.descriptionPlain;
     if (input.jobType !== undefined) update.jobType = input.jobType;
-    if (input.positionsAvailable !== undefined) update.positionsAvailable = input.positionsAvailable;
     if (input.salaryMin !== undefined) update.salaryMin = input.salaryMin;
     if (input.salaryMax !== undefined) update.salaryMax = input.salaryMax;
     if (input.fieldsConfig !== undefined) update.fieldsConfig = input.fieldsConfig;
@@ -433,6 +429,19 @@ jobRouter.post(
       throw new ApiError(422, "JOB_NOT_OPEN", "Only open jobs can be closed.");
     }
 
+    const pendingCount = await Application.countDocuments({
+      jobId: job._id,
+      status: { $nin: [...TERMINAL_APPLICATION_STATUSES] },
+    });
+    if (pendingCount > 0) {
+      throw new ApiError(
+        409,
+        "JOB_HAS_PENDING_APPLICATIONS",
+        `${pendingCount} application${pendingCount === 1 ? "" : "s"} still need a decision before this job can be closed.`,
+        { pendingCount },
+      );
+    }
+
     const updated = await Job.findByIdAndUpdate(
       jobId,
       {
@@ -470,8 +479,8 @@ jobRouter.post(
     if (!source) {
       throw new ApiError(404, "JOB_NOT_FOUND", "Job was not found.");
     }
-    if (source.status !== "filled" && source.status !== "closed") {
-      throw new ApiError(422, "JOB_NOT_DUPLICABLE", "Only filled or closed jobs can be duplicated.");
+    if (source.status !== "closed") {
+      throw new ApiError(422, "JOB_NOT_DUPLICABLE", "Only closed jobs can be duplicated.");
     }
 
     const duplicatedDescription: unknown = source.description ?? null;
@@ -482,7 +491,6 @@ jobRouter.post(
       description: duplicatedDescription,
       descriptionPlain: source.descriptionPlain ?? "",
       jobType: source.jobType ?? null,
-      positionsAvailable: source.positionsAvailable,
       salaryMin: source.salaryMin ?? null,
       salaryMax: source.salaryMax ?? null,
       fieldsConfig: {

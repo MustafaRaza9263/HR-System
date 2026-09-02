@@ -1,5 +1,19 @@
 "use client";
 
+import {
+  arrow,
+  autoUpdate,
+  flip,
+  FloatingFocusManager,
+  FloatingPortal,
+  offset,
+  shift,
+  useClick,
+  useDismiss,
+  useFloating,
+  useInteractions,
+  useRole,
+} from "@floating-ui/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -10,13 +24,14 @@ import {
   Clock3,
   Copy,
   History,
-  Link2,
   Mail,
+  Send,
   ShieldOff,
   User,
+  X,
   XCircle,
 } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -90,6 +105,67 @@ function statusTone(status: RegistrantStatus): PillTone {
   }
 }
 
+const ARROW_OPPOSITE = {
+  top: "bottom",
+  right: "left",
+  bottom: "top",
+  left: "right",
+} as const;
+
+function ScrollFadeFrame({ children }: { children: ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollFades, setScrollFades] = useState({ top: false, bottom: false });
+
+  const updateScrollFades = useCallback(() => {
+    const body = scrollRef.current;
+    if (!body) return;
+    const next = {
+      top: body.scrollTop > 1,
+      bottom: body.scrollTop + body.clientHeight < body.scrollHeight - 1,
+    };
+    setScrollFades((current) => (current.top === next.top && current.bottom === next.bottom ? current : next));
+  }, []);
+
+  useEffect(() => {
+    const body = scrollRef.current;
+    if (!body) return;
+    const mutation = new MutationObserver(updateScrollFades);
+    const resize = new ResizeObserver(updateScrollFades);
+    body.addEventListener("scroll", updateScrollFades, { passive: true });
+    mutation.observe(body, { childList: true, subtree: true, characterData: true });
+    resize.observe(body);
+    window.addEventListener("resize", updateScrollFades);
+    const frame = requestAnimationFrame(updateScrollFades);
+    return () => {
+      cancelAnimationFrame(frame);
+      body.removeEventListener("scroll", updateScrollFades);
+      mutation.disconnect();
+      resize.disconnect();
+      window.removeEventListener("resize", updateScrollFades);
+    };
+  }, [updateScrollFades]);
+
+  return (
+    <div className="relative mt-3 min-h-0 flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute inset-x-0 top-10 z-20 h-10 bg-linear-to-b from-gray-50 to-transparent transition-opacity duration-200 dark:from-gray-900 ${
+          scrollFades.top ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-linear-to-t from-white to-transparent transition-opacity duration-200 dark:from-gray-900 ${
+          scrollFades.bottom ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <div className="hr-hide-scrollbar h-full overflow-auto overscroll-contain" ref={scrollRef}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function IconAction({
   label,
   onClick,
@@ -107,6 +183,157 @@ function IconAction({
         {children}
       </button>
     </Tooltip>
+  );
+}
+
+function SendLinkPopover({
+  open,
+  email,
+  sending,
+  onOpenChange,
+  onEmailChange,
+  onSend,
+}: {
+  open: boolean;
+  email: string;
+  sending: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEmailChange: (value: string) => void;
+  onSend: () => void;
+}) {
+  const arrowRef = useRef<HTMLSpanElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+
+  const { refs, floatingStyles, context, middlewareData, placement } = useFloating({
+    middleware: [
+      offset(12),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      arrow({ element: arrowRef, padding: 10 }),
+    ],
+    onOpenChange,
+    open,
+    placement: "top",
+    strategy: "fixed",
+    whileElementsMounted: autoUpdate,
+  });
+
+  const click = useClick(context);
+  const dismiss = useDismiss(context, { ancestorScroll: true });
+  const role = useRole(context, { role: "dialog" });
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, onOpenChange]);
+
+  const side = (placement.split("-")[0] ?? "top") as keyof typeof ARROW_OPPOSITE;
+  const arrowX = middlewareData.arrow?.x;
+  const arrowY = middlewareData.arrow?.y;
+  const arrowStyle: CSSProperties = {
+    left: arrowX == null ? undefined : `${arrowX}px`,
+    top: arrowY == null ? undefined : `${arrowY}px`,
+    [ARROW_OPPOSITE[side]]: "-5px",
+  };
+
+  return (
+    <>
+      <Tooltip disabled={open} label="Mail">
+        <button
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={open ? "Close send link" : "Mail"}
+          className={`icon-button ${open ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300" : ""}`}
+          ref={refs.setReference}
+          type="button"
+          {...getReferenceProps()}
+        >
+          <Mail aria-hidden className="h-4 w-4" />
+        </button>
+      </Tooltip>
+
+      {open ? (
+        <FloatingPortal>
+          <FloatingFocusManager context={context} initialFocus={inputRef} modal={false} returnFocus>
+            <div
+              aria-labelledby={titleId}
+              className="z-1200 w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-gray-200 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.14),0_2px_8px_rgba(15,23,42,0.06)] dark:border-gray-700 dark:bg-gray-900 dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
+              ref={refs.setFloating}
+              style={floatingStyles}
+              {...getFloatingProps()}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="inline-flex items-center gap-1.5 text-sm font-bold text-indigo-700 dark:text-indigo-300" id={titleId}>
+                  <Send aria-hidden className="h-4 w-4" />
+                  Send link
+                </p>
+                <button
+                  aria-label="Close send link"
+                  className="grid h-7 w-7 place-items-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  onClick={() => onOpenChange(false)}
+                  type="button"
+                >
+                  <X aria-hidden className="h-4 w-4" />
+                </button>
+              </div>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onSend();
+                }}
+              >
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-gray-400">Email</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoComplete="email"
+                      className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                      disabled={sending}
+                      onChange={(event) => onEmailChange(event.target.value)}
+                      placeholder="email@example.com"
+                      ref={inputRef}
+                      type="email"
+                      value={email}
+                    />
+                    <button
+                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-indigo-600 px-3.5 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                      disabled={sending}
+                      type="submit"
+                    >
+                      <Send aria-hidden className="h-3.5 w-3.5" />
+                      {sending ? "Sending…" : "Send"}
+                    </button>
+                  </div>
+                </label>
+              </form>
+              <span
+                aria-hidden
+                className={`absolute h-2.5 w-2.5 rotate-45 bg-white dark:bg-gray-900 ${
+                  side === "top"
+                    ? "border-b border-r"
+                    : side === "bottom"
+                      ? "border-t border-l"
+                      : side === "left"
+                        ? "border-b border-l"
+                        : "border-t border-r"
+                } border-gray-200 dark:border-gray-700`}
+                ref={arrowRef}
+                style={arrowStyle}
+              />
+            </div>
+          </FloatingFocusManager>
+        </FloatingPortal>
+      ) : null}
+    </>
   );
 }
 
@@ -223,12 +450,7 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
       maxWidth="max-w-5xl"
       onClose={onClose}
       padded={false}
-      title={
-        <span className="inline-flex items-center gap-2">
-          <Link2 aria-hidden className="h-5 w-5 text-indigo-600" />
-          Invite interviewer
-        </span>
-      }
+      title="Invite interviewer"
     >
       <div className="shrink-0 px-5 pt-4 sm:px-6">
           <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800/70">
@@ -283,7 +505,7 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
             </span>
             Previous invitations
           </h3>
-          <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <ScrollFadeFrame>
             {linksQuery.isPending ? (
               <div className="space-y-3 p-4">
                 {[1, 2, 3].map((item) => (
@@ -308,14 +530,14 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
             ) : null}
             {linksQuery.isSuccess && links.length > 0 ? (
               <table className="min-w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                <thead className="sticky top-0 z-30 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                   <tr>
                     <th className="px-4 py-3">Created At</th>
                     <th className="px-4 py-3">Link</th>
                     <th className="px-4 py-3">Department</th>
                     <th className="px-4 py-3">Requesters</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Action</th>
+                    <th className="w-px whitespace-nowrap px-4 py-3">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -353,7 +575,7 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
                 </tbody>
               </table>
             ) : null}
-          </div>
+          </ScrollFadeFrame>
         </section>
     </Modal>
   );
@@ -390,7 +612,7 @@ function LinkRow({
 }) {
   return (
     <>
-      <tr className="align-middle">
+      <tr className={`align-middle ${mailing ? "bg-indigo-50/70 dark:bg-indigo-500/10" : ""}`}>
         <td className="whitespace-nowrap px-4 py-3">
           <DateTimeDisplay value={link.createdAt} />
         </td>
@@ -409,39 +631,25 @@ function LinkRow({
         <td className="px-4 py-3 align-middle">
           <StatusPills items={linkStatusPills(link)} />
         </td>
-        <td className="px-4 py-3">
-          <div className="flex flex-wrap items-center gap-1">
+        <td className="w-px whitespace-nowrap px-4 py-3">
+          <div className="flex flex-nowrap items-center gap-1">
             <IconAction label={copied ? "Copied!" : "Copy"} onClick={onCopy}>
               {copied ? <Check aria-hidden className="h-4 w-4" /> : <Copy aria-hidden className="h-4 w-4" />}
             </IconAction>
-            <IconAction label={mailing ? "Cancel email" : "Mail"} onClick={onToggleMail}>
-              <Mail aria-hidden className="h-4 w-4" />
-            </IconAction>
+            <SendLinkPopover
+              email={mailEmail}
+              open={mailing}
+              sending={sendingMail}
+              onEmailChange={onMailEmailChange}
+              onOpenChange={(next) => {
+                if (next !== mailing) onToggleMail();
+              }}
+              onSend={onSendMail}
+            />
             <IconAction label={expanded ? "Hide requesters" : "Expand"} onClick={onToggleExpand}>
               <ChevronDown aria-hidden className={`h-4 w-4 transition-transform duration-300 ease-in-out ${expanded ? "rotate-180" : ""}`} />
             </IconAction>
           </div>
-          {mailing ? (
-            <form
-              className="mt-2 flex gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onSendMail();
-              }}
-            >
-              <input
-                autoFocus
-                className="h-8 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                onChange={(event) => onMailEmailChange(event.target.value)}
-                placeholder="email@example.com"
-                type="email"
-                value={mailEmail}
-              />
-              <button className="h-8 rounded-lg bg-indigo-600 px-2 text-xs font-bold text-white disabled:opacity-50" disabled={sendingMail} type="submit">
-                {sendingMail ? "Sending…" : "Send"}
-              </button>
-            </form>
-          ) : null}
         </td>
       </tr>
       <ExpandableRegistrants expanded={expanded} pendingReview={pendingReview} token={link.token} onReview={onReview} />

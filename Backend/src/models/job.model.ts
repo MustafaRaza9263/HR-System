@@ -43,8 +43,6 @@ const jobSchema = new Schema(
       enum: ["Full-time", "Part-time", "Contract", "Temporary", "Internship", "Fresher"],
       default: null,
     },
-    positionsAvailable: { type: Number, required: true, default: 1, min: 1 },
-    positionsFilled: { type: Number, required: true, default: 0, min: 0 },
     locations: { type: [String], default: [] },
     remote: { type: Boolean, required: true, default: false },
     salaryMin: { type: Number, default: null, min: 0 },
@@ -54,7 +52,7 @@ const jobSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["draft", "open", "filled", "closed"],
+      enum: ["draft", "open", "closed"],
       required: true,
       default: "draft",
     },

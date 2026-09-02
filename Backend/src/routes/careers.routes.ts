@@ -70,7 +70,6 @@ function serializePublicJob(
     roleId: Types.ObjectId;
     description?: unknown;
     jobType?: string | null;
-    positionsAvailable: number;
     salaryMin?: number | null;
     salaryMax?: number | null;
     fieldsConfig?: { customFields?: unknown[] } | null;
@@ -88,7 +87,6 @@ function serializePublicJob(
     roleName: names.roleName,
     description: job.description ?? null,
     jobType: job.jobType ?? null,
-    positionsAvailable: job.positionsAvailable,
     salaryMin: job.salaryMin ?? null,
     salaryMax: job.salaryMax ?? null,
     fieldsConfig: { customFields: job.fieldsConfig?.customFields ?? [] },
@@ -111,7 +109,7 @@ careersRouter.get(
   "/jobs",
   asyncHandler(async (_request, response) => {
     const jobs = await Job.find({ status: "open" })
-      .select("slug title departmentId roleId jobType positionsAvailable publishedAt")
+      .select("slug title departmentId roleId jobType publishedAt")
       .sort({ publishedAt: -1, createdAt: -1 })
       .lean();
 
@@ -134,7 +132,6 @@ careersRouter.get(
           departmentId: job.departmentId.toString(),
           departmentName: departmentNames.get(job.departmentId.toString()) ?? "Team",
           jobType: job.jobType ?? null,
-          positionsAvailable: job.positionsAvailable,
           publishedAt: job.publishedAt ?? null,
         })),
         teams,

@@ -22,8 +22,9 @@ import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
+import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { alerts } from "@/lib/alerts";
-import { ApiClientError, apiRequest } from "@/lib/api";
+import { ApiClientError, apiRequest, pendingApplicationsCloseCount } from "@/lib/api";
 import type { Job, JobStats, JobsListResponse } from "@/lib/jobs/types";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -60,18 +61,25 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function statusBadgeClass(status: Job["status"]) {
+function statusLabel(status: Job["status"]) {
+  switch (status) {
+    case "draft":
+      return "Draft";
+    case "open":
+      return "Open";
+    case "closed":
+      return "Closed";
+  }
+}
+
+function statusTone(status: Job["status"]): PillTone {
   switch (status) {
     case "open":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
+      return "success";
     case "draft":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
+      return "warning";
     case "closed":
-      return "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300";
-    case "filled":
-      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
-    default:
-      return "bg-gray-100 text-gray-600";
+      return "neutral";
   }
 }
 
@@ -91,6 +99,7 @@ export function JobsManager() {
   const [departmentId, setDepartmentId] = useState("");
   const [roleId, setRoleId] = useState("");
   const [closeTarget, setCloseTarget] = useState<Job | null>(null);
+  const [closePendingCount, setClosePendingCount] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
 
   useEffect(() => {
@@ -153,10 +162,15 @@ export function JobsManager() {
     },
     onSuccess: () => {
       setCloseTarget(null);
+      setClosePendingCount(null);
       alerts.success("Job closed.");
       void queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all });
     },
-    onError: (error) => alerts.error(errorMessage(error, "Job could not be closed.")),
+    onError: (error) => {
+      const count = pendingApplicationsCloseCount(error);
+      setClosePendingCount(count);
+      if (count === null) alerts.error(errorMessage(error, "Job could not be closed."));
+    },
   });
 
   const deleteMutation = useMutation({
@@ -263,7 +277,6 @@ export function JobsManager() {
                       <th className="px-4 py-3">Department</th>
                       <th className="px-4 py-3">Role</th>
                       <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Positions</th>
                       <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Created At</th>
                       <th className="px-4 py-3">Applicants</th>
@@ -277,12 +290,7 @@ export function JobsManager() {
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.departmentName ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.roleName ?? "—"}</td>
                         <td className="px-4 py-3">
-                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadgeClass(job.status)}`}>
-                            {job.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                          {job.positionsFilled}/{job.positionsAvailable}
+                          <StatusPills items={[{ label: statusLabel(job.status), tone: statusTone(job.status) }]} />
                         </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{job.jobType ?? "—"}</td>
                         <td className="whitespace-nowrap px-4 py-3">
@@ -320,14 +328,17 @@ export function JobsManager() {
                                 <button
                                   aria-label={`Close ${job.title}`}
                                   className="icon-button"
-                                  onClick={() => setCloseTarget(job)}
+                                  onClick={() => {
+                                    setClosePendingCount(null);
+                                    setCloseTarget(job);
+                                  }}
                                   type="button"
                                 >
                                   <XCircle aria-hidden className="h-4 w-4" />
                                 </button>
                               </>
                             ) : null}
-                            {job.status === "filled" || job.status === "closed" ? (
+                            {job.status === "closed" ? (
                               <>
                                 <Link aria-label={`View ${job.title}`} className="icon-button" href={`/dashboard/jobs/${job.id}`}>
                                   <Eye aria-hidden className="h-4 w-4" />
@@ -359,7 +370,11 @@ export function JobsManager() {
         <CloseJobModal
           job={closeTarget}
           pending={closeMutation.isPending}
-          onCancel={() => setCloseTarget(null)}
+          pendingCount={closePendingCount}
+          onCancel={() => {
+            setCloseTarget(null);
+            setClosePendingCount(null);
+          }}
           onConfirm={(closeReason) => closeMutation.mutate({ jobId: closeTarget.id, closeReason })}
         />
       ) : null}
@@ -417,11 +432,13 @@ function EmptyState({ hasQuery }: { hasQuery: boolean }) {
 function CloseJobModal({
   job,
   pending,
+  pendingCount,
   onCancel,
   onConfirm,
 }: {
   job: Job;
   pending: boolean;
+  pendingCount: number | null;
   onCancel: () => void;
   onConfirm: (reason: string) => void;
 }) {
@@ -483,6 +500,11 @@ function CloseJobModal({
           value={reason}
         />
       </label>
+      {pendingCount ? (
+        <p className="mt-3 text-sm font-semibold text-amber-800 dark:text-amber-200">
+          {pendingCount} application{pendingCount === 1 ? "" : "s"} still need a decision
+        </p>
+      ) : null}
     </Modal>
   );
 }

@@ -79,7 +79,7 @@ export function InterviewNoteModal({
       </label>
       <textarea
         autoFocus
-        className="max-h-40 min-h-18 w-full resize-none overflow-y-auto bg-transparent px-4 pb-14 pt-3 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-gray-500"
+        className="hr-hide-scrollbar max-h-40 min-h-18 w-full resize-none overflow-y-auto bg-transparent px-4 pb-12 pt-3 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-gray-500"
         disabled={pending}
         id={composerId}
         maxLength={2000}
@@ -94,9 +94,6 @@ export function InterviewNoteModal({
         rows={2}
         value={content}
       />
-      <span className="pointer-events-none absolute bottom-4 left-4 text-[11px] text-gray-400">
-        {content.trim().length}/2000
-      </span>
       <button
         aria-label={pending ? "Saving note" : "Add note"}
         className="absolute bottom-2.5 right-2.5 grid h-9 w-9 place-items-center rounded-full bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-600/40 disabled:text-white/80"
@@ -124,9 +121,10 @@ export function InterviewNoteModal({
   if (locked) {
     return (
       <Modal
+        bodyClassName="hr-hide-scrollbar"
         closeDisabled={pending}
         footer={footer}
-        maxWidth="max-w-lg"
+        maxWidth="max-w-2xl"
         onClose={onClose}
         subtitle="Notes cannot be added to a cancelled or no-show interview."
         title={`Notes · ${candidateName}`}
@@ -139,9 +137,10 @@ export function InterviewNoteModal({
   return (
     <Modal
       as="form"
+      bodyClassName="hr-hide-scrollbar"
       closeDisabled={pending}
       footer={footer}
-      maxWidth="max-w-lg"
+      maxWidth="max-w-2xl"
       onClose={onClose}
       onSubmit={submit}
       subtitle="Notes are saved to this interview and cannot be edited later."

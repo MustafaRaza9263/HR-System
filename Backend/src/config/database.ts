@@ -4,6 +4,7 @@ import { Application } from "../models/application.model.js";
 import { DepartmentAccessLink } from "../models/department-access-link.model.js";
 import { Interview } from "../models/interview.model.js";
 import { InterviewNote } from "../models/interview-note.model.js";
+import { Job } from "../models/job.model.js";
 import { LinkRegistrant } from "../models/link-registrant.model.js";
 import { Notification } from "../models/notification.model.js";
 import { Session } from "../models/session.model.js";
@@ -22,6 +23,8 @@ export async function connectToDatabase(): Promise<void> {
     { status: "interviewing" },
     { $set: { status: "interview_scheduled" } },
   );
+  await Job.collection.updateMany({ status: "filled" }, { $set: { status: "closed" } });
+  await Job.collection.updateMany({}, { $unset: { positionsAvailable: "", positionsFilled: "" } });
   await migrateInterviewDocuments();
   await migrateAccessLinkRegistrants();
   await Promise.all([

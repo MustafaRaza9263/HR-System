@@ -3,7 +3,7 @@ import { Types } from "mongoose";
 import { Application } from "../models/application.model.js";
 import { Interview } from "../models/interview.model.js";
 
-const LOCKED_STATUSES = new Set(["rejected", "approved", "trial"]);
+const LOCKED_STATUSES = new Set(["rejected", "approved"]);
 
 export async function recomputeApplicationStatus(applicationId: Types.ObjectId | string): Promise<void> {
   const application = await Application.findById(applicationId).select("status").lean();
