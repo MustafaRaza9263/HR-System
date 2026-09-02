@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { BrandMark } from "@/components/brand/brand-mark";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { Dropdown } from "@/components/ui/dropdown";
 import { alerts } from "@/lib/alerts";
@@ -31,41 +30,46 @@ const SECTION_LABEL: Record<FieldSection, string> = {
   experience: "Experience",
   education: "Education",
 };
-const PERSONAL_SECTION_ID = "apply-personal";
+const APPLY_HEADING_ID = "apply-for-this-job";
+const NAME_FIELD_ID = "apply-candidate-name";
+const APPLY_SCROLL_GAP_PX = 80;
 
 function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-let personalScrollFrame = 0;
+let applyScrollFrame = 0;
 
-function scrollToPersonalSection() {
-  const target = document.getElementById(PERSONAL_SECTION_ID);
-  if (!target) return;
+function focusNameField() {
+  document.getElementById(NAME_FIELD_ID)?.focus({ preventScroll: true });
+}
 
-  const section = target;
-  const top = section.getBoundingClientRect().top + window.scrollY;
+function scrollToApplyForm() {
+  const heading = document.getElementById(APPLY_HEADING_ID);
+  if (!heading) return;
+
+  const top = Math.max(0, heading.getBoundingClientRect().top + window.scrollY - APPLY_SCROLL_GAP_PX);
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (reduceMotion) {
     window.scrollTo(0, top);
-    section.focus({ preventScroll: true });
+    focusNameField();
     return;
   }
 
   const start = window.scrollY;
   const distance = top - start;
   if (Math.abs(distance) < 1) {
-    section.focus({ preventScroll: true });
+    focusNameField();
     return;
   }
 
   const duration = Math.min(1200, Math.max(560, Math.abs(distance) * 0.42));
-  const token = ++personalScrollFrame;
+  const token = ++applyScrollFrame;
   let startTime: number | null = null;
 
   function step(now: number) {
-    if (token !== personalScrollFrame) return;
+    if (token !== applyScrollFrame) return;
     if (startTime === null) startTime = now;
     const progress = Math.min((now - startTime) / duration, 1);
     window.scrollTo(0, start + distance * easeInOutCubic(progress));
@@ -73,7 +77,7 @@ function scrollToPersonalSection() {
       requestAnimationFrame(step);
       return;
     }
-    section.focus({ preventScroll: true });
+    focusNameField();
   }
 
   requestAnimationFrame(step);
@@ -321,15 +325,26 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
         mutation.mutate();
       }}
     >
+      <div>
+        <h2
+          className="scroll-mt-20 font-sans text-2xl font-bold tracking-tight text-neutral-950 sm:text-[1.75rem] dark:text-white"
+          id={APPLY_HEADING_ID}
+        >
+          Apply for this job
+        </h2>
+        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+          <span aria-hidden className="font-semibold text-red-500">
+            *
+          </span>{" "}
+          indicates a required field
+        </p>
+      </div>
+
       {grouped.map((group) => (
         <section key={group.section}>
-          <h2
-            className="scroll-mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400 outline-none"
-            id={group.section === "personal" ? PERSONAL_SECTION_ID : undefined}
-            tabIndex={group.section === "personal" ? -1 : undefined}
-          >
+          <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">
             {SECTION_LABEL[group.section]}
-          </h2>
+          </h3>
           <div className="mt-4 space-y-4">
             {group.section === "personal" ? (
               <>
@@ -341,6 +356,7 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                     autoComplete="name"
                     className={inputClass}
                     disabled={busy}
+                    id={NAME_FIELD_ID}
                     maxLength={120}
                     onChange={(event) => setValues((current) => ({ ...current, candidateName: event.target.value }))}
                     value={values.candidateName}
@@ -723,15 +739,7 @@ export function ApplyJobPage({ slug }: { slug: string }) {
   const accepting = job?.status === "open";
 
   return (
-    <main className="flex min-h-svh flex-col bg-[#f7f7f5] text-neutral-900 dark:bg-gray-950 dark:text-white">
-      <header className="border-b border-neutral-200/80 dark:border-gray-800">
-        <div className="mx-auto flex h-16 max-w-6xl items-center px-5 sm:px-8">
-          <Link aria-label="Careers home" href="/">
-            <BrandMark />
-          </Link>
-        </div>
-      </header>
-
+    <main className="flex min-h-svh flex-col bg-[#f7f7f5] text-neutral-900 [&_button]:font-[inherit] [&_input]:font-[inherit] [&_textarea]:font-[inherit] dark:bg-gray-950 dark:text-white">
       <div className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 sm:px-8 sm:py-14">
         {jobQuery.isPending ? (
           <div aria-label="Loading role" className="space-y-4" role="status">
@@ -759,25 +767,27 @@ export function ApplyJobPage({ slug }: { slug: string }) {
           <>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">
               {job.departmentName}
-              {job.roleName ? ` · ${job.roleName}` : ""}
             </p>
             <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] sm:text-4xl">{job.title}</h1>
             <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
               {[job.jobType, formatSalary(job.salaryMin, job.salaryMax)].filter(Boolean).join(" · ")}
             </p>
-            <div className="mt-8 border-t border-neutral-200 pt-6 dark:border-gray-800">
+            <div className="mt-8">
               {accepting ? (
                 <div className="mb-6">
                   <button
                     className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-neutral-900 px-6 text-sm font-bold text-white transition hover:bg-neutral-800 sm:w-auto dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
-                    onClick={scrollToPersonalSection}
+                    onClick={scrollToApplyForm}
                     type="button"
                   >
                     Apply now
                   </button>
                 </div>
               ) : null}
-              <RichTextViewer value={job.description} />
+              <RichTextViewer
+                proseClassName="text-[1.0625rem] leading-[1.7] text-neutral-800 dark:text-neutral-200 [&_h1]:mb-3 [&_h1]:mt-8 [&_h1]:text-[1.75rem] [&_h1]:font-bold [&_h1]:tracking-tight [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-[1.5rem] [&_h2]:font-bold [&_h2]:tracking-tight [&_h3]:mb-2 [&_h3]:mt-6 [&_h3]:text-xl [&_h3]:font-bold [&_li]:my-2 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-3 [&_strong]:font-bold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6"
+                value={job.description}
+              />
             </div>
             {accepting ? (
               <ApplyForm job={job} />

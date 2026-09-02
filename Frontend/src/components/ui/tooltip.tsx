@@ -1,7 +1,19 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import {
+  arrow,
+  autoUpdate,
+  flip,
+  FloatingPortal,
+  offset,
+  shift,
+  useFloating,
+  useFocus,
+  useHover,
+  useInteractions,
+  useRole,
+} from "@floating-ui/react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 
 interface TooltipProps {
   children: ReactNode;
@@ -9,73 +21,73 @@ interface TooltipProps {
   className?: string;
 }
 
+const ARROW_OPPOSITE = {
+  top: "bottom",
+  right: "left",
+  bottom: "top",
+  left: "right",
+} as const;
+
 export function Tooltip({ children, label, className = "" }: TooltipProps) {
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const arrowRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
 
-  const updatePosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const bounds = trigger.getBoundingClientRect();
-    setPosition({
-      top: bounds.top - 8,
-      left: bounds.left + bounds.width / 2,
-    });
-  }, []);
+  const { refs, floatingStyles, context, middlewareData, placement } = useFloating({
+    middleware: [
+      offset(8),
+      flip({ padding: 8 }),
+      shift({ padding: 8 }),
+      arrow({ element: arrowRef, padding: 6 }),
+    ],
+    onOpenChange: setOpen,
+    open,
+    placement: "top",
+    strategy: "fixed",
+    whileElementsMounted: autoUpdate,
+  });
 
-  function show() {
-    updatePosition();
-    setVisible(true);
-  }
+  const hover = useHover(context, { move: false });
+  const focus = useFocus(context);
+  const role = useRole(context, { role: "tooltip" });
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus, role]);
 
-  function hide() {
-    setVisible(false);
-  }
-
-  useEffect(() => {
-    if (!visible) return;
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [updatePosition, visible]);
-
-  useEffect(() => {
-    if (visible) updatePosition();
-  }, [label, updatePosition, visible]);
+  const side = (placement.split("-")[0] ?? "top") as keyof typeof ARROW_OPPOSITE;
+  const arrowX = middlewareData.arrow?.x;
+  const arrowY = middlewareData.arrow?.y;
+  const arrowStyle: CSSProperties = {
+    left: arrowX == null ? undefined : `${arrowX}px`,
+    top: arrowY == null ? undefined : `${arrowY}px`,
+    [ARROW_OPPOSITE[side]]: "-4px",
+  };
 
   return (
     <>
       <div
         className={`inline-flex ${className}`.trim()}
-        onBlur={hide}
-        onFocus={show}
-        onMouseEnter={show}
-        onMouseLeave={hide}
-        ref={triggerRef}
+        ref={refs.setReference}
+        {...getReferenceProps()}
       >
         {children}
       </div>
 
-      {visible && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className="pointer-events-none fixed z-[1200] -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"
-              role="tooltip"
-              style={position}
-            >
-              {label}
-              <span
-                aria-hidden
-                className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-100"
-              />
-            </div>,
-            document.body,
-          )
-        : null}
+      {open ? (
+        <FloatingPortal>
+          <div
+            className="pointer-events-none z-[1200] w-max max-w-[min(20rem,calc(100vw-1rem))] rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"
+            ref={refs.setFloating}
+            style={floatingStyles}
+            {...getFloatingProps()}
+          >
+            {label}
+            <span
+              aria-hidden
+              className="absolute h-2 w-2 rotate-45 bg-gray-900 dark:bg-gray-100"
+              ref={arrowRef}
+              style={arrowStyle}
+            />
+          </div>
+        </FloatingPortal>
+      ) : null}
     </>
   );
 }

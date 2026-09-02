@@ -1,12 +1,14 @@
 "use client";
 
 import { format, isValid } from "date-fns";
-import { Calendar, Clock } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { ArrowUp, Calendar, Clock, LoaderCircle } from "lucide-react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { UserProfile } from "@/components/ui/user-profile";
 import type { InterviewNote } from "@/lib/interviews/types";
+
+const NOTE_COMPOSER_MAX_PX = 160;
 
 function NoteStamp({ value }: { value: string }) {
   const date = new Date(value);
@@ -51,34 +53,58 @@ export function InterviewNoteModal({
   onSubmit?: (content: string) => Promise<void> | void;
 }) {
   const [content, setContent] = useState("");
+  const composerId = useId();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const canSubmit = !pending && !locked && content.trim().length > 0;
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, NOTE_COMPOSER_MAX_PX)}px`;
+  }, [content]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const clean = content.trim();
-    if (!clean || locked) return;
+    if (!clean || locked || pending) return;
     await onSubmit?.(clean);
     setContent("");
   }
 
-  const footer = (close: () => void) => (
-    <div className="flex w-full gap-3">
-      <button
-        className="hr-secondary-btn h-11 min-w-0 flex-[1_1_0%] rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+  const footer = locked ? undefined : (
+    <div className="relative rounded-2xl border border-gray-200 bg-white focus-within:border-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:focus-within:border-indigo-500">
+      <label className="sr-only" htmlFor={composerId}>
+        Add a note
+      </label>
+      <textarea
+        autoFocus
+        className="max-h-40 min-h-18 w-full resize-none overflow-y-auto bg-transparent px-4 pb-14 pt-3 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-gray-500"
         disabled={pending}
-        onClick={close}
-        type="button"
+        id={composerId}
+        maxLength={2000}
+        onChange={(event) => setContent(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || !canSubmit) return;
+          event.preventDefault();
+          event.currentTarget.form?.requestSubmit();
+        }}
+        placeholder="Add a note…"
+        ref={textareaRef}
+        rows={2}
+        value={content}
+      />
+      <span className="pointer-events-none absolute bottom-4 left-4 text-[11px] text-gray-400">
+        {content.trim().length}/2000
+      </span>
+      <button
+        aria-label={pending ? "Saving note" : "Add note"}
+        className="absolute bottom-2.5 right-2.5 grid h-9 w-9 place-items-center rounded-full bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-600/40 disabled:text-white/80"
+        disabled={!canSubmit}
+        type="submit"
       >
-        Close
+        {pending ? <LoaderCircle aria-hidden className="h-4 w-4 animate-spin" /> : <ArrowUp aria-hidden className="h-4 w-4" strokeWidth={2.5} />}
       </button>
-      {locked ? null : (
-        <button
-          className="h-11 min-w-0 flex-[1_1_0%] rounded-xl bg-indigo-600 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
-          disabled={pending || !content.trim()}
-          type="submit"
-        >
-          {pending ? "Saving…" : "Add note"}
-        </button>
-      )}
     </div>
   );
 
@@ -91,20 +117,7 @@ export function InterviewNoteModal({
       )}
       {locked ? (
         <p className="text-xs text-gray-400">Notes cannot be added to cancelled or no-show interviews.</p>
-      ) : (
-        <label className="block">
-          <span className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">Add a note</span>
-          <textarea
-            autoFocus
-            className="min-h-24 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-            maxLength={2000}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder="Add a note…"
-            value={content}
-          />
-          <span className="mt-1 block text-xs text-gray-400">{content.trim().length}/2000</span>
-        </label>
-      )}
+      ) : null}
     </div>
   );
 

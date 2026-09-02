@@ -268,7 +268,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 ### Workflow — public apply
 
-`/` lists `open` jobs grouped by department accordion. Filters: team + search title/dept/jobType. Apply → `/apply/[slug]`.
+`/` lists `open` jobs grouped by department accordion. Filters: team + search title/dept/jobType. Apply → `/apply/[slug]`. Apply page: no brand header; eyebrow is department name only; no divider before the description; Source Serif 4 on this route only. After the JD: divider, sans “Apply for this job”, serif “* indicates a required field”. Apply now scrolls to that heading with a gap below the viewport top and focuses the name field.
 
 Closed/filled slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
 
@@ -304,7 +304,7 @@ Completed: locked for status changes. **Notes:** writable on `scheduled` and `co
 
 **Complete:** increments `completedInterviewCount`. **Cancel:** emails candidate. **No-show:** no email.
 
-**Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal cards: compact `UserProfile` initials, note text, and bottom-left calendar/clock timestamp.
+**Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal: history cards in the body (compact `UserProfile` initials, note text, bottom-left calendar/clock timestamp); composer in the footer with a circular send-arrow (no Close/Add buttons). Add locked on cancelled/no-show.
 
 **HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Cancel, no-show, and complete open a confirmation modal; complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
 
