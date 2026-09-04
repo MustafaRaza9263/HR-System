@@ -229,6 +229,9 @@ departmentLinkRouter.post(
     if (!link) {
       throw new ApiError(404, "LINK_NOT_FOUND", "Access link was not found.");
     }
+    if (isAccessDateExpired(link.accessDate)) {
+      throw new ApiError(410, "LINK_EXPIRED", "This link has expired.");
+    }
     await sendInvite(token, input.email);
     response.status(200).json({ data: { sent: true } });
   }),

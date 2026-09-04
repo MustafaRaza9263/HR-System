@@ -13,8 +13,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { registerOverlay } from "@/components/ui/overlay-presence";
+
 const SHEET_QUERY = "(max-width: 767px)";
-const OPEN_UNLOCK_MS = 340;
 const CLOSE_SHEET_MS = 320;
 const CLOSE_DESKTOP_MS = 180;
 
@@ -26,10 +27,10 @@ function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function prepareSheetTransform(panel: HTMLElement | null) {
+function prepareSheetTransform(panel: HTMLElement | null, freezeHeight = false) {
   if (!panel) return;
   panel.style.setProperty("--hr-sheet-y", `${panel.offsetHeight + 16}px`);
-  if (isMobileSheet()) panel.style.height = `${panel.offsetHeight}px`;
+  if (freezeHeight && isMobileSheet()) panel.style.height = `${panel.offsetHeight}px`;
 }
 
 interface ModalBaseProps {
@@ -113,26 +114,30 @@ export function Modal({
       return;
     }
     let openFrame = 0;
-    let unlockTimer = 0;
     const measureFrame = requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      const mobile = isMobileSheet();
-      prepareSheetTransform(panel);
-      openFrame = requestAnimationFrame(() => {
-        setIsVisible(true);
-        if (mobile) {
-          unlockTimer = window.setTimeout(() => {
-            if (panelRef.current) panelRef.current.style.height = "";
-          }, OPEN_UNLOCK_MS);
-        }
-      });
+      prepareSheetTransform(panelRef.current);
+      openFrame = requestAnimationFrame(() => setIsVisible(true));
     });
     return () => {
       cancelAnimationFrame(measureFrame);
       cancelAnimationFrame(openFrame);
-      window.clearTimeout(unlockTimer);
     };
   }, []);
+
+  useEffect(() => registerOverlay(), []);
+
+  useEffect(() => {
+    if (!isVisible || isClosing) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const autofocus = isMobileSheet()
+      ? null
+      : panel.querySelector<HTMLElement>("[data-autofocus], [autofocus]");
+    const frame = requestAnimationFrame(() => {
+      (autofocus ?? panel).focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isVisible, isClosing]);
 
   const handleClose = useCallback(() => {
     if (closeDisabled || isClosing) return;
@@ -141,7 +146,7 @@ export function Modal({
       return;
     }
     const mobile = isMobileSheet();
-    prepareSheetTransform(panelRef.current);
+    prepareSheetTransform(panelRef.current, true);
     setIsClosing(true);
     setIsVisible(false);
     window.setTimeout(onClose, mobile ? CLOSE_SHEET_MS : CLOSE_DESKTOP_MS);
@@ -151,11 +156,18 @@ export function Modal({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") handleClose();
     };
-    const previousOverflow = document.body.style.overflow;
+    const html = document.documentElement;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousHtmlOverscroll = html.style.overscrollBehavior;
     document.body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+    html.style.overscrollBehavior = "none";
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      html.style.overflow = previousHtmlOverflow;
+      html.style.overscrollBehavior = previousHtmlOverscroll;
       window.removeEventListener("keydown", onKey);
     };
   }, [handleClose]);
@@ -167,7 +179,7 @@ export function Modal({
   if (!mounted) return null;
 
   const panelClass = [
-    "relative flex w-full min-h-0 max-h-full flex-col overflow-hidden rounded-t-3xl border border-gray-200 bg-white shadow-2xl",
+    "relative flex w-full min-h-0 md:max-h-full flex-col overflow-hidden rounded-t-3xl border border-gray-200 bg-white shadow-2xl outline-none",
     "dark:border-gray-700 dark:bg-gray-900 md:rounded-2xl",
     "hr-modal-panel",
     maxWidth,
@@ -234,9 +246,11 @@ export function Modal({
         aria-modal="true"
         className={panelClass}
         data-state={modalState}
+        inert={modalState !== "open" ? true : undefined}
         onSubmit={onSubmit}
         ref={setPanelRef}
         role="dialog"
+        tabIndex={-1}
       >
         {inner}
       </form>
@@ -246,15 +260,17 @@ export function Modal({
         aria-modal="true"
         className={panelClass}
         data-state={modalState}
+        inert={modalState !== "open" ? true : undefined}
         ref={setPanelRef}
         role="dialog"
+        tabIndex={-1}
       >
         {inner}
       </div>
     );
 
   return createPortal(
-    <div className="fixed inset-0 z-[1100] flex items-end justify-center overflow-hidden px-0 pt-8 md:items-center md:px-4 md:py-6">
+    <div className="fixed inset-0 z-[1100] flex items-end justify-center overflow-hidden px-0 pt-8 [overflow-anchor:none] md:items-center md:px-4 md:py-6">
       <div aria-hidden className="hr-modal-backdrop absolute inset-0" data-state={modalState} onClick={handleClose} />
       {panel}
     </div>,

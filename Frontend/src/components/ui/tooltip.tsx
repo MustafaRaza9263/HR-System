@@ -7,6 +7,7 @@ import {
   FloatingPortal,
   offset,
   shift,
+  useDismiss,
   useFloating,
   useFocus,
   useHover,
@@ -14,6 +15,8 @@ import {
   useRole,
 } from "@floating-ui/react";
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+
+import { subscribeOverlayPresence, getOpenOverlayCount } from "@/components/ui/overlay-presence";
 
 interface TooltipProps {
   children: ReactNode;
@@ -48,14 +51,25 @@ export function Tooltip({ children, label, className = "", disabled = false }: T
     whileElementsMounted: autoUpdate,
   });
 
-  const hover = useHover(context, { enabled: !disabled, move: false });
-  const focus = useFocus(context, { enabled: !disabled });
+  const hover = useHover(context, { enabled: !disabled, mouseOnly: true, move: false });
+  const focus = useFocus(context, { enabled: !disabled, visibleOnly: true });
+  const dismiss = useDismiss(context, {
+    ancestorScroll: true,
+    enabled: !disabled,
+    referencePress: true,
+  });
   const role = useRole(context, { role: "tooltip" });
-  const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus, role]);
+  const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus, dismiss, role]);
 
   useEffect(() => {
     if (disabled) setOpen(false);
   }, [disabled]);
+
+  useEffect(() => {
+    return subscribeOverlayPresence(() => {
+      if (getOpenOverlayCount() > 0) setOpen(false);
+    });
+  }, []);
 
   const side = (placement.split("-")[0] ?? "top") as keyof typeof ARROW_OPPOSITE;
   const arrowX = middlewareData.arrow?.x;

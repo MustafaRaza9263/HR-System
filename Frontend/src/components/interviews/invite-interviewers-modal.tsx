@@ -190,6 +190,7 @@ function SendLinkPopover({
   open,
   email,
   sending,
+  disabled,
   onOpenChange,
   onEmailChange,
   onSend,
@@ -197,6 +198,7 @@ function SendLinkPopover({
   open: boolean;
   email: string;
   sending: boolean;
+  disabled?: boolean;
   onOpenChange: (open: boolean) => void;
   onEmailChange: (value: string) => void;
   onSend: () => void;
@@ -204,6 +206,8 @@ function SendLinkPopover({
   const arrowRef = useRef<HTMLSpanElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+
+  const popoverOpen = open && !disabled;
 
   const { refs, floatingStyles, context, middlewareData, placement } = useFloating({
     middleware: [
@@ -213,19 +217,23 @@ function SendLinkPopover({
       arrow({ element: arrowRef, padding: 10 }),
     ],
     onOpenChange,
-    open,
+    open: popoverOpen,
     placement: "top",
     strategy: "fixed",
     whileElementsMounted: autoUpdate,
   });
 
-  const click = useClick(context);
+  const click = useClick(context, { enabled: !disabled });
   const dismiss = useDismiss(context, { ancestorScroll: true });
   const role = useRole(context, { role: "dialog" });
   const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
   useEffect(() => {
-    if (!open) return;
+    if (disabled && open) onOpenChange(false);
+  }, [disabled, open, onOpenChange]);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -234,7 +242,7 @@ function SendLinkPopover({
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, onOpenChange]);
+  }, [popoverOpen, onOpenChange]);
 
   const side = (placement.split("-")[0] ?? "top") as keyof typeof ARROW_OPPOSITE;
   const arrowX = middlewareData.arrow?.x;
@@ -247,12 +255,13 @@ function SendLinkPopover({
 
   return (
     <>
-      <Tooltip disabled={open} label="Mail">
+      <Tooltip disabled={popoverOpen} label={disabled ? "Link expired" : "Mail"}>
         <button
-          aria-expanded={open}
+          aria-expanded={popoverOpen}
           aria-haspopup="dialog"
-          aria-label={open ? "Close send link" : "Mail"}
-          className={`icon-button ${open ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300" : ""}`}
+          aria-label={disabled ? "Cannot email an expired link" : popoverOpen ? "Close send link" : "Mail"}
+          className={`icon-button ${popoverOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300" : ""}`}
+          disabled={disabled}
           ref={refs.setReference}
           type="button"
           {...getReferenceProps()}
@@ -261,7 +270,7 @@ function SendLinkPopover({
         </button>
       </Tooltip>
 
-      {open ? (
+      {popoverOpen ? (
         <FloatingPortal>
           <FloatingFocusManager context={context} initialFocus={inputRef} modal={false} returnFocus>
             <div
@@ -637,11 +646,13 @@ function LinkRow({
               {copied ? <Check aria-hidden className="h-4 w-4" /> : <Copy aria-hidden className="h-4 w-4" />}
             </IconAction>
             <SendLinkPopover
+              disabled={link.expired}
               email={mailEmail}
               open={mailing}
               sending={sendingMail}
               onEmailChange={onMailEmailChange}
               onOpenChange={(next) => {
+                if (link.expired) return;
                 if (next !== mailing) onToggleMail();
               }}
               onSend={onSendMail}

@@ -97,7 +97,6 @@ export function ScheduleInterviewModal({
         event.preventDefault();
         saveMutation.mutate();
       }}
-      subtitle="Label, date, time, and duration. Time is shown for planning and is not used for status rules."
       title={reschedule ? "Reschedule interview" : "Schedule interview"}
     >
       <div className="flex items-center gap-3">

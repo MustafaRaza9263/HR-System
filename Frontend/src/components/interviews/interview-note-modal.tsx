@@ -2,7 +2,7 @@
 
 import { format, isValid } from "date-fns";
 import { ArrowUp, Calendar, Clock, LoaderCircle } from "lucide-react";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { UserProfile } from "@/components/ui/user-profile";
@@ -57,7 +57,7 @@ export function InterviewNoteModal({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const canSubmit = !pending && !locked && content.trim().length > 0;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "0px";
@@ -78,8 +78,8 @@ export function InterviewNoteModal({
         Add a note
       </label>
       <textarea
-        autoFocus
         className="hr-hide-scrollbar max-h-40 min-h-18 w-full resize-none overflow-y-auto bg-transparent px-4 pb-12 pt-3 text-sm leading-relaxed text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-gray-500"
+        data-autofocus
         disabled={pending}
         id={composerId}
         maxLength={2000}

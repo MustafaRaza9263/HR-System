@@ -56,6 +56,16 @@ export function ApplicationDetailsModal({
 
   return (
     <Modal
+      bodyClassName="hr-hide-scrollbar"
+      footer={(close) => (
+        <button
+          className="h-11 w-full rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+          onClick={close}
+          type="button"
+        >
+          Close
+        </button>
+      )}
       height="max-h-full h-[85dvh] md:h-[min(44rem,90vh)]"
       maxWidth="max-w-2xl"
       onClose={onClose}

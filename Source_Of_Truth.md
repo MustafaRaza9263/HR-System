@@ -186,7 +186,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day) |
 | GET | `/department-links/pending` | today’s pending registrants |
 | GET | `/department-links/:token/registrants` | |
-| POST | `/department-links/:token/send-email` | `{ email }` |
+| POST | `/department-links/:token/send-email` | `{ email }`; unexpired link only |
 | PATCH | `/link-registrants/:id/approve` `/reject` `/revoke` | |
 | GET | `/interview-access/:token` | public state + expired flag + `expiresAt` |
 | POST | `/interview-access/:token/register` | live link only |
@@ -311,9 +311,9 @@ Completed: locked for status changes. **Notes:** writable on `scheduled` and `co
 
 **Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal: history cards in the body (compact `UserProfile` initials, note text, bottom-left calendar/clock timestamp); composer in the footer with a circular send-arrow (no Close/Add buttons). Add locked on cancelled/no-show.
 
-**HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Cancel, no-show, and complete open a confirmation modal; complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
+**HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Cancel, no-show, and complete open a confirmation modal (heading + close in the header, explanation in the body, no icon); complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
 
-**UX — schedule modal:** required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled).
+**UX — schedule modal:** heading + close in the header (no helper text). Required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled).
 
 ---
 
@@ -325,13 +325,13 @@ URL: `{FRONTEND_URL}/interview-access/{token}`. Expires when `accessDate < today
 
 **Guest register:** live (unexpired, **today’s**) link; name+email; status `pending_approval`; sets guest cookie; `notifyHR("interview_request")`.
 
-**HR:** approve / reject only from `pending_approval` on unexpired link. Approve sets `approvedAt`, emails guest with URL. Reject emails. **Revoke** only from `approved` (no email). Expired link: cannot approve/reject.
+**HR:** approve / reject only from `pending_approval` on unexpired link. Approve sets `approvedAt`, emails guest with URL. Reject emails. **Revoke** only from `approved` (no email). Expired link: cannot approve/reject or email the URL.
 
 **Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume preview + application details + add notes + mark complete (requires ≥1 note) on those rows. Mark complete notifies HR (`interview_completed`). Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
 
-**UX — guest `/interview-access/[token]`:** Header `HR System` (left) · `Interviewer Portal` (center) · initials avatar (right). Avatar opens name, email, status, expires-at. **Expired or invalid link:** no header — centered expiry/unavailable card only. Approved view is a table (Candidate, Job, Label, Duration, icon actions: mark complete, view CV modal, view application modal, add note modal). Register / pending / rejected / revoked stay as centered cards under the header.
+**UX — guest `/interview-access/[token]`:** Header `HR System` (left) · `Interviewer Portal` (center) · initials avatar (right). Avatar opens name, email, status, expires-at. **Expired or invalid link:** no header — centered expiry/unavailable card only. Approved view is a table (Candidate, Job, Label, Duration, icon actions: mark complete, view CV modal, view application modal, add note modal). Mark complete uses the same confirmation modal as HR (heading + close in the header, explanation in the body, no icon). Register / pending / rejected / revoked stay as centered cards under the header.
 
-**UX — HR Interviews “Invite” modal:** pick department (creates/reuses today’s link), copy URL, email, history table with created-at, requester pills, Active/Expired status pills, expand registrants, approve/reject/revoke icon actions.
+**UX — HR Interviews “Invite” modal:** pick department (creates/reuses today’s link), copy URL, email (disabled when expired), history table with created-at, requester pills, Active/Expired status pills, expand registrants, approve/reject/revoke icon actions.
 
 ---
 

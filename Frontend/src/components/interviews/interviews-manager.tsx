@@ -253,14 +253,14 @@ export function InterviewsManager() {
             />
             <button
               aria-label={hasPending ? "Invitation, pending requests" : "Invitation"}
-              className="relative inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+              className="relative inline-flex h-12 shrink-0 items-center justify-center gap-2 overflow-visible rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
               onClick={() => setInviteOpen(true)}
               type="button"
             >
               {hasPending ? (
                 <span
                   aria-hidden
-                  className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-indigo-600"
+                  className="pointer-events-none absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_2px_rgba(251,191,36,0.75),0_0_12px_4px_rgba(251,191,36,0.4)]"
                 />
               ) : null}
               <UserPlus aria-hidden className="h-4 w-4" />
