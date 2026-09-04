@@ -68,7 +68,7 @@ Backend/src
   schemas/               Zod
   services/              auth, email/ (transport, queue, templates), application-side-effects
   notifications/         catalog, service, stream (SSE), fcm, routes
-  utils/                 rules, serialize, cookies, token, uploads, dates
+  utils/                 rules, serialize, pagination, cookies, token, uploads, dates
 
 Frontend/src
   app/                   routes only; pages compose client managers
@@ -87,6 +87,7 @@ Frontend/src
 - Zod `.parse(req.body|query)` first. ObjectIds: 24-hex or 404.
 - Serialize `_id` → `id` strings. Never leak passwordHash, resume paths in list JSON (files via download routes).
 - Envelope: `{ data }` or `{ error: { code, message, fields? } }`. Zod → 422 `VALIDATION_ERROR`. Duplicate key → 409.
+- List tables (jobs, applications, interviews, notifications): `{ pagination: { total, page, limit, pages } }` inside `data`. Offset pagination (`skip`/`limit`). Stats from aggregations, never by loading the full collection.
 - Calendar helpers: `todayCalendarDate`, `getDateStateFromCalendarDate` (`future` \| `today` \| `passed`).
 - Emails: enqueue via `sendEmailBestEffort` / queue — never fail the HTTP action if mail fails. Bulk sends use Resend batch (≤100) off the request path.
 - Rate limits: auth 10/15m; apply 20/15m; guest register 20/15m.
@@ -95,6 +96,7 @@ Frontend/src
 
 - Client managers (`*-manager.tsx`) own queries/mutations. `apiRequest` / `apiFormRequest` with `credentials: "include"`.
 - `queryKeys` in `lib/query/query-keys.ts`. Invalidate parent `all` keys after writes.
+- List tables send `page` + `limit` + filters as query params; `keepPreviousData` while paging.
 - Toasts: `alerts.success|error` (portal). Forms: field errors from `ApiClientError.fields`.
 - Dashboard layout SSR-checks `/auth/me`; missing session → `/login`.
 - Destructive/confirm via modal. Row actions: `icon-button` + `Tooltip`, not labeled pills (except primary CTAs).
@@ -110,6 +112,7 @@ Frontend/src
 | `Dropdown` | Filters and selects |
 | `Modal` | All dialogs. Desktop: centered card. Mobile: iOS bottom sheet with slide open/close. Do not copy overlay CSS per screen. |
 | Rounded-2xl bordered table card | All list tables |
+| `PaginationBar` | Bottom of paginated list tables: “Showing a–b of n” + page numbers |
 | Gray-50 thead, uppercase xs | Table headers |
 | `h-11`/`h-12` rounded-xl inputs | Forms |
 | `ToggleRow` | Full-width setting switch (title + description + ON/OFF) |
@@ -165,14 +168,15 @@ Base `/api/v1`. Public unless marked **HR**.
 | POST | `/auth/logout` | Origin; revoke if cookie present |
 | GET/POST/PATCH | `/departments` `/departments/:id` | HR; no DELETE |
 | GET/POST/PATCH | `/roles` `/roles/:id` | HR; `?departmentId=`; create needs **active** dept |
-| GET | `/jobs` | HR; `q, departmentId, roleId, status` + stats |
+| GET | `/jobs` | HR; `q, departmentId, roleId, status, page, limit≤50` default 15; slim list rows (no description/fieldsConfig); stats via aggregation; `{ jobs, stats, pagination }` |
 | POST | `/jobs` | HR draft |
+| GET | `/jobs/options` | HR; compact `{ id, title, status }[]` for filter dropdowns |
 | GET/PATCH/DELETE | `/jobs/:jobId` | PATCH/DELETE **draft only**; DELETE also `applicationCount===0` |
 | POST | `/jobs/:id/publish` `/close` `/duplicate` | see §9 |
 | GET | `/careers/jobs` | `open` only |
 | GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
 | POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit |
-| GET | `/applications` | HR; `q, jobId, status` + stats |
+| GET | `/applications` | HR; `q, jobId, status, page, limit≤50` default 15; list fields only; stats via aggregation; `{ applications, stats, pagination }` |
 | POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
 | GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
 | PATCH | `/applications/:id/reject` | reason ≥10 ≤500; `sendEmail` default true |
@@ -180,7 +184,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | PATCH | `/applications/:id/trial` | no body |
 | GET | `/applications/:id/resume` `/files/:fieldId` | HR download |
 | GET/POST | `/applications/:id/interviews` | POST = schedule |
-| GET | `/interviews` | HR; filter `q, jobId, status, bucket` |
+| GET | `/interviews` | HR; `q, jobId, status, bucket, page, limit≤50` default 15; Mongo filters (lookup only when `q`/`jobId`); stats via aggregation; `{ interviews, stats, pagination }` |
 | PATCH | `/interviews/:id/reschedule` `/cancel` `/no-show` `/complete` | reschedule: `sendEmail` default true; same date+time as current row → 422 `INTERVIEW_UNCHANGED` |
 | POST | `/interviews/:id/notes` | HR |
 | POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day) |
@@ -196,7 +200,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `…/interviews/:id/files/:fieldId` | same; custom-field file |
 | POST | `…/interviews/:id/notes` | same |
 | PATCH | `…/interviews/:id/complete` | same; requires ≥1 note |
-| GET | `/notifications` | HR; `q, unreadOnly, page, limit≤50` default 20 |
+| GET | `/notifications` | HR; `q, unreadOnly, page, limit≤50` default 20; `{ notifications, unreadCount, pagination }` |
 | GET | `/notifications/unread-count` `/stream` | SSE `notification` events |
 | PATCH | `/notifications/read-all` `/:id/read` | |
 | POST | `/users/fcm-token` | `{ token }` |
@@ -248,7 +252,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 **Delete:** only `draft` with `applicationCount===0`.
 
-**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role. Columns: title, dept, role, status, type, createdAt, applicants, icon actions.
+**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role. Columns: title, dept, role, status, type, createdAt, applicants, icon actions. Backend pagination default 15. Filter dropdowns on other pages use `GET /jobs/options`, not the full list.
 
 | Status | Actions |
 |---|---|
@@ -285,7 +289,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Row click → detail (profile + interviews tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (profile + interviews tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -311,7 +315,7 @@ Completed: locked for status changes. **Notes:** writable on `scheduled` and `co
 
 **Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal: history cards in the body (compact `UserProfile` initials, note text, bottom-left calendar/clock timestamp); composer in the footer with a circular send-arrow (no Close/Add buttons). Add locked on cancelled/no-show.
 
-**HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Cancel, no-show, and complete open a confirmation modal (heading + close in the header, explanation in the body, no icon); complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
+**HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Backend pagination default 15. Cancel, no-show, and complete open a confirmation modal (heading + close in the header, explanation in the body, no icon); complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
 
 **UX — schedule modal:** heading + close in the header (no helper text). Required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled); reschedule adds a Send email toggle, default on.
 

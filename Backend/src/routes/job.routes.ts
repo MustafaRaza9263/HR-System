@@ -17,7 +17,9 @@ import {
   updateJobDraftSchema,
 } from "../schemas/job.schema.js";
 import { ApiError } from "../utils/api-error.js";
+import { escapeRegex } from "../utils/application-filter.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { paginationMeta } from "../utils/pagination.js";
 
 export const jobRouter = Router();
 
@@ -105,6 +107,60 @@ function serializeJob(
     createdBy: job.createdBy.toString(),
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
+  };
+}
+
+function serializeJobListItem(
+  job: {
+    _id: Types.ObjectId;
+    title: string;
+    departmentId: Types.ObjectId;
+    roleId: Types.ObjectId;
+    jobType?: string | null;
+    status: string;
+    applicationCount: number;
+    createdAt: Date;
+  },
+  names: SerializedNames = {},
+) {
+  return {
+    id: job._id.toString(),
+    title: job.title,
+    departmentId: job.departmentId.toString(),
+    roleId: job.roleId.toString(),
+    ...names,
+    jobType: job.jobType ?? null,
+    status: job.status,
+    applicationCount: job.applicationCount,
+    createdAt: job.createdAt,
+  };
+}
+
+const JOB_LIST_SELECT = "title departmentId roleId jobType status applicationCount createdAt";
+
+async function jobListStats() {
+  const [row] = await Job.aggregate<{
+    totalJobs: number;
+    totalOpened: number;
+    totalClosed: number;
+    applicantSum: number;
+  }>([
+    {
+      $group: {
+        _id: null,
+        totalJobs: { $sum: 1 },
+        totalOpened: { $sum: { $cond: [{ $eq: ["$status", "open"] }, 1, 0] } },
+        totalClosed: { $sum: { $cond: [{ $eq: ["$status", "closed"] }, 1, 0] } },
+        applicantSum: { $sum: "$applicationCount" },
+      },
+    },
+  ]);
+  const totalJobs = row?.totalJobs ?? 0;
+  return {
+    totalJobs,
+    totalOpened: row?.totalOpened ?? 0,
+    averageApplicants: totalJobs === 0 ? 0 : Math.round(((row?.applicantSum ?? 0) / totalJobs) * 10) / 10,
+    totalClosed: row?.totalClosed ?? 0,
   };
 }
 
@@ -199,7 +255,7 @@ jobRouter.get(
     if (query.status) filter.status = query.status;
 
     if (query.q) {
-      const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escaped = escapeRegex(query.q);
       const or: Array<Record<string, unknown>> = [
         { title: { $regex: escaped, $options: "i" } },
         { descriptionPlain: { $regex: escaped, $options: "i" } },
@@ -210,31 +266,35 @@ jobRouter.get(
       filter.$or = or;
     }
 
-    const [jobs, allForStats] = await Promise.all([
-      Job.find(filter).sort({ createdAt: -1 }).lean(),
-      Job.find().select("status applicationCount").lean(),
+    const skip = (query.page - 1) * query.limit;
+    const [jobs, total, stats] = await Promise.all([
+      Job.find(filter).select(JOB_LIST_SELECT).sort({ createdAt: -1 }).skip(skip).limit(query.limit).lean(),
+      Job.countDocuments(filter),
+      jobListStats(),
     ]);
 
     const maps = await loadNameMaps(jobs);
-    const totalJobs = allForStats.length;
-    const totalOpened = allForStats.filter((job) => job.status === "open").length;
-    const totalClosed = allForStats.filter((job) => job.status === "closed").length;
-    const averageApplicants =
-      totalJobs === 0
-        ? 0
-        : Math.round(
-            (allForStats.reduce((sum, job) => sum + (job.applicationCount ?? 0), 0) / totalJobs) * 10,
-          ) / 10;
-
     response.status(200).json({
       data: {
-        jobs: jobs.map((job) => serializeJob(job, namesFor(job, maps))),
-        stats: {
-          totalJobs,
-          totalOpened,
-          averageApplicants,
-          totalClosed,
-        },
+        jobs: jobs.map((job) => serializeJobListItem(job, namesFor(job, maps))),
+        stats,
+        pagination: paginationMeta(total, query.page, query.limit),
+      },
+    });
+  }),
+);
+
+jobRouter.get(
+  "/options",
+  asyncHandler(async (_request, response) => {
+    const jobs = await Job.find().select("title status").sort({ createdAt: -1 }).lean();
+    response.status(200).json({
+      data: {
+        jobs: jobs.map((job) => ({
+          id: job._id.toString(),
+          title: job.title,
+          status: job.status,
+        })),
       },
     });
   }),

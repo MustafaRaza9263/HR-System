@@ -1,4 +1,5 @@
 import type { NotificationListFilters } from "@/lib/notifications/types";
+import { LIST_PAGE_LIMIT } from "@/lib/pagination";
 
 export const queryKeys = {
   jobRoles: {
@@ -7,8 +8,17 @@ export const queryKeys = {
   },
   jobs: {
     all: ["jobs"] as const,
-    list: (filters?: { q?: string; departmentId?: string; roleId?: string }) =>
-      ["jobs", "list", filters?.q ?? "", filters?.departmentId ?? "", filters?.roleId ?? ""] as const,
+    list: (filters?: { q?: string; departmentId?: string; roleId?: string; page?: number; limit?: number }) =>
+      [
+        "jobs",
+        "list",
+        filters?.q ?? "",
+        filters?.departmentId ?? "",
+        filters?.roleId ?? "",
+        filters?.page ?? 1,
+        filters?.limit ?? LIST_PAGE_LIMIT,
+      ] as const,
+    options: ["jobs", "options"] as const,
     detail: (jobId: string) => ["jobs", "detail", jobId] as const,
   },
   careers: {
@@ -18,8 +28,16 @@ export const queryKeys = {
   },
   applications: {
     all: ["applications"] as const,
-    list: (filters?: { q?: string; jobId?: string; status?: string }) =>
-      ["applications", "list", filters?.q ?? "", filters?.jobId ?? "", filters?.status ?? ""] as const,
+    list: (filters?: { q?: string; jobId?: string; status?: string; page?: number; limit?: number }) =>
+      [
+        "applications",
+        "list",
+        filters?.q ?? "",
+        filters?.jobId ?? "",
+        filters?.status ?? "",
+        filters?.page ?? 1,
+        filters?.limit ?? LIST_PAGE_LIMIT,
+      ] as const,
     detail: (applicationId: string) => ["applications", "detail", applicationId] as const,
     interviews: (applicationId: string) => ["applications", "interviews", applicationId] as const,
     resume: (applicationId: string) => ["application-resume", applicationId] as const,
@@ -33,7 +51,7 @@ export const queryKeys = {
   },
   interviews: {
     all: ["interviews"] as const,
-    list: (filters?: { q?: string; jobId?: string; status?: string; bucket?: string }) =>
+    list: (filters?: { q?: string; jobId?: string; status?: string; bucket?: string; page?: number; limit?: number }) =>
       [
         "interviews",
         "list",
@@ -41,6 +59,8 @@ export const queryKeys = {
         filters?.jobId ?? "",
         filters?.status ?? "",
         filters?.bucket ?? "",
+        filters?.page ?? 1,
+        filters?.limit ?? LIST_PAGE_LIMIT,
       ] as const,
     pendingLinks: ["interviews", "pending-links"] as const,
     departmentLinksAll: ["interviews", "department-links"] as const,

@@ -23,6 +23,7 @@ import { approveApplication, assertRejectable, markApplicationTrial, rejectAppli
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertNoDuplicateInterviewSlot } from "../utils/interview-rules.js";
+import { paginationMeta } from "../utils/pagination.js";
 import { serializeApplication, serializeListItem } from "../utils/serialize-application.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
 import { contentDispositionFilename, resolveUploadPath } from "../utils/uploads.js";
@@ -56,21 +57,35 @@ applicationRouter.get(
       jobId: query.jobId,
       status: query.status,
     });
+    const skip = (query.page - 1) * query.limit;
 
-    const [applications, allForStats] = await Promise.all([
-      Application.find(filter).sort({ createdAt: -1 }).lean(),
-      Application.find().select("status").lean(),
+    const [applications, total, statusCounts] = await Promise.all([
+      Application.find(filter)
+        .select(
+          "jobId candidateName candidateEmail roleSnapshot.title roleSnapshot.departmentName roleSnapshot.roleName status createdAt resumeOriginalName",
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(query.limit)
+        .lean(),
+      Application.countDocuments(filter),
+      Application.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     ]);
+
+    const byStatus = new Map(statusCounts.map((row) => [row._id, row.count]));
+    let allTotal = 0;
+    for (const count of byStatus.values()) allTotal += count;
 
     response.status(200).json({
       data: {
         applications: applications.map((item) => serializeListItem(item)),
         stats: {
-          total: allForStats.length,
-          scheduled: allForStats.filter((item) => item.status === "interview_scheduled").length,
-          rejected: allForStats.filter((item) => item.status === "rejected").length,
-          approved: allForStats.filter((item) => item.status === "approved").length,
+          total: allTotal,
+          scheduled: byStatus.get("interview_scheduled") ?? 0,
+          rejected: byStatus.get("rejected") ?? 0,
+          approved: byStatus.get("approved") ?? 0,
         },
+        pagination: paginationMeta(total, query.page, query.limit),
       },
     });
   }),

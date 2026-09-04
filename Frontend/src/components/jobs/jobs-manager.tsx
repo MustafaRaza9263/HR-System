@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BriefcaseBusiness,
@@ -22,10 +22,12 @@ import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
+import { PaginationBar } from "@/components/ui/pagination";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest, pendingApplicationsCloseCount } from "@/lib/api";
-import type { Job, JobStats, JobsListResponse } from "@/lib/jobs/types";
+import type { Job, JobListItem, JobStats, JobsListResponse } from "@/lib/jobs/types";
+import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
 
 interface Department {
@@ -83,7 +85,7 @@ function statusTone(status: Job["status"]): PillTone {
   }
 }
 
-const emptyJobs: Job[] = [];
+const emptyJobs: JobListItem[] = [];
 const emptyStats: JobStats = {
   totalJobs: 0,
   totalOpened: 0,
@@ -98,9 +100,10 @@ export function JobsManager() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [roleId, setRoleId] = useState("");
-  const [closeTarget, setCloseTarget] = useState<Job | null>(null);
+  const [page, setPage] = useState(1);
+  const [closeTarget, setCloseTarget] = useState<JobListItem | null>(null);
   const [closePendingCount, setClosePendingCount] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<JobListItem | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -112,20 +115,16 @@ export function JobsManager() {
       q: debouncedQuery || undefined,
       departmentId: departmentId || undefined,
       roleId: roleId || undefined,
+      page,
+      limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, departmentId, roleId],
+    [debouncedQuery, departmentId, page, roleId],
   );
 
   const jobsQuery = useQuery({
     queryKey: queryKeys.jobs.list(filters),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.q) params.set("q", filters.q);
-      if (filters.departmentId) params.set("departmentId", filters.departmentId);
-      if (filters.roleId) params.set("roleId", filters.roleId);
-      const suffix = params.toString() ? `?${params.toString()}` : "";
-      return apiRequest<JobsListResponse>(`/jobs${suffix}`);
-    },
+    queryFn: async () => apiRequest<JobsListResponse>(`/jobs${listQueryString(filters)}`),
+    placeholderData: keepPreviousData,
   });
 
   const metaQuery = useQuery({
@@ -144,7 +143,12 @@ export function JobsManager() {
 
   const jobs = jobsQuery.data?.data.jobs ?? emptyJobs;
   const stats = jobsQuery.data?.data.stats ?? emptyStats;
+  const pagination = jobsQuery.data?.data.pagination ?? emptyPagination(page);
   const departments = metaQuery.data?.departments ?? [];
+
+  useEffect(() => {
+    if (page > pagination.pages) setPage(pagination.pages);
+  }, [page, pagination.pages]);
 
   const filteredRoles = useMemo(() => {
     const roles = metaQuery.data?.roles ?? [];
@@ -219,7 +223,10 @@ export function JobsManager() {
               <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search by title, description, or job id…"
                 value={query}
               />
@@ -230,6 +237,7 @@ export function JobsManager() {
               onChange={(next) => {
                 setDepartmentId(next);
                 setRoleId("");
+                setPage(1);
               }}
               options={[
                 { value: "", label: "All departments" },
@@ -241,7 +249,10 @@ export function JobsManager() {
             <Dropdown
               aria-label="Filter by role"
               className="w-full xl:w-52"
-              onChange={setRoleId}
+              onChange={(next) => {
+                setRoleId(next);
+                setPage(1);
+              }}
               options={[
                 { value: "", label: "All roles" },
                 ...filteredRoles.map((role) => ({ value: role.id, label: role.name })),
@@ -363,6 +374,11 @@ export function JobsManager() {
               </div>
             ) : null}
           </div>
+          {jobsQuery.isSuccess && pagination.total > 0 ? (
+            <div className="mt-4">
+              <PaginationBar onPageChange={setPage} pagination={pagination} />
+            </div>
+          ) : null}
         </section>
       </div>
 
@@ -436,7 +452,7 @@ function CloseJobModal({
   onCancel,
   onConfirm,
 }: {
-  job: Job;
+  job: JobListItem;
   pending: boolean;
   pendingCount: number | null;
   onCancel: () => void;
@@ -515,7 +531,7 @@ function DeleteJobModal({
   onCancel,
   onConfirm,
 }: {
-  job: Job;
+  job: JobListItem;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;

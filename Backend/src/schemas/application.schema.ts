@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { listPaginationQuerySchema } from "../utils/pagination.js";
+
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Select a valid id.");
 
 export const applicationStatusEnum = z.enum([
@@ -110,8 +112,10 @@ export const educationEntrySchema = z
 export const experienceEntriesSchema = z.array(experienceEntrySchema).min(1, "Add at least one experience.").max(8);
 export const educationEntriesSchema = z.array(educationEntrySchema).min(1, "Add at least one education.").max(8);
 
-export const listApplicationsQuerySchema = z.object({
-  q: z.string().trim().max(200).optional(),
-  jobId: objectId.optional(),
-  status: applicationStatusEnum.optional(),
-});
+export const listApplicationsQuerySchema = z
+  .object({
+    q: z.string().trim().max(200).optional(),
+    jobId: objectId.optional(),
+    status: applicationStatusEnum.optional(),
+  })
+  .extend(listPaginationQuerySchema.shape);

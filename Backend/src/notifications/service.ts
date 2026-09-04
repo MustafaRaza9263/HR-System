@@ -1,6 +1,7 @@
 import { Notification, type NotificationType } from "../models/notification.model.js";
 import { User } from "../models/user.model.js";
 import { escapeRegex } from "../utils/application-filter.js";
+import { paginationMeta } from "../utils/pagination.js";
 import { hrefForNotification, resolveNotificationContent } from "./catalog.js";
 import { sendHrPush } from "./fcm.js";
 import { publishNotification, type NotificationEvent } from "./stream.js";
@@ -80,12 +81,7 @@ export async function listHrNotifications(input: {
   return {
     notifications: items.map(serializeNotification),
     unreadCount,
-    pagination: {
-      total,
-      page: input.page,
-      limit: input.limit,
-      pages: Math.max(1, Math.ceil(total / input.limit) || 1),
-    },
+    pagination: paginationMeta(total, input.page, input.limit),
   };
 }
 

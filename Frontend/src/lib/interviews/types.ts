@@ -1,3 +1,5 @@
+import type { ListPagination } from "@/lib/pagination";
+
 export type InterviewStatus = "scheduled" | "completed" | "no_show" | "cancelled";
 export type DisplayStatus = InterviewStatus | "overdue";
 export type DateState = "future" | "today" | "passed";
@@ -54,6 +56,7 @@ export interface InterviewsBoardResponse {
   data: {
     interviews: InterviewListItem[];
     stats: InterviewBoardStats;
+    pagination: ListPagination;
   };
 }
 

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { listPaginationQuerySchema } from "../utils/pagination.js";
+
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Select a valid id.");
 const calendarDate = z
   .string()
@@ -39,12 +41,14 @@ export const interviewNoteSchema = z.object({
   content: z.string().trim().min(1, "Enter a note.").max(2000, "Note cannot exceed 2000 characters."),
 });
 
-export const listInterviewsQuerySchema = z.object({
-  q: z.string().trim().max(200).optional(),
-  jobId: objectId.optional(),
-  status: z.enum(["scheduled", "completed", "no_show", "cancelled", "overdue"]).optional(),
-  bucket: z.enum(["scheduled", "today", "tomorrow", "overdue"]).optional(),
-});
+export const listInterviewsQuerySchema = z
+  .object({
+    q: z.string().trim().max(200).optional(),
+    jobId: objectId.optional(),
+    status: z.enum(["scheduled", "completed", "no_show", "cancelled", "overdue"]).optional(),
+    bucket: z.enum(["scheduled", "today", "tomorrow", "overdue"]).optional(),
+  })
+  .extend(listPaginationQuerySchema.shape);
 
 export const createDepartmentLinkSchema = z.object({
   departmentId: objectId,

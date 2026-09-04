@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { NotificationTypeIcon } from "@/components/notifications/notification-icon";
+import { PaginationBar } from "@/components/ui/pagination";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import { fetchNotifications } from "@/lib/notifications/api";
@@ -214,29 +215,7 @@ export function NotificationsManager() {
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Showing {notifications.length} of {pagination.total}
-          </p>
-          <div className="flex gap-2">
-            <button
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50 dark:border-gray-800 dark:text-gray-200"
-              disabled={page <= 1}
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
-              type="button"
-            >
-              Previous
-            </button>
-            <button
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50 dark:border-gray-800 dark:text-gray-200"
-              disabled={page >= (pagination.pages || 1)}
-              onClick={() => setPage((value) => Math.min(pagination.pages || 1, value + 1))}
-              type="button"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        {pagination.total > 0 ? <PaginationBar onPageChange={setPage} pagination={pagination} /> : null}
       </div>
     </div>
   );

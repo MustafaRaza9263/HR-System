@@ -1,3 +1,5 @@
+import type { ListPagination } from "@/lib/pagination";
+
 export type JobStatus = "draft" | "open" | "closed";
 
 export type JobType =
@@ -70,6 +72,25 @@ export interface Job {
   updatedAt: string;
 }
 
+export interface JobListItem {
+  id: string;
+  title: string;
+  departmentId: string;
+  roleId: string;
+  departmentName?: string;
+  roleName?: string;
+  jobType: JobType | null;
+  status: JobStatus;
+  applicationCount: number;
+  createdAt: string;
+}
+
+export interface JobOption {
+  id: string;
+  title: string;
+  status: JobStatus;
+}
+
 export interface JobStats {
   totalJobs: number;
   totalOpened: number;
@@ -79,9 +100,14 @@ export interface JobStats {
 
 export interface JobsListResponse {
   data: {
-    jobs: Job[];
+    jobs: JobListItem[];
     stats: JobStats;
+    pagination: ListPagination;
   };
+}
+
+export interface JobOptionsResponse {
+  data: { jobs: JobOption[] };
 }
 
 export interface JobResponse {

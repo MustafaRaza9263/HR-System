@@ -1,4 +1,5 @@
 import type { CustomField, FieldSection, JobStatus, JobType, RichTextDoc } from "@/lib/jobs/types";
+import type { ListPagination } from "@/lib/pagination";
 
 export type ApplicationStatus =
   | "submitted"
@@ -83,6 +84,7 @@ export interface ApplicationsListResponse {
   data: {
     applications: ApplicationListItem[];
     stats: ApplicationStats;
+    pagination: ListPagination;
   };
 }
 

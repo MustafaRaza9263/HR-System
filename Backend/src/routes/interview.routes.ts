@@ -15,7 +15,7 @@ import { sendCandidateInterviewRescheduled } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { shiftCalendarDate, todayCalendarDate } from "../utils/date-state.js";
+import { listHrInterviews } from "../utils/interview-list.js";
 import {
   assertCanWriteNotes,
     assertNoDuplicateInterviewSlot,
@@ -25,7 +25,7 @@ import {
     canMarkComplete,
 } from "../utils/interview-rules.js";
 import { assertObjectId } from "../utils/object-id.js";
-import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
+import { serializeInterview } from "../utils/serialize-interview.js";
 
 export const interviewRouter = Router();
 
@@ -54,58 +54,8 @@ interviewRouter.get(
   "/",
   asyncHandler(async (request, response) => {
     const query = listInterviewsQuerySchema.parse(request.query);
-    const today = todayCalendarDate();
-    const tomorrow = shiftCalendarDate(today, 1);
-
-    const interviews = await Interview.find().sort({ date: 1, time: 1 }).lean();
-    const serialized = await serializeInterviews(interviews);
-    const applicationIds = [...new Set(interviews.map((item) => item.applicationId.toString()))];
-    const applications = await Application.find({ _id: { $in: applicationIds } })
-      .select("candidateName candidateEmail candidatePhone roleSnapshot jobId")
-      .lean();
-    const applicationById = new Map(applications.map((item) => [item._id.toString(), item]));
-
-    const rows = serialized.flatMap((interview) => {
-      const application = applicationById.get(interview.applicationId);
-      if (!application) return [];
-      return [
-        {
-          ...interview,
-          candidateName: application.candidateName,
-          candidateEmail: application.candidateEmail,
-          candidatePhone: application.candidatePhone,
-          jobTitle: application.roleSnapshot.title,
-          jobId: application.jobId.toString(),
-          departmentName: application.roleSnapshot.departmentName,
-        },
-      ];
-    });
-
-    const scheduledRows = rows.filter((item) => item.status === "scheduled");
-    const stats = {
-      scheduled: scheduledRows.length,
-      today: scheduledRows.filter((item) => item.date === today).length,
-      tomorrow: scheduledRows.filter((item) => item.date === tomorrow).length,
-      overdue: scheduledRows.filter((item) => item.displayStatus === "overdue").length,
-    };
-
-    const listed = rows.filter((item) => {
-      if (query.status === "overdue" && item.displayStatus !== "overdue") return false;
-      if (query.status && query.status !== "overdue" && item.status !== query.status) return false;
-      if (query.jobId && item.jobId !== query.jobId) return false;
-      if (query.bucket === "scheduled" && item.status !== "scheduled") return false;
-      if (query.bucket === "today" && !(item.status === "scheduled" && item.date === today)) return false;
-      if (query.bucket === "tomorrow" && !(item.status === "scheduled" && item.date === tomorrow)) return false;
-      if (query.bucket === "overdue" && item.displayStatus !== "overdue") return false;
-      if (query.q) {
-        const needle = query.q.toLocaleLowerCase();
-        const haystack = `${item.label} ${item.candidateName} ${item.candidateEmail} ${item.candidatePhone} ${item.jobTitle}`.toLocaleLowerCase();
-        if (!haystack.includes(needle)) return false;
-      }
-      return true;
-    });
-
-    response.status(200).json({ data: { interviews: listed, stats } });
+    const result = await listHrInterviews(query);
+    response.status(200).json({ data: result });
   }),
 );
 

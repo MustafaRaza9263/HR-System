@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Briefcase,
@@ -24,6 +24,7 @@ import { InviteInterviewersModal } from "@/components/interviews/invite-intervie
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
+import { PaginationBar } from "@/components/ui/pagination";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { Tooltip } from "@/components/ui/tooltip";
 import { UserProfile } from "@/components/ui/user-profile";
@@ -40,7 +41,8 @@ import type {
   InterviewStatus,
   PendingLinksResponse,
 } from "@/lib/interviews/types";
-import type { JobsListResponse } from "@/lib/jobs/types";
+import type { JobOptionsResponse } from "@/lib/jobs/types";
+import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
 
 const emptyStats: InterviewBoardStats = { scheduled: 0, today: 0, tomorrow: 0, overdue: 0 };
@@ -68,7 +70,7 @@ function statusLabel(status: DisplayStatus) {
     case "cancelled":
       return "Cancelled";
     default:
-      return status.replaceAll("_", " ");
+      return status;
   }
 }
 
@@ -102,6 +104,7 @@ export function InterviewsManager() {
   const [jobId, setJobId] = useState("");
   const [status, setStatus] = useState("");
   const [bucket, setBucket] = useState("");
+  const [page, setPage] = useState(1);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<InterviewListItem | null>(null);
   const [noteTarget, setNoteTarget] = useState<InterviewListItem | null>(null);
@@ -125,26 +128,21 @@ export function InterviewsManager() {
       jobId: jobId || undefined,
       status: status || undefined,
       bucket: bucket || undefined,
+      page,
+      limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, jobId, status, bucket],
+    [bucket, debouncedQuery, jobId, page, status],
   );
 
   const listQuery = useQuery({
     queryKey: queryKeys.interviews.list(filters),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.q) params.set("q", filters.q);
-      if (filters.jobId) params.set("jobId", filters.jobId);
-      if (filters.status) params.set("status", filters.status);
-      if (filters.bucket) params.set("bucket", filters.bucket);
-      const suffix = params.toString() ? `?${params.toString()}` : "";
-      return apiRequest<InterviewsBoardResponse>(`/interviews${suffix}`);
-    },
+    queryFn: async () => apiRequest<InterviewsBoardResponse>(`/interviews${listQueryString(filters)}`),
+    placeholderData: keepPreviousData,
   });
 
   const jobsQuery = useQuery({
-    queryKey: queryKeys.jobs.list(),
-    queryFn: async () => apiRequest<JobsListResponse>("/jobs"),
+    queryKey: queryKeys.jobs.options,
+    queryFn: async () => apiRequest<JobOptionsResponse>("/jobs/options"),
   });
 
   const pendingQuery = useQuery({
@@ -154,7 +152,13 @@ export function InterviewsManager() {
 
   const interviews = listQuery.data?.data.interviews ?? emptyInterviews;
   const stats = listQuery.data?.data.stats ?? emptyStats;
+  const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
+
+  useEffect(() => {
+    if (page > pagination.pages) setPage(pagination.pages);
+  }, [page, pagination.pages]);
+
   const hasPending = (pendingQuery.data?.data.requests.length ?? 0) > 0;
   const liveNoteTarget = noteTarget
     ? (interviews.find((item) => item.id === noteTarget.id) ?? noteTarget)
@@ -203,6 +207,7 @@ export function InterviewsManager() {
 
   function toggleBucket(next: string) {
     setBucket((current) => (current === next ? "" : next));
+    setPage(1);
   }
 
   return (
@@ -230,7 +235,10 @@ export function InterviewsManager() {
               <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search by candidate, email, phone, job, or label…"
                 value={query}
               />
@@ -238,7 +246,10 @@ export function InterviewsManager() {
             <Dropdown
               aria-label="Filter by job"
               className="w-full xl:w-56"
-              onChange={setJobId}
+              onChange={(next) => {
+                setJobId(next);
+                setPage(1);
+              }}
               options={[{ value: "", label: "All jobs" }, ...jobs.map((job) => ({ value: job.id, label: job.title }))]}
               size="md"
               value={jobId}
@@ -246,7 +257,10 @@ export function InterviewsManager() {
             <Dropdown
               aria-label="Filter by status"
               className="w-full xl:w-48"
-              onChange={setStatus}
+              onChange={(next) => {
+                setStatus(next);
+                setPage(1);
+              }}
               options={STATUS_OPTIONS}
               size="md"
               value={status}
@@ -382,6 +396,11 @@ export function InterviewsManager() {
               </div>
             ) : null}
           </div>
+          {listQuery.isSuccess && pagination.total > 0 ? (
+            <div className="mt-4">
+              <PaginationBar onPageChange={setPage} pagination={pagination} />
+            </div>
+          ) : null}
         </section>
       </div>
 

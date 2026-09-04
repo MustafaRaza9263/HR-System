@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { listPaginationQuerySchema } from "../utils/pagination.js";
+
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Select a valid id.");
 
 export const jobTypeEnum = z.enum([
@@ -148,4 +150,4 @@ export const listJobsQuerySchema = z.object({
   departmentId: objectId.optional(),
   roleId: objectId.optional(),
   status: z.enum(["draft", "open", "closed"]).optional(),
-});
+}).extend(listPaginationQuerySchema.shape);

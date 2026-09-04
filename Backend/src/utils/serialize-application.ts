@@ -108,18 +108,26 @@ export function serializeApplication(application: ApplicationLike) {
   };
 }
 
-export function serializeListItem(application: ApplicationLike) {
-  const full = serializeApplication(application);
+export function serializeListItem(application: {
+  _id: Types.ObjectId;
+  jobId: Types.ObjectId;
+  candidateName: string;
+  candidateEmail: string;
+  roleSnapshot: { title: string; departmentName: string; roleName: string };
+  status: string;
+  createdAt: Date;
+  resumeOriginalName: string;
+}) {
   return {
-    id: full.id,
-    jobId: full.jobId,
-    candidateName: full.candidateName,
-    candidateEmail: full.candidateEmail,
-    jobTitle: full.roleSnapshot.title,
-    departmentName: full.roleSnapshot.departmentName,
-    roleName: full.roleSnapshot.roleName,
-    status: full.status,
-    createdAt: full.createdAt,
-    resumeFileName: full.resumeFileName,
+    id: application._id.toString(),
+    jobId: application.jobId.toString(),
+    candidateName: application.candidateName,
+    candidateEmail: application.candidateEmail,
+    jobTitle: application.roleSnapshot.title,
+    departmentName: application.roleSnapshot.departmentName,
+    roleName: application.roleSnapshot.roleName,
+    status: application.status,
+    createdAt: application.createdAt,
+    resumeFileName: application.resumeOriginalName,
   };
 }

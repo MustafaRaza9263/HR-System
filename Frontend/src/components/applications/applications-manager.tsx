@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Calendar,
@@ -20,6 +20,7 @@ import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
+import { PaginationBar } from "@/components/ui/pagination";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { Tooltip } from "@/components/ui/tooltip";
 import { UserProfile } from "@/components/ui/user-profile";
@@ -33,7 +34,8 @@ import type {
   ApplicationsListResponse,
 } from "@/lib/applications/types";
 import { APPLICATION_STATUSES } from "@/lib/applications/types";
-import type { JobsListResponse } from "@/lib/jobs/types";
+import type { JobOptionsResponse } from "@/lib/jobs/types";
+import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
 
 import { ReasonModal } from "./reason-modal";
@@ -97,6 +99,7 @@ export function ApplicationsManager() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobId, setJobId] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [rejectTarget, setRejectTarget] = useState<{
     count: number;
@@ -119,30 +122,31 @@ export function ApplicationsManager() {
       q: debouncedQuery || undefined,
       jobId: jobId || undefined,
       status: status || undefined,
+      page,
+      limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, jobId, status],
+    [debouncedQuery, jobId, page, status],
   );
 
   const listQuery = useQuery({
     queryKey: queryKeys.applications.list(filters),
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filters.q) params.set("q", filters.q);
-      if (filters.jobId) params.set("jobId", filters.jobId);
-      if (filters.status) params.set("status", filters.status);
-      const suffix = params.toString() ? `?${params.toString()}` : "";
-      return apiRequest<ApplicationsListResponse>(`/applications${suffix}`);
-    },
+    queryFn: async () => apiRequest<ApplicationsListResponse>(`/applications${listQueryString(filters)}`),
+    placeholderData: keepPreviousData,
   });
 
   const jobsQuery = useQuery({
-    queryKey: queryKeys.jobs.list(),
-    queryFn: async () => apiRequest<JobsListResponse>("/jobs"),
+    queryKey: queryKeys.jobs.options,
+    queryFn: async () => apiRequest<JobOptionsResponse>("/jobs/options"),
   });
 
   const applications = listQuery.data?.data.applications ?? emptyApps;
   const stats = listQuery.data?.data.stats ?? emptyStats;
+  const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
+
+  useEffect(() => {
+    if (page > pagination.pages) setPage(pagination.pages);
+  }, [page, pagination.pages]);
 
   const rejectableSelected = applications.filter(
     (item) => selectedIds.includes(item.id) && isUnlocked(item.status),
@@ -296,7 +300,11 @@ export function ApplicationsManager() {
               <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                  setSelectedIds([]);
+                }}
                 placeholder="Search by candidate name or email…"
                 value={query}
               />
@@ -304,7 +312,11 @@ export function ApplicationsManager() {
             <Dropdown
               aria-label="Filter by job"
               className="w-full xl:w-56"
-              onChange={setJobId}
+              onChange={(next) => {
+                setJobId(next);
+                setPage(1);
+                setSelectedIds([]);
+              }}
               options={[
                 { value: "", label: "All jobs" },
                 ...jobs.map((job) => ({ value: job.id, label: job.title })),
@@ -315,7 +327,11 @@ export function ApplicationsManager() {
             <Dropdown
               aria-label="Filter by status"
               className="w-full xl:w-48"
-              onChange={setStatus}
+              onChange={(next) => {
+                setStatus(next);
+                setPage(1);
+                setSelectedIds([]);
+              }}
               options={[
                 { value: "", label: "All statuses" },
                 ...APPLICATION_STATUSES.map((item) => ({ value: item, label: statusLabel(item) })),
@@ -485,6 +501,11 @@ export function ApplicationsManager() {
               </div>
             ) : null}
           </div>
+          {listQuery.isSuccess && pagination.total > 0 ? (
+            <div className="mt-4">
+              <PaginationBar onPageChange={setPage} pagination={pagination} />
+            </div>
+          ) : null}
         </section>
       </div>
 

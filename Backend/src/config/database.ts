@@ -28,6 +28,7 @@ export async function connectToDatabase(): Promise<void> {
   await migrateInterviewDocuments();
   await migrateAccessLinkRegistrants();
   await Promise.all([
+    Job.createIndexes(),
     User.createIndexes(),
     Session.createIndexes(),
     Application.createIndexes(),
