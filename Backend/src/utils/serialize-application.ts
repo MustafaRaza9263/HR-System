@@ -23,18 +23,25 @@ export interface ApplicationLike {
     title: string;
     startDate: string;
     endDate?: string | null;
+    currentlyWorking?: boolean | null;
+    salary?: number | null;
     description?: string | null;
   }>;
   educationEntries?: Array<{
     school: string;
     degree: string;
     fieldOfStudy?: string | null;
+    cgpaPercentage?: string | null;
     startDate?: string | null;
     endDate?: string | null;
   }>;
   candidateName: string;
   candidateEmail: string;
   candidatePhone: string;
+  candidateDateOfBirth?: string | null;
+  candidateCnic?: string | null;
+  candidateMaritalStatus?: string | null;
+  candidateAlternativePhone?: string | null;
   resumeOriginalName: string;
   status: string;
   source: string;
@@ -77,18 +84,25 @@ export function serializeApplication(application: ApplicationLike) {
       title: entry.title,
       startDate: entry.startDate,
       endDate: entry.endDate ?? null,
+      currentlyWorking: Boolean(entry.currentlyWorking),
+      salary: typeof entry.salary === "number" ? entry.salary : null,
       description: entry.description ?? "",
     })),
     educationEntries: (application.educationEntries ?? []).map((entry) => ({
       school: entry.school,
       degree: entry.degree,
       fieldOfStudy: entry.fieldOfStudy ?? "",
+      cgpaPercentage: entry.cgpaPercentage ?? "",
       startDate: entry.startDate ?? null,
       endDate: entry.endDate ?? null,
     })),
     candidateName: application.candidateName,
     candidateEmail: application.candidateEmail,
     candidatePhone: application.candidatePhone,
+    candidateDateOfBirth: application.candidateDateOfBirth ?? null,
+    candidateCnic: application.candidateCnic ?? null,
+    candidateMaritalStatus: application.candidateMaritalStatus ?? null,
+    candidateAlternativePhone: application.candidateAlternativePhone ?? null,
     resumeFileName: application.resumeOriginalName,
     hasResume: true,
     status: application.status,

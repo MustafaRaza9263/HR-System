@@ -186,6 +186,10 @@ careersRouter.post(
       candidateName: body.candidateName,
       candidateEmail: body.candidateEmail,
       candidatePhone: body.candidatePhone,
+      candidateDateOfBirth: body.candidateDateOfBirth,
+      candidateCnic: body.candidateCnic,
+      candidateMaritalStatus: body.candidateMaritalStatus,
+      candidateAlternativePhone: body.candidateAlternativePhone,
     });
 
     const uploaded = filesByField(request.files as Express.Multer.File[] | undefined);
@@ -214,13 +218,16 @@ careersRouter.post(
       company: entry.company.replace(/\s+/g, " "),
       title: entry.title.replace(/\s+/g, " "),
       startDate: entry.startDate,
-      endDate: entry.endDate?.trim() ? entry.endDate.trim() : null,
+      currentlyWorking: Boolean(entry.currentlyWorking),
+      endDate: entry.currentlyWorking ? null : entry.endDate?.trim() ? entry.endDate.trim() : null,
+      salary: typeof entry.salary === "number" ? entry.salary : null,
       description: entry.description?.trim() ?? "",
     }));
     const educationEntries = parsePrefixed(educationEntriesSchema, educationRaw, "education").map((entry) => ({
       school: entry.school.replace(/\s+/g, " "),
       degree: entry.degree.replace(/\s+/g, " "),
       fieldOfStudy: entry.fieldOfStudy?.trim() ?? "",
+      cgpaPercentage: entry.cgpaPercentage?.trim() ?? "",
       startDate: entry.startDate?.trim() ? entry.startDate.trim() : null,
       endDate: entry.endDate?.trim() ? entry.endDate.trim() : null,
     }));
@@ -261,6 +268,10 @@ careersRouter.post(
       candidateName: system.candidateName.replace(/\s+/g, " "),
       candidateEmail: system.candidateEmail.toLowerCase(),
       candidatePhone: system.candidatePhone.replace(/\s+/g, " "),
+      candidateDateOfBirth: system.candidateDateOfBirth,
+      candidateCnic: system.candidateCnic,
+      candidateMaritalStatus: system.candidateMaritalStatus,
+      candidateAlternativePhone: system.candidateAlternativePhone?.replace(/\s+/g, " ") || null,
       resumeUrl: savedResume.relative,
       resumeOriginalName: savedResume.originalName,
       status: "submitted",

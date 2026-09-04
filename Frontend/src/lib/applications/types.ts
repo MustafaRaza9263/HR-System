@@ -49,6 +49,8 @@ export interface ExperienceEntry {
   title: string;
   startDate: string;
   endDate: string | null;
+  currentlyWorking: boolean;
+  salary: number | null;
   description: string;
 }
 
@@ -56,6 +58,7 @@ export interface EducationEntry {
   school: string;
   degree: string;
   fieldOfStudy: string;
+  cgpaPercentage: string;
   startDate: string | null;
   endDate: string | null;
 }
@@ -104,6 +107,10 @@ export interface ApplicationDetail {
   candidateName: string;
   candidateEmail: string;
   candidatePhone: string;
+  candidateDateOfBirth: string | null;
+  candidateCnic: string | null;
+  candidateMaritalStatus: string | null;
+  candidateAlternativePhone: string | null;
   resumeFileName: string;
   hasResume: boolean;
   status: ApplicationStatus;
@@ -135,6 +142,9 @@ export const APPLICATION_STATUSES: ApplicationStatus[] = [
   "rejected",
   "trial",
 ];
+
+export const MARITAL_STATUSES = ["Single", "Married", "Divorced", "Widowed"] as const;
+export type MaritalStatus = (typeof MARITAL_STATUSES)[number];
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const ALLOWED_UPLOAD_ACCEPT = ".pdf,.doc,.docx";

@@ -281,7 +281,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
 
-**Required system fields:** name, email, phone, resume (pdf/doc/docx ≤5MB). **Required sections:** ≥1 experience (company, title, startDate; end ≥ start), ≥1 education (school, degree). Max 8 each.
+**Required system fields:** name, email, phone, date of birth, CNIC (`xxxxx-xxxxxxx-x`), marital status (Single / Married / Divorced / Widowed), resume (pdf/doc/docx ≤5MB). Optional: alternative phone. **Required sections:** ≥1 experience (company, title, startDate; currentlyWorking checkbox disables end date; optional salary; end ≥ start when set), ≥1 education (school, degree; optional CGPA/percentage). Max 8 each.
 
 Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path.
 

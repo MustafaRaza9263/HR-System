@@ -1,7 +1,7 @@
 import type { CustomField } from "@/lib/jobs/types";
 import { getStoredUtm } from "@/lib/utm";
 
-import { MAX_UPLOAD_BYTES } from "./types";
+import { MARITAL_STATUSES, MAX_UPLOAD_BYTES } from "./types";
 
 export interface ExperienceFormEntry {
   id: string;
@@ -9,6 +9,8 @@ export interface ExperienceFormEntry {
   title: string;
   startDate: string;
   endDate: string;
+  currentlyWorking: boolean;
+  salary: string;
   description: string;
 }
 
@@ -17,6 +19,7 @@ export interface EducationFormEntry {
   school: string;
   degree: string;
   fieldOfStudy: string;
+  cgpaPercentage: string;
   startDate: string;
   endDate: string;
 }
@@ -25,6 +28,10 @@ export interface ApplyFormValues {
   candidateName: string;
   candidateEmail: string;
   candidatePhone: string;
+  candidateDateOfBirth: string;
+  candidateCnic: string;
+  candidateMaritalStatus: string;
+  candidateAlternativePhone: string;
   resume: File | null;
   answers: Record<string, string | number | boolean | File | null>;
   experience: ExperienceFormEntry[];
@@ -36,11 +43,46 @@ export type ApplyFieldErrors = Record<string, string>;
 export const MAX_SECTION_ENTRIES = 8;
 
 export function emptyExperience(): ExperienceFormEntry {
-  return { id: createEntryId(), company: "", title: "", startDate: "", endDate: "", description: "" };
+  return {
+    id: createEntryId(),
+    company: "",
+    title: "",
+    startDate: "",
+    endDate: "",
+    currentlyWorking: false,
+    salary: "",
+    description: "",
+  };
 }
 
 export function emptyEducation(): EducationFormEntry {
-  return { id: createEntryId(), school: "", degree: "", fieldOfStudy: "", startDate: "", endDate: "" };
+  return {
+    id: createEntryId(),
+    school: "",
+    degree: "",
+    fieldOfStudy: "",
+    cgpaPercentage: "",
+    startDate: "",
+    endDate: "",
+  };
+}
+
+export function formatCnic(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 13);
+  if (digits.length <= 5) return digits;
+  if (digits.length <= 12) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`;
+}
+
+function todayIsoDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function isValidPhone(value: string) {
+  return /^[+\d][\d\s().-]*$/.test(value) && value.replace(/\D/g, "").length >= 7;
 }
 
 function createEntryId() {
@@ -75,8 +117,28 @@ export function validateApplyForm(fields: CustomField[], values: ApplyFormValues
 
   const phone = values.candidatePhone.trim();
   if (!phone) errors.candidatePhone = "Enter your phone number.";
-  else if (!/^[+\d][\d\s().-]*$/.test(phone) || phone.replace(/\D/g, "").length < 7) {
+  else if (!isValidPhone(phone)) {
     errors.candidatePhone = "Enter a valid phone number.";
+  }
+
+  const dob = values.candidateDateOfBirth.trim();
+  if (!dob) errors.candidateDateOfBirth = "Enter your date of birth.";
+  else if (!isValidDate(dob)) errors.candidateDateOfBirth = "Enter a valid date of birth.";
+  else if (dob > todayIsoDate()) errors.candidateDateOfBirth = "Date of birth cannot be in the future.";
+  else if (dob < "1920-01-01") errors.candidateDateOfBirth = "Enter a valid date of birth.";
+
+  const cnic = formatCnic(values.candidateCnic);
+  if (!cnic) errors.candidateCnic = "Enter your CNIC.";
+  else if (!/^\d{5}-\d{7}-\d$/.test(cnic)) errors.candidateCnic = "Enter CNIC as xxxxx-xxxxxxx-x.";
+
+  if (!values.candidateMaritalStatus) errors.candidateMaritalStatus = "Select your marital status.";
+  else if (!MARITAL_STATUSES.includes(values.candidateMaritalStatus as (typeof MARITAL_STATUSES)[number])) {
+    errors.candidateMaritalStatus = "Select a valid marital status.";
+  }
+
+  const altPhone = values.candidateAlternativePhone.trim();
+  if (altPhone && !isValidPhone(altPhone)) {
+    errors.candidateAlternativePhone = "Enter a valid phone number.";
   }
 
   const resumeError = validateUploadFile(values.resume, "Resume", true);
@@ -87,9 +149,17 @@ export function validateApplyForm(fields: CustomField[], values: ApplyFormValues
     if (!entry.company.trim()) errors[`experience.${index}.company`] = "Enter a company.";
     if (!entry.title.trim()) errors[`experience.${index}.title`] = "Enter a job title.";
     if (!isValidDate(entry.startDate)) errors[`experience.${index}.startDate`] = "Enter a start date.";
-    if (entry.endDate && !isValidDate(entry.endDate)) errors[`experience.${index}.endDate`] = "Enter a valid end date.";
-    if (isValidDate(entry.startDate) && isValidDate(entry.endDate) && entry.endDate < entry.startDate) {
-      errors[`experience.${index}.endDate`] = "End date must be on or after the start date.";
+    if (!entry.currentlyWorking) {
+      if (entry.endDate && !isValidDate(entry.endDate)) errors[`experience.${index}.endDate`] = "Enter a valid end date.";
+      if (isValidDate(entry.startDate) && isValidDate(entry.endDate) && entry.endDate < entry.startDate) {
+        errors[`experience.${index}.endDate`] = "End date must be on or after the start date.";
+      }
+    }
+    if (entry.salary.trim()) {
+      const salary = Number(entry.salary);
+      if (!Number.isFinite(salary) || salary < 0) {
+        errors[`experience.${index}.salary`] = "Enter a valid salary.";
+      }
     }
   });
 
@@ -170,6 +240,10 @@ export function buildApplyFormData(fields: CustomField[], values: ApplyFormValue
   formData.append("candidateName", values.candidateName.trim());
   formData.append("candidateEmail", values.candidateEmail.trim());
   formData.append("candidatePhone", values.candidatePhone.trim());
+  formData.append("candidateDateOfBirth", values.candidateDateOfBirth.trim());
+  formData.append("candidateCnic", formatCnic(values.candidateCnic));
+  formData.append("candidateMaritalStatus", values.candidateMaritalStatus);
+  formData.append("candidateAlternativePhone", values.candidateAlternativePhone.trim());
   if (values.resume) formData.append("resume", values.resume);
 
   const answers: Array<{ fieldId: string; value: string | number | boolean | null }> = [];
@@ -201,7 +275,9 @@ export function buildApplyFormData(fields: CustomField[], values: ApplyFormValue
         company: entry.company.trim(),
         title: entry.title.trim(),
         startDate: entry.startDate,
-        endDate: entry.endDate,
+        currentlyWorking: entry.currentlyWorking,
+        endDate: entry.currentlyWorking ? "" : entry.endDate,
+        salary: entry.salary.trim() === "" ? null : Number(entry.salary),
         description: entry.description.trim(),
       })),
     ),
@@ -213,6 +289,7 @@ export function buildApplyFormData(fields: CustomField[], values: ApplyFormValue
         school: entry.school.trim(),
         degree: entry.degree.trim(),
         fieldOfStudy: entry.fieldOfStudy.trim(),
+        cgpaPercentage: entry.cgpaPercentage.trim(),
         startDate: entry.startDate,
         endDate: entry.endDate,
       })),

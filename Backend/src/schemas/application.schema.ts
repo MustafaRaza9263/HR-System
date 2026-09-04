@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { todayCalendarDate } from "../utils/date-state.js";
 import { listPaginationQuerySchema } from "../utils/pagination.js";
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Select a valid id.");
@@ -46,15 +47,47 @@ export const bulkRejectSchema = z.object({
   sendEmail: z.boolean().optional().default(true),
 });
 
+export const maritalStatusEnum = z.enum(["Single", "Married", "Divorced", "Widowed"]);
+
+const phoneSchema = z
+  .string()
+  .trim()
+  .min(7, "Enter a valid phone number.")
+  .max(30)
+  .regex(/^[+\d][\d\s().-]*$/, "Enter a valid phone number.");
+
+function formatCnic(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 13) return value.trim();
+  return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`;
+}
+
 export const applySystemFieldsSchema = z.object({
   candidateName: z.string().trim().min(1, "Enter your name.").max(120),
   candidateEmail: z.string().trim().email("Enter a valid email.").max(254),
-  candidatePhone: z
+  candidatePhone: phoneSchema,
+  candidateDateOfBirth: z
     .string()
     .trim()
-    .min(7, "Enter a valid phone number.")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter your date of birth.")
+    .refine((value) => value <= todayCalendarDate(), "Date of birth cannot be in the future.")
+    .refine((value) => value >= "1920-01-01", "Enter a valid date of birth."),
+  candidateCnic: z
+    .string()
+    .trim()
+    .transform(formatCnic)
+    .refine((value) => /^\d{5}-\d{7}-\d$/.test(value), "Enter CNIC as xxxxx-xxxxxxx-x."),
+  candidateMaritalStatus: maritalStatusEnum,
+  candidateAlternativePhone: z
+    .string()
+    .trim()
     .max(30)
-    .regex(/^[+\d][\d\s().-]*$/, "Enter a valid phone number."),
+    .optional()
+    .refine((value) => {
+      const phone = value ?? "";
+      if (!phone) return true;
+      return phoneSchema.safeParse(phone).success;
+    }, "Enter a valid phone number."),
 });
 
 export const submittedAnswerSchema = z.object({
@@ -76,9 +109,22 @@ export const experienceEntrySchema = z
     title: z.string().trim().min(1, "Enter a job title.").max(160),
     startDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a start date."),
     endDate: optionalDate.optional(),
+    currentlyWorking: z.boolean().optional().default(false),
+    salary: z.preprocess(
+      (value) => {
+        if (value === "" || value === undefined || value === null) return null;
+        if (typeof value === "string") {
+          const numeric = Number(value);
+          return Number.isFinite(numeric) ? numeric : value;
+        }
+        return value;
+      },
+      z.number().nonnegative("Salary cannot be negative.").max(1_000_000_000_000).nullable(),
+    ),
     description: z.string().trim().max(2000).optional(),
   })
   .superRefine((entry, context) => {
+    if (entry.currentlyWorking) return;
     const endDate = entry.endDate?.trim() ?? "";
     if (endDate && endDate < entry.startDate) {
       context.addIssue({
@@ -94,6 +140,7 @@ export const educationEntrySchema = z
     school: z.string().trim().min(1, "Enter a school.").max(160),
     degree: z.string().trim().min(1, "Enter a degree.").max(160),
     fieldOfStudy: z.string().trim().max(160).optional(),
+    cgpaPercentage: z.string().trim().max(40).optional(),
     startDate: optionalDate.optional(),
     endDate: optionalDate.optional(),
   })

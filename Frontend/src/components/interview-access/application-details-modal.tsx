@@ -21,6 +21,10 @@ function formatAnswerValue(answer: ApplicationAnswer) {
   return String(answer.value);
 }
 
+function formatSalaryAmount(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
+}
+
 export function ApplicationDetailsModal({
   token,
   interviewId,
@@ -99,6 +103,22 @@ export function ApplicationDetailsModal({
               <dd className="mt-1 text-sm font-medium">{application.candidatePhone}</dd>
             </div>
             <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Alternative phone</dt>
+              <dd className="mt-1 text-sm font-medium">{application.candidateAlternativePhone || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Date of birth</dt>
+              <dd className="mt-1 text-sm font-medium">{application.candidateDateOfBirth || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">CNIC No</dt>
+              <dd className="mt-1 text-sm font-medium">{application.candidateCnic || "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Marital status</dt>
+              <dd className="mt-1 text-sm font-medium">{application.candidateMaritalStatus || "—"}</dd>
+            </div>
+            <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Job</dt>
               <dd className="mt-1 text-sm font-medium">{application.roleSnapshot.title}</dd>
             </div>
@@ -146,7 +166,8 @@ export function ApplicationDetailsModal({
                     <p className="mt-1 text-xs text-gray-500">
                       {entry.startDate}
                       {" – "}
-                      {entry.endDate ?? "Present"}
+                      {entry.currentlyWorking || !entry.endDate ? "Present" : entry.endDate}
+                      {typeof entry.salary === "number" ? ` · Salary ${formatSalaryAmount(entry.salary)}` : ""}
                     </p>
                     {entry.description ? (
                       <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">{entry.description}</p>
@@ -184,7 +205,11 @@ export function ApplicationDetailsModal({
                       {entry.degree} · {entry.school}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      {[entry.fieldOfStudy, [entry.startDate, entry.endDate].filter(Boolean).join(" – ") || null]
+                      {[
+                        entry.fieldOfStudy,
+                        entry.cgpaPercentage || null,
+                        [entry.startDate, entry.endDate].filter(Boolean).join(" – ") || null,
+                      ]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>

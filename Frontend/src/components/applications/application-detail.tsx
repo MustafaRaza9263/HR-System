@@ -40,6 +40,10 @@ function formatAnswerValue(answer: ApplicationAnswer) {
   return String(answer.value);
 }
 
+function formatSalaryAmount(value: number) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
+}
+
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiClientError) return error.message;
   return error instanceof Error && error.message ? error.message : fallback;
@@ -151,6 +155,22 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                   <dd className="mt-1 text-sm font-medium">{application.candidatePhone}</dd>
                 </div>
                 <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Alternative phone</dt>
+                  <dd className="mt-1 text-sm font-medium">{application.candidateAlternativePhone || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Date of birth</dt>
+                  <dd className="mt-1 text-sm font-medium">{application.candidateDateOfBirth || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">CNIC No</dt>
+                  <dd className="mt-1 text-sm font-medium">{application.candidateCnic || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Marital status</dt>
+                  <dd className="mt-1 text-sm font-medium">{application.candidateMaritalStatus || "—"}</dd>
+                </div>
+                <div>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Job</dt>
                   <dd className="mt-1 text-sm font-medium">
                     <Link className="text-indigo-600 hover:underline dark:text-indigo-400" href={`/dashboard/jobs/${application.jobId}`}>
@@ -255,7 +275,8 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                       <p className="mt-1 text-xs text-gray-500">
                         {entry.startDate}
                         {" – "}
-                        {entry.endDate ?? "Present"}
+                        {entry.currentlyWorking || !entry.endDate ? "Present" : entry.endDate}
+                        {typeof entry.salary === "number" ? ` · Salary ${formatSalaryAmount(entry.salary)}` : ""}
                       </p>
                       {entry.description ? (
                         <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">{entry.description}</p>
@@ -291,6 +312,7 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                       <p className="mt-1 text-xs text-gray-500">
                         {[
                           entry.fieldOfStudy,
+                          entry.cgpaPercentage || null,
                           [entry.startDate, entry.endDate].filter(Boolean).join(" – ") || null,
                         ]
                           .filter(Boolean)

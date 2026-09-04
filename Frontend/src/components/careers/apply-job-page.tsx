@@ -11,11 +11,12 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
 import type { ApplyResponse, PublicJobDetail, PublicJobDetailResponse } from "@/lib/applications/types";
-import { ALLOWED_UPLOAD_ACCEPT, MAX_UPLOAD_BYTES } from "@/lib/applications/types";
+import { ALLOWED_UPLOAD_ACCEPT, MARITAL_STATUSES, MAX_UPLOAD_BYTES } from "@/lib/applications/types";
 import {
   buildApplyFormData,
   emptyEducation,
   emptyExperience,
+  formatCnic,
   MAX_SECTION_ENTRIES,
   validateApplyForm,
   type ApplyFieldErrors,
@@ -84,7 +85,7 @@ function scrollToApplyForm() {
 }
 
 const inputClass =
-  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
+  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiClientError) {
@@ -268,6 +269,10 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
     candidateName: "",
     candidateEmail: "",
     candidatePhone: "",
+    candidateDateOfBirth: "",
+    candidateCnic: "",
+    candidateMaritalStatus: "",
+    candidateAlternativePhone: "",
     resume: null,
     answers: {},
     experience: [emptyExperience()],
@@ -394,6 +399,69 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                   <FieldError message={errors.candidatePhone} />
                 </label>
                 <label className="block">
+                  <span className="mb-2 block text-sm font-semibold">Alternative phone number</span>
+                  <input
+                    autoComplete="tel"
+                    className={inputClass}
+                    disabled={busy}
+                    maxLength={30}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, candidateAlternativePhone: event.target.value }))
+                    }
+                    type="tel"
+                    value={values.candidateAlternativePhone}
+                  />
+                  <FieldError message={errors.candidateAlternativePhone} />
+                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold">
+                      Date of birth <span className="text-red-500">*</span>
+                    </span>
+                    <input
+                      className={inputClass}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, candidateDateOfBirth: event.target.value }))
+                      }
+                      type="date"
+                      value={values.candidateDateOfBirth}
+                    />
+                    <FieldError message={errors.candidateDateOfBirth} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold">
+                      CNIC No <span className="text-red-500">*</span>
+                    </span>
+                    <input
+                      className={inputClass}
+                      disabled={busy}
+                      inputMode="numeric"
+                      maxLength={15}
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, candidateCnic: formatCnic(event.target.value) }))
+                      }
+                      placeholder="xxxxx-xxxxxxx-x"
+                      value={values.candidateCnic}
+                    />
+                    <FieldError message={errors.candidateCnic} />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold">
+                    Marital status <span className="text-red-500">*</span>
+                  </span>
+                  <Dropdown
+                    aria-label="Marital status"
+                    disabled={busy}
+                    onChange={(value) => setValues((current) => ({ ...current, candidateMaritalStatus: value }))}
+                    options={MARITAL_STATUSES.map((status) => ({ value: status, label: status }))}
+                    placeholder="Select…"
+                    value={values.candidateMaritalStatus}
+                  />
+                  <FieldError message={errors.candidateMaritalStatus} />
+                </label>
+                <label className="block">
                   <span className="mb-2 block text-sm font-semibold">
                     Resume <span className="text-red-500">*</span>
                   </span>
@@ -477,6 +545,29 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                         />
                         <FieldError message={errors[`experience.${index}.title`]} />
                       </label>
+                      <label className="flex items-center gap-3 text-sm font-semibold">
+                        <input
+                          checked={entry.currentlyWorking}
+                          className="h-4 w-4"
+                          disabled={busy}
+                          onChange={(event) =>
+                            setValues((current) => ({
+                              ...current,
+                              experience: current.experience.map((item) =>
+                                item.id === entry.id
+                                  ? {
+                                      ...item,
+                                      currentlyWorking: event.target.checked,
+                                      endDate: event.target.checked ? "" : item.endDate,
+                                    }
+                                  : item,
+                              ),
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        Currently working here
+                      </label>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className="block">
                           <span className="mb-2 block text-sm font-semibold">
@@ -502,7 +593,7 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                           <span className="mb-2 block text-sm font-semibold">End date</span>
                           <input
                             className={inputClass}
-                            disabled={busy}
+                            disabled={busy || entry.currentlyWorking}
                             onChange={(event) =>
                               setValues((current) => ({
                                 ...current,
@@ -512,12 +603,30 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                               }))
                             }
                             type="date"
-                            value={entry.endDate}
+                            value={entry.currentlyWorking ? "" : entry.endDate}
                           />
-                          <p className="mt-1 text-xs text-neutral-400">Leave blank if this is your current role.</p>
                           <FieldError message={errors[`experience.${index}.endDate`]} />
                         </label>
                       </div>
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-semibold">Salary</span>
+                        <input
+                          className={inputClass}
+                          disabled={busy}
+                          min={0}
+                          onChange={(event) =>
+                            setValues((current) => ({
+                              ...current,
+                              experience: current.experience.map((item) =>
+                                item.id === entry.id ? { ...item, salary: event.target.value } : item,
+                              ),
+                            }))
+                          }
+                          type="number"
+                          value={entry.salary}
+                        />
+                        <FieldError message={errors[`experience.${index}.salary`]} />
+                      </label>
                       <label className="block">
                         <span className="mb-2 block text-sm font-semibold">Description</span>
                         <textarea
@@ -634,6 +743,23 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                             }))
                           }
                           value={entry.fieldOfStudy}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-semibold">CGPA / Percentage</span>
+                        <input
+                          className={inputClass}
+                          disabled={busy}
+                          maxLength={40}
+                          onChange={(event) =>
+                            setValues((current) => ({
+                              ...current,
+                              education: current.education.map((item) =>
+                                item.id === entry.id ? { ...item, cgpaPercentage: event.target.value } : item,
+                              ),
+                            }))
+                          }
+                          value={entry.cgpaPercentage}
                         />
                       </label>
                       <div className="grid gap-4 sm:grid-cols-2">
