@@ -40,7 +40,7 @@ async function getMessaging(): Promise<MessagingClient | null> {
       }),
     });
   }
-  messaging = loadMessaging() as unknown as MessagingClient;
+  messaging = loadMessaging();
   return messaging;
 }
 

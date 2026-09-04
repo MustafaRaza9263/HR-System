@@ -72,6 +72,8 @@ export function Dropdown({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
+  const [floatingEl, setFloatingEl] = useState<HTMLElement | null>(null);
 
   const selected = options.find((option) => option.value === value);
   const showSearch = searchable ?? options.length >= SEARCH_THRESHOLD;
@@ -81,11 +83,23 @@ export function Dropdown({
     return options.filter((option) => option.label.toLocaleLowerCase().includes(clean));
   }, [options, query]);
 
-  const { refs, floatingStyles, context } = useFloating({
+  function openMenu() {
+    const selectedIndex = filtered.findIndex((option) => option.value === value);
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    setOpen(true);
+  }
+
+  function closeMenu() {
+    setOpen(false);
+    setQuery("");
+  }
+
+  const { floatingStyles, context } = useFloating({
+    elements: { floating: floatingEl, reference: referenceEl },
     open,
     onOpenChange: (next) => {
-      setOpen(next);
-      if (!next) setQuery("");
+      if (next) openMenu();
+      else closeMenu();
     },
     placement: "bottom-start",
     strategy: "fixed",
@@ -111,32 +125,25 @@ export function Dropdown({
 
   const focusTrigger = useCallback(() => {
     window.setTimeout(() => {
-      const trigger = refs.domReference.current;
-      if (trigger instanceof HTMLElement) trigger.focus();
+      document.getElementById(triggerId)?.focus();
     }, 0);
-  }, [refs]);
+  }, [triggerId]);
 
   const selectOption = useCallback(
     (option: DropdownOption) => {
       if (option.disabled) return;
       onChange(option.value);
-      setOpen(false);
-      setQuery("");
+      closeMenu();
       focusTrigger();
     },
     [focusTrigger, onChange],
   );
 
   useEffect(() => {
-    if (!open) return;
-    const selectedIndex = filtered.findIndex((option) => option.value === value);
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
-    if (showSearch) {
-      window.setTimeout(() => searchRef.current?.focus(), 0);
-    }
-    // Only reset highlight when the menu opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    if (!open || !showSearch) return;
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open, showSearch]);
 
   useEffect(() => {
     if (!open) return;
@@ -187,13 +194,13 @@ export function Dropdown({
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (open) moveActive(1);
-      else setOpen(true);
+      else openMenu();
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
       if (open) moveActive(-1);
-      else setOpen(true);
+      else openMenu();
       return;
     }
     if (event.key === "Enter" || event.key === " ") {
@@ -202,7 +209,7 @@ export function Dropdown({
         const option = filtered[activeIndex];
         if (option) selectOption(option);
       } else {
-        setOpen(true);
+        openMenu();
       }
       return;
     }
@@ -223,7 +230,7 @@ export function Dropdown({
       return;
     }
     if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      if (!open) setOpen(true);
+      if (!open) openMenu();
       typeahead(event.key);
     }
   }
@@ -267,6 +274,8 @@ export function Dropdown({
   }
 
   const triggerHeight = size === "md" ? "h-12" : "h-11";
+  const referenceProps = getReferenceProps();
+  const floatingProps = getFloatingProps();
 
   return (
     <div className={cx("relative min-w-0", className)}>
@@ -292,14 +301,20 @@ export function Dropdown({
         id={triggerId}
         role="combobox"
         type="button"
-        {...getReferenceProps({
-          onClick() {
-            if (disabled) return;
-            setOpen((current) => !current);
-          },
-          onKeyDown: onTriggerKeyDown,
-        })}
-        ref={refs.setReference}
+        {...referenceProps}
+        onClick={(event) => {
+          const inherited = referenceProps.onClick;
+          if (typeof inherited === "function") inherited(event);
+          if (disabled) return;
+          if (open) closeMenu();
+          else openMenu();
+        }}
+        onKeyDown={(event) => {
+          const inherited = referenceProps.onKeyDown;
+          if (typeof inherited === "function") inherited(event);
+          onTriggerKeyDown(event);
+        }}
+        ref={setReferenceEl}
       >
         <span className={cx("min-w-0 flex-1 truncate", selected ? "text-gray-900 dark:text-white" : "text-gray-400")}>
           {selected?.label ?? placeholder}
@@ -314,10 +329,13 @@ export function Dropdown({
         <FloatingPortal>
           <div
             className="dropdown-menu z-[1200] flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.14),0_2px_8px_rgba(15,23,42,0.06)] dark:border-gray-700 dark:bg-gray-900 dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
-            {...getFloatingProps({
-              onKeyDown: onMenuKeyDown,
-            })}
-            ref={refs.setFloating}
+            {...floatingProps}
+            onKeyDown={(event) => {
+              const inherited = floatingProps.onKeyDown;
+              if (typeof inherited === "function") inherited(event);
+              onMenuKeyDown(event);
+            }}
+            ref={setFloatingEl}
             style={floatingStyles}
           >
             {showSearch ? (

@@ -100,7 +100,7 @@ export async function serializeInterview(
     notes ??
     (await loadNotesByInterviewIds([interview._id])).get(interview._id.toString()) ??
     [];
-  const actions = await getInterviewActions(interview);
+  const actions = getInterviewActions(interview);
   return {
     id: interview._id.toString(),
     applicationId: interview.applicationId.toString(),

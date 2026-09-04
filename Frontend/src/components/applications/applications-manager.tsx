@@ -144,10 +144,6 @@ export function ApplicationsManager() {
   const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
 
-  useEffect(() => {
-    if (page > pagination.pages) setPage(pagination.pages);
-  }, [page, pagination.pages]);
-
   const rejectableSelected = applications.filter(
     (item) => selectedIds.includes(item.id) && isUnlocked(item.status),
   );
@@ -239,6 +235,11 @@ export function ApplicationsManager() {
       alerts.error(error instanceof ApiClientError ? error.message : "Application could not be rejected.");
     },
   });
+
+  const pageCount = Math.max(1, pagination.pages);
+  if (page > pageCount) {
+    setPage(pageCount);
+  }
 
   async function openMatchingReject() {
     if (!jobId) {

@@ -99,13 +99,15 @@ function errorMessage(error: unknown, fallback: string) {
 export function InterviewsManager() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const pendingRequested = searchParams.get("pending") === "1";
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobId, setJobId] = useState("");
   const [status, setStatus] = useState("");
   const [bucket, setBucket] = useState("");
   const [page, setPage] = useState(1);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(pendingRequested);
+  const [consumedPending, setConsumedPending] = useState(pendingRequested);
   const [rescheduleTarget, setRescheduleTarget] = useState<InterviewListItem | null>(null);
   const [noteTarget, setNoteTarget] = useState<InterviewListItem | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{
@@ -117,10 +119,6 @@ export function InterviewsManager() {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [query]);
-
-  useEffect(() => {
-    if (searchParams.get("pending") === "1") setInviteOpen(true);
-  }, [searchParams]);
 
   const filters = useMemo(
     () => ({
@@ -154,10 +152,6 @@ export function InterviewsManager() {
   const stats = listQuery.data?.data.stats ?? emptyStats;
   const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
-
-  useEffect(() => {
-    if (page > pagination.pages) setPage(pagination.pages);
-  }, [page, pagination.pages]);
 
   const hasPending = (pendingQuery.data?.data.requests.length ?? 0) > 0;
   const liveNoteTarget = noteTarget
@@ -204,6 +198,17 @@ export function InterviewsManager() {
     },
     onError: (error) => alerts.error(errorMessage(error, "Note could not be saved.")),
   });
+
+  const pageCount = Math.max(1, pagination.pages);
+  if (page > pageCount) {
+    setPage(pageCount);
+  }
+  if (pendingRequested && !consumedPending) {
+    setConsumedPending(true);
+    setInviteOpen(true);
+  } else if (!pendingRequested && consumedPending) {
+    setConsumedPending(false);
+  }
 
   function toggleBucket(next: string) {
     setBucket((current) => (current === next ? "" : next));

@@ -26,6 +26,9 @@ interface CareersResponse {
   };
 }
 
+const EMPTY_JOBS: PublicJob[] = [];
+const EMPTY_TEAMS: Array<{ id: string; name: string }> = [];
+
 export function CareersBoard() {
   const [teamId, setTeamId] = useState("");
   const [query, setQuery] = useState("");
@@ -36,8 +39,8 @@ export function CareersBoard() {
     queryFn: async () => apiRequest<CareersResponse>("/careers/jobs"),
   });
 
-  const jobs = careersQuery.data?.data.jobs ?? [];
-  const teams = careersQuery.data?.data.teams ?? [];
+  const jobs = careersQuery.data?.data.jobs ?? EMPTY_JOBS;
+  const teams = careersQuery.data?.data.teams ?? EMPTY_TEAMS
 
   const filteredJobs = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase();

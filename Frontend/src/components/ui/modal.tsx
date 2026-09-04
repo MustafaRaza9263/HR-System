@@ -67,7 +67,7 @@ export function Modal({
   onSubmit,
 }: ModalProps) {
   const titleId = useId();
-  const panelRef = useRef<HTMLDivElement | HTMLFormElement | null>(null);
+  const [panelEl, setPanelEl] = useState<HTMLDivElement | HTMLFormElement | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -109,26 +109,27 @@ export function Modal({
   }, [updateScrollFades]);
 
   useEffect(() => {
+    if (!panelEl) return;
     if (prefersReducedMotion()) {
-      setIsVisible(true);
-      return;
+      const frame = requestAnimationFrame(() => setIsVisible(true));
+      return () => cancelAnimationFrame(frame);
     }
     let openFrame = 0;
     const measureFrame = requestAnimationFrame(() => {
-      prepareSheetTransform(panelRef.current);
+      prepareSheetTransform(panelEl);
       openFrame = requestAnimationFrame(() => setIsVisible(true));
     });
     return () => {
       cancelAnimationFrame(measureFrame);
       cancelAnimationFrame(openFrame);
     };
-  }, []);
+  }, [panelEl]);
 
   useEffect(() => registerOverlay(), []);
 
   useEffect(() => {
     if (!isVisible || isClosing) return;
-    const panel = panelRef.current;
+    const panel = panelEl;
     if (!panel) return;
     const autofocus = isMobileSheet()
       ? null
@@ -137,7 +138,7 @@ export function Modal({
       (autofocus ?? panel).focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [isVisible, isClosing]);
+  }, [isVisible, isClosing, panelEl]);
 
   const handleClose = useCallback(() => {
     if (closeDisabled || isClosing) return;
@@ -146,11 +147,11 @@ export function Modal({
       return;
     }
     const mobile = isMobileSheet();
-    prepareSheetTransform(panelRef.current, true);
+    prepareSheetTransform(panelEl, true);
     setIsClosing(true);
     setIsVisible(false);
     window.setTimeout(onClose, mobile ? CLOSE_SHEET_MS : CLOSE_DESKTOP_MS);
-  }, [onClose, closeDisabled, isClosing]);
+  }, [onClose, closeDisabled, isClosing, panelEl]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -171,10 +172,6 @@ export function Modal({
       window.removeEventListener("keydown", onKey);
     };
   }, [handleClose]);
-
-  const setPanelRef = useCallback((node: HTMLDivElement | HTMLFormElement | null) => {
-    panelRef.current = node;
-  }, []);
 
   if (!mounted) return null;
 
@@ -248,7 +245,7 @@ export function Modal({
         data-state={modalState}
         inert={modalState !== "open" ? true : undefined}
         onSubmit={onSubmit}
-        ref={setPanelRef}
+        ref={setPanelEl}
         role="dialog"
         tabIndex={-1}
       >
@@ -261,7 +258,7 @@ export function Modal({
         className={panelClass}
         data-state={modalState}
         inert={modalState !== "open" ? true : undefined}
-        ref={setPanelRef}
+        ref={setPanelEl}
         role="dialog"
         tabIndex={-1}
       >

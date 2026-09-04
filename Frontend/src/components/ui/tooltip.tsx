@@ -14,7 +14,7 @@ import {
   useInteractions,
   useRole,
 } from "@floating-ui/react";
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
 import { subscribeOverlayPresence, getOpenOverlayCount } from "@/components/ui/overlay-presence";
 
@@ -33,16 +33,19 @@ const ARROW_OPPOSITE = {
 } as const;
 
 export function Tooltip({ children, label, className = "", disabled = false }: TooltipProps) {
-  const arrowRef = useRef<HTMLSpanElement>(null);
+  const [arrowEl, setArrowEl] = useState<HTMLSpanElement | null>(null);
+  const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
+  const [floatingEl, setFloatingEl] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const visible = open && !disabled;
 
-  const { refs, floatingStyles, context, middlewareData, placement } = useFloating({
+  const { floatingStyles, context, middlewareData, placement } = useFloating({
+    elements: { floating: floatingEl, reference: referenceEl },
     middleware: [
       offset(8),
       flip({ padding: 8 }),
       shift({ padding: 8 }),
-      arrow({ element: arrowRef, padding: 6 }),
+      arrow({ element: arrowEl, padding: 6 }),
     ],
     onOpenChange: setOpen,
     open: visible,
@@ -62,14 +65,14 @@ export function Tooltip({ children, label, className = "", disabled = false }: T
   const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus, dismiss, role]);
 
   useEffect(() => {
-    if (disabled) setOpen(false);
-  }, [disabled]);
-
-  useEffect(() => {
     return subscribeOverlayPresence(() => {
       if (getOpenOverlayCount() > 0) setOpen(false);
     });
   }, []);
+
+  if (disabled && open) {
+    setOpen(false);
+  }
 
   const side = (placement.split("-")[0] ?? "top") as keyof typeof ARROW_OPPOSITE;
   const arrowX = middlewareData.arrow?.x;
@@ -84,8 +87,8 @@ export function Tooltip({ children, label, className = "", disabled = false }: T
     <>
       <div
         className={`inline-flex ${className}`.trim()}
-        ref={refs.setReference}
         {...getReferenceProps()}
+        ref={setReferenceEl}
       >
         {children}
       </div>
@@ -94,15 +97,15 @@ export function Tooltip({ children, label, className = "", disabled = false }: T
         <FloatingPortal>
           <div
             className="pointer-events-none z-[1200] w-max max-w-[min(20rem,calc(100vw-1rem))] rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-gray-100 dark:text-gray-900"
-            ref={refs.setFloating}
             style={floatingStyles}
             {...getFloatingProps()}
+            ref={setFloatingEl}
           >
             {label}
             <span
               aria-hidden
               className="absolute h-2 w-2 rotate-45 bg-gray-900 dark:bg-gray-100"
-              ref={arrowRef}
+              ref={setArrowEl}
               style={arrowStyle}
             />
           </div>

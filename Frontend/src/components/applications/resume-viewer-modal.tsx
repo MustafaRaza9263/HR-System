@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Download, FileText } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { ApiClientError, apiBlob } from "@/lib/api";
@@ -54,17 +54,17 @@ export function ResumeViewerModal({
   const file = resumeQuery.data;
   const filename = file?.filename || resumeFileName || "Resume";
   const previewable = Boolean(file && isPdf(file.contentType, file.filename));
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrl = useMemo(() => {
+    if (!file || !previewable) return null;
+    return URL.createObjectURL(file.blob);
+  }, [file, previewable]);
 
   useEffect(() => {
-    if (!file || !previewable) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(file.blob);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file, previewable]);
+    if (!previewUrl) return;
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   return (
     <Modal

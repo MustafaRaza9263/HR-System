@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import type { Types } from "mongoose";
 
 export interface ApplicationLike {
   _id: Types.ObjectId;

@@ -203,18 +203,21 @@ function SendLinkPopover({
   onEmailChange: (value: string) => void;
   onSend: () => void;
 }) {
-  const arrowRef = useRef<HTMLSpanElement>(null);
+  const [arrowEl, setArrowEl] = useState<HTMLSpanElement | null>(null);
+  const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
+  const [floatingEl, setFloatingEl] = useState<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
 
   const popoverOpen = open && !disabled;
 
-  const { refs, floatingStyles, context, middlewareData, placement } = useFloating({
+  const { floatingStyles, context, middlewareData, placement } = useFloating({
+    elements: { floating: floatingEl, reference: referenceEl },
     middleware: [
       offset(12),
       flip({ padding: 8 }),
       shift({ padding: 8 }),
-      arrow({ element: arrowRef, padding: 10 }),
+      arrow({ element: arrowEl, padding: 10 }),
     ],
     onOpenChange,
     open: popoverOpen,
@@ -262,9 +265,9 @@ function SendLinkPopover({
           aria-label={disabled ? "Cannot email an expired link" : popoverOpen ? "Close send link" : "Mail"}
           className={`icon-button ${popoverOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300" : ""}`}
           disabled={disabled}
-          ref={refs.setReference}
           type="button"
           {...getReferenceProps()}
+          ref={setReferenceEl}
         >
           <Mail aria-hidden className="h-4 w-4" />
         </button>
@@ -276,9 +279,9 @@ function SendLinkPopover({
             <div
               aria-labelledby={titleId}
               className="z-1200 w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border border-gray-200 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.14),0_2px_8px_rgba(15,23,42,0.06)] dark:border-gray-700 dark:bg-gray-900 dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
-              ref={refs.setFloating}
               style={floatingStyles}
               {...getFloatingProps()}
+              ref={setFloatingEl}
             >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="inline-flex items-center gap-1.5 text-sm font-bold text-indigo-700 dark:text-indigo-300" id={titleId}>
@@ -335,7 +338,7 @@ function SendLinkPopover({
                         ? "border-b border-l"
                         : "border-t border-r"
                 } border-gray-200 dark:border-gray-700`}
-                ref={arrowRef}
+                ref={setArrowEl}
                 style={arrowStyle}
               />
             </div>
@@ -684,7 +687,6 @@ function ExpandableRegistrants({
 
   useEffect(() => {
     if (expanded) {
-      setMounted(true);
       let cancelled = false;
       const frame = window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -697,10 +699,17 @@ function ExpandableRegistrants({
       };
     }
 
-    setShown(false);
+    const hideFrame = window.requestAnimationFrame(() => setShown(false));
     const timeout = window.setTimeout(() => setMounted(false), 320);
-    return () => window.clearTimeout(timeout);
+    return () => {
+      window.cancelAnimationFrame(hideFrame);
+      window.clearTimeout(timeout);
+    };
   }, [expanded]);
+
+  if (expanded && !mounted) {
+    setMounted(true);
+  }
 
   if (!mounted) return null;
 

@@ -24,11 +24,11 @@ export async function canMarkComplete(interview: { _id: { toString(): string }; 
   return count > 0;
 }
 
-export async function getInterviewActions(interview: {
+export function getInterviewActions(interview: {
   _id: { toString(): string };
   status: string;
   date: string;
-}): Promise<InterviewAction[]> {
+}): InterviewAction[] {
   if (interview.status !== "scheduled") return [];
 
   const dateState = getDateStateFromCalendarDate(interview.date);

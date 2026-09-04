@@ -69,7 +69,10 @@ export function InterviewAccessHeader({
 
 function ProfileMenu({ session, expiresAt }: { session: AccessSession; expiresAt?: string }) {
   const [open, setOpen] = useState(false);
-  const { refs, floatingStyles, context } = useFloating({
+  const [referenceEl, setReferenceEl] = useState<HTMLElement | null>(null);
+  const [floatingEl, setFloatingEl] = useState<HTMLElement | null>(null);
+  const { floatingStyles, context } = useFloating({
+    elements: { floating: floatingEl, reference: referenceEl },
     open,
     onOpenChange: setOpen,
     placement: "bottom-end",
@@ -93,7 +96,7 @@ function ProfileMenu({ session, expiresAt }: { session: AccessSession; expiresAt
             setOpen((current) => !current);
           },
         })}
-        ref={refs.setReference}
+        ref={setReferenceEl}
       >
         {getInitials(session.name)}
       </button>
@@ -101,10 +104,10 @@ function ProfileMenu({ session, expiresAt }: { session: AccessSession; expiresAt
         <FloatingPortal>
           <div
             className="z-[1200] w-72 rounded-2xl border border-gray-200 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.14)] dark:border-gray-700 dark:bg-gray-900 dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
-            ref={refs.setFloating}
             role="dialog"
             style={floatingStyles}
             {...getFloatingProps()}
+            ref={setFloatingEl}
           >
             <p className="truncate text-sm font-bold text-gray-950 dark:text-white">{session.name}</p>
             <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{session.email}</p>

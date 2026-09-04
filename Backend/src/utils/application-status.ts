@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import type { Types } from "mongoose";
 
 import { Application } from "../models/application.model.js";
 import { Interview } from "../models/interview.model.js";

@@ -59,7 +59,7 @@ async function loadLiveLink(token: string) {
 }
 
 async function readGuestSession(request: Request, linkToken: string) {
-  const cookie = request.cookies?.[GUEST_ACCESS_COOKIE_NAME];
+  const cookie = request.cookies?.[GUEST_ACCESS_COOKIE_NAME] as unknown;
   if (typeof cookie !== "string" || !cookie) return null;
   try {
     const payload = await verifyGuestAccessToken(cookie);

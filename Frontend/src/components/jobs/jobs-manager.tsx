@@ -146,10 +146,6 @@ export function JobsManager() {
   const pagination = jobsQuery.data?.data.pagination ?? emptyPagination(page);
   const departments = metaQuery.data?.departments ?? [];
 
-  useEffect(() => {
-    if (page > pagination.pages) setPage(pagination.pages);
-  }, [page, pagination.pages]);
-
   const filteredRoles = useMemo(() => {
     const roles = metaQuery.data?.roles ?? [];
     if (!departmentId) return roles;
@@ -205,6 +201,11 @@ export function JobsManager() {
     },
     onError: (error) => alerts.error(errorMessage(error, "Job could not be duplicated.")),
   });
+
+  const pageCount = Math.max(1, pagination.pages);
+  if (page > pageCount) {
+    setPage(pageCount);
+  }
 
   return (
     <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
