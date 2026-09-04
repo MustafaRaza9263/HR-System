@@ -32,6 +32,7 @@ export const rescheduleInterviewSchema = z.object({
   date: calendarDate,
   time: clockTime,
   durationMinutes,
+  sendEmail: z.boolean().optional().default(true),
 });
 
 export const interviewNoteSchema = z.object({

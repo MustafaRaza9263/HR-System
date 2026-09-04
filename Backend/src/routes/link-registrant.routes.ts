@@ -5,7 +5,7 @@ import { verifyBrowserOrigin } from "../middleware/origin.js";
 import { Department } from "../models/department.model.js";
 import { DepartmentAccessLink } from "../models/department-access-link.model.js";
 import { LinkRegistrant } from "../models/link-registrant.model.js";
-import { sendAccessApprovedEmail, sendAccessRejectedEmail } from "../services/email.js";
+import { sendAccessApprovedEmail, sendAccessRejectedEmail } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { isAccessDateExpired } from "../utils/date-state.js";
@@ -70,7 +70,7 @@ linkRegistrantRouter.patch(
     await registrant.save();
 
     const department = await Department.findById(link.departmentId).select("name").lean();
-    await sendAccessApprovedEmail({
+    sendAccessApprovedEmail({
       to: registrant.email,
       name: registrant.name,
       accessUrl: accessUrl(link.token),
@@ -98,7 +98,7 @@ linkRegistrantRouter.patch(
     await registrant.save();
 
     const department = await Department.findById(link.departmentId).select("name").lean();
-    await sendAccessRejectedEmail({
+    sendAccessRejectedEmail({
       to: registrant.email,
       name: registrant.name,
       departmentName: department?.name ?? "the department",

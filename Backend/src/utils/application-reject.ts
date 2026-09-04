@@ -1,8 +1,8 @@
-import { Types } from "mongoose";
+import type { Types } from "mongoose";
 
 import { Application } from "../models/application.model.js";
 import { Interview } from "../models/interview.model.js";
-import { sendCandidateApplicationApproved, sendCandidateApplicationTrial, sendEmailBestEffort } from "../services/email.js";
+import { sendCandidateApplicationApproved, sendEmailsBestEffort } from "../services/email/index.js";
 import { TERMINAL_APPLICATION_STATUSES } from "../schemas/application.schema.js";
 import { ApiError } from "./api-error.js";
 
@@ -22,6 +22,7 @@ export async function rejectApplications(
     roleSnapshot: { title: string };
   }>,
   reason: string,
+  sendEmail = true,
 ) {
   const now = new Date();
   const ids = applications.map((item) => item._id);
@@ -40,17 +41,19 @@ export async function rejectApplications(
 
   await cancelScheduledInterviews(ids);
 
-  for (const application of applications) {
-    await sendEmailBestEffort({
+  if (!sendEmail) return;
+
+  sendEmailsBestEffort(
+    applications.map((application) => ({
       to: application.candidateEmail,
-      template: "application-rejected",
+      template: "application-rejected" as const,
       data: {
         candidateName: application.candidateName,
         jobTitle: application.roleSnapshot.title,
-        reason,
       },
-    });
-  }
+      idempotencyKey: `application-rejected/${application._id.toString()}`,
+    })),
+  );
 }
 
 export function assertRejectable(status: string) {
@@ -67,6 +70,7 @@ export async function approveApplication(
     roleSnapshot: { title: string };
   },
   reason: string,
+  sendEmail = true,
 ) {
   const clean = reason.replace(/\s+/g, " ").trim();
   await Application.updateOne(
@@ -80,7 +84,9 @@ export async function approveApplication(
     },
   ).exec();
 
-  await sendCandidateApplicationApproved({
+  if (!sendEmail) return;
+
+  sendCandidateApplicationApproved({
     to: application.candidateEmail,
     candidateName: application.candidateName,
     jobTitle: application.roleSnapshot.title,
@@ -88,12 +94,7 @@ export async function approveApplication(
   });
 }
 
-export async function markApplicationTrial(application: {
-  _id: Types.ObjectId;
-  candidateEmail: string;
-  candidateName: string;
-  roleSnapshot: { title: string };
-}) {
+export async function markApplicationTrial(application: { _id: Types.ObjectId }) {
   await Application.updateOne(
     { _id: application._id },
     {
@@ -103,10 +104,4 @@ export async function markApplicationTrial(application: {
       },
     },
   ).exec();
-
-  await sendCandidateApplicationTrial({
-    to: application.candidateEmail,
-    candidateName: application.candidateName,
-    jobTitle: application.roleSnapshot.title,
-  });
 }

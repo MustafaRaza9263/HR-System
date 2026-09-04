@@ -15,7 +15,7 @@ const COPY: Record<
 > = {
   cancel: {
     title: "Cancel interview?",
-    description: (name) => `${name} will be emailed. Notes on this interview will be kept.`,
+    description: (name) => `Notes on this interview with ${name} will be kept.`,
     confirm: "Cancel interview",
     buttonClass: "bg-red-600 hover:bg-red-700",
   },

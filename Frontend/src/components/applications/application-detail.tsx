@@ -62,10 +62,10 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
   const canReject = application && application.status !== "rejected" && application.status !== "approved";
 
   const rejectMutation = useMutation({
-    mutationFn: async (reason: string) =>
+    mutationFn: async ({ reason, sendEmail }: { reason: string; sendEmail: boolean }) =>
       apiRequest<ApplicationDetailResponse>(`/applications/${applicationId}/reject`, {
         method: "PATCH",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, sendEmail }),
       }),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKeys.applications.detail(applicationId), result);
@@ -339,11 +339,11 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
       {rejectOpen ? (
         <ReasonModal
           confirmLabel="Reject"
-          description="The candidate will be notified. Any scheduled interviews will be cancelled."
+          description="Any scheduled interviews will be cancelled."
           pending={rejectMutation.isPending}
           title="Reject application?"
           onCancel={() => setRejectOpen(false)}
-          onConfirm={(reason) => rejectMutation.mutate(reason)}
+          onConfirm={(reason, sendEmail) => rejectMutation.mutate({ reason, sendEmail })}
         />
       ) : null}
     </div>

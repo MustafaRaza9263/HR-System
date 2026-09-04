@@ -280,7 +280,12 @@ careersRouter.post(
       throw new ApiError(409, "JOB_NOT_OPEN", "This role is no longer accepting applications.");
     }
 
-    enqueueApplicationSideEffects(created._id.toString());
+    enqueueApplicationSideEffects({
+      applicationId: created._id.toString(),
+      candidateEmail: created.candidateEmail,
+      candidateName: created.candidateName,
+      jobTitle: job.title,
+    });
 
     response.status(201).json({
       data: {

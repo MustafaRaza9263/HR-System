@@ -161,10 +161,12 @@ export function ApplicationsManager() {
       reason,
       jobId: rejectJobId,
       applicationIds,
+      sendEmail,
     }: {
       reason: string;
       jobId: string;
       applicationIds?: string[];
+      sendEmail: boolean;
     }) =>
       apiRequest<{ data: { count: number } }>("/applications/bulk-reject", {
         method: "POST",
@@ -174,6 +176,7 @@ export function ApplicationsManager() {
           status: applicationIds ? undefined : filters.status,
           applicationIds,
           reason,
+          sendEmail,
           dryRun: false,
         }),
       }),
@@ -189,10 +192,10 @@ export function ApplicationsManager() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+    mutationFn: async ({ id, reason, sendEmail }: { id: string; reason: string; sendEmail: boolean }) =>
       apiRequest<ApplicationDetailResponse>(`/applications/${id}/approve`, {
         method: "PATCH",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, sendEmail }),
       }),
     onSuccess: () => {
       alerts.success("Application approved.");
@@ -218,10 +221,10 @@ export function ApplicationsManager() {
   });
 
   const rowRejectMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) =>
+    mutationFn: async ({ id, reason, sendEmail }: { id: string; reason: string; sendEmail: boolean }) =>
       apiRequest<ApplicationDetailResponse>(`/applications/${id}/reject`, {
         method: "PATCH",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, sendEmail }),
       }),
     onSuccess: () => {
       alerts.success("Application rejected.");
@@ -492,11 +495,12 @@ export function ApplicationsManager() {
           pending={rejectMutation.isPending}
           title="Reject applications?"
           onCancel={() => setRejectTarget(null)}
-          onConfirm={(reason) =>
+          onConfirm={(reason, sendEmail) =>
             rejectMutation.mutate({
               reason,
               jobId: rejectTarget.jobId,
               applicationIds: rejectTarget.applicationIds,
+              sendEmail,
             })
           }
         />
@@ -505,11 +509,11 @@ export function ApplicationsManager() {
       {rowRejectTarget ? (
         <ReasonModal
           confirmLabel="Reject"
-          description={`${rowRejectTarget.candidateName} will be emailed and any scheduled interviews will be cancelled.`}
+          description={`${rowRejectTarget.candidateName}'s scheduled interviews will be cancelled.`}
           pending={rowRejectMutation.isPending}
           title="Reject application?"
           onCancel={() => setRowRejectTarget(null)}
-          onConfirm={(reason) => rowRejectMutation.mutate({ id: rowRejectTarget.id, reason })}
+          onConfirm={(reason, sendEmail) => rowRejectMutation.mutate({ id: rowRejectTarget.id, reason, sendEmail })}
         />
       ) : null}
 
@@ -517,11 +521,11 @@ export function ApplicationsManager() {
         <ReasonModal
           confirmClassName="bg-emerald-600 hover:bg-emerald-700"
           confirmLabel="Approve"
-          description={`${approveTarget.candidateName} will be emailed. This closes the application.`}
+          description={`${approveTarget.candidateName}'s application will be closed.`}
           pending={approveMutation.isPending}
           title="Approve application?"
           onCancel={() => setApproveTarget(null)}
-          onConfirm={(reason) => approveMutation.mutate({ id: approveTarget.id, reason })}
+          onConfirm={(reason, sendEmail) => approveMutation.mutate({ id: approveTarget.id, reason, sendEmail })}
         />
       ) : null}
 
@@ -631,12 +635,11 @@ function TrialConfirmModal({
         </div>
       )}
       onClose={onCancel}
-      subtitle={`${candidateName} will be emailed. You can still approve, reject, or schedule interviews later.`}
       title="Move to trial?"
     >
-      <span className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
-        <FlaskConical aria-hidden className="h-5 w-5" />
-      </span>
+      <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+        {candidateName} can still be approved, rejected, or scheduled for interviews later.
+      </p>
     </Modal>
   );
 }

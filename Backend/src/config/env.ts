@@ -26,6 +26,8 @@ const envSchema = z
     COOKIE_SAME_SITE: z.enum(["lax", "strict", "none"]).default("lax"),
     TRUST_PROXY: z.union([z.coerce.number().int().min(0), booleanFromString]).default(0),
     FIREBASE_PROJECT_ID: optionalEnvString,
+    RESEND_API_KEY: optionalEnvString,
+    EMAIL_FROM: optionalEnvString,
     FIREBASE_CLIENT_EMAIL: z.preprocess(
       (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
       z.string().trim().email().optional(),
@@ -53,6 +55,13 @@ if (!parsed.success) {
 
 const cookieDomain = parsed.data.COOKIE_DOMAIN?.trim() || undefined;
 
+const resendSandboxFrom = `HR System <${["onboarding", "resend.dev"].join("@")}>`;
+
+function resolveEmailFrom(value: string | undefined) {
+  if (!value || /@example\.com\b/i.test(value)) return resendSandboxFrom;
+  return value;
+}
+
 export const env = {
   ...parsed.data,
   COOKIE_DOMAIN: cookieDomain,
@@ -61,4 +70,5 @@ export const env = {
     .filter(Boolean),
   FRONTEND_URL: parsed.data.FRONTEND_URL.replace(/\/$/, ""),
   FIREBASE_PRIVATE_KEY: parsed.data.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  EMAIL_FROM: resolveEmailFrom(parsed.data.EMAIL_FROM),
 } as const;

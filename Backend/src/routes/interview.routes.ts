@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { Types } from "mongoose";
+import type { Types } from "mongoose";
 
 import { authenticate } from "../middleware/authenticate.js";
 import { verifyBrowserOrigin } from "../middleware/origin.js";
@@ -11,20 +11,18 @@ import {
   listInterviewsQuerySchema,
   rescheduleInterviewSchema,
 } from "../schemas/interview.schema.js";
-import {
-  sendCandidateInterviewCancelled,
-  sendCandidateInterviewRescheduled,
-} from "../services/email.js";
+import { sendCandidateInterviewRescheduled } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { shiftCalendarDate, todayCalendarDate } from "../utils/date-state.js";
 import {
   assertCanWriteNotes,
-  assertNoDuplicateInterviewSlot,
-  assertNotCompleted,
-  assertScheduled,
-  canMarkComplete,
+    assertNoDuplicateInterviewSlot,
+    assertNotCompleted,
+    assertRescheduleChangesSlot,
+    assertScheduled,
+    canMarkComplete,
 } from "../utils/interview-rules.js";
 import { assertObjectId } from "../utils/object-id.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
@@ -122,6 +120,7 @@ interviewRouter.patch(
     const input = rescheduleInterviewSchema.parse(request.body);
     const interview = await loadInterview(interviewId);
     assertScheduled(interview.status);
+    assertRescheduleChangesSlot({ date: interview.date, time: interview.time }, { date: input.date, time: input.time });
     await assertNoDuplicateInterviewSlot({
       applicationId: interview.applicationId,
       date: input.date,
@@ -138,15 +137,17 @@ interviewRouter.patch(
     await recomputeApplicationStatus(interview.applicationId);
 
     const application = await loadApplication(interview.applicationId);
-    await sendCandidateInterviewRescheduled({
-      to: application.candidateEmail,
-      candidateName: application.candidateName,
-      jobTitle: application.roleSnapshot.title,
-      label: interview.label,
-      date: interview.date,
-      time: interview.time,
-      durationMinutes: interview.durationMinutes,
-    });
+    if (input.sendEmail) {
+      sendCandidateInterviewRescheduled({
+        to: application.candidateEmail,
+        candidateName: application.candidateName,
+        jobTitle: application.roleSnapshot.title,
+        label: interview.label,
+        date: interview.date,
+        time: interview.time,
+        durationMinutes: interview.durationMinutes,
+      });
+    }
 
     response.status(200).json({ data: { interview: await serializeInterview(interview.toObject()) } });
   }),
@@ -167,15 +168,6 @@ interviewRouter.patch(
     interview.status = "cancelled";
     await interview.save();
     await recomputeApplicationStatus(interview.applicationId);
-
-    const application = await loadApplication(interview.applicationId);
-    await sendCandidateInterviewCancelled({
-      to: application.candidateEmail,
-      candidateName: application.candidateName,
-      jobTitle: application.roleSnapshot.title,
-      date: interview.date,
-      time: interview.time,
-    });
 
     response.status(200).json({ data: { interview: await serializeInterview(interview.toObject()) } });
   }),

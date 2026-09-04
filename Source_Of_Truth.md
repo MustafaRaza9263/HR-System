@@ -34,7 +34,7 @@ HR hiring workspace: departments/roles → jobs → public apply → application
 | Validation | Zod 4 on every mutating input |
 | Uploads | multer memory → disk; PDF/DOC/DOCX; 5 MB; max 12 files/apply |
 | Push | Firebase Admin (optional env); FCM tokens on User |
-| Email | Stub: logs template name. Callers already wired — swap transport later |
+| Email | Resend (`RESEND_API_KEY`); in-process queue; stub log if key unset |
 | Web | Next.js 16 App Router, React 19, Tailwind 4, TanStack Query 5 |
 | Editor | TipTap JSON `{ type: "doc", content? }` |
 | Icons | lucide-react |
@@ -66,7 +66,7 @@ Backend/src
   models/                one collection per file
   routes/                Express routers = controllers (no extra layer)
   schemas/               Zod
-  services/              auth, email, application-side-effects
+  services/              auth, email/ (transport, queue, templates), application-side-effects
   notifications/         catalog, service, stream (SSE), fcm, routes
   utils/                 rules, serialize, cookies, token, uploads, dates
 
@@ -88,7 +88,7 @@ Frontend/src
 - Serialize `_id` → `id` strings. Never leak passwordHash, resume paths in list JSON (files via download routes).
 - Envelope: `{ data }` or `{ error: { code, message, fields? } }`. Zod → 422 `VALIDATION_ERROR`. Duplicate key → 409.
 - Calendar helpers: `todayCalendarDate`, `getDateStateFromCalendarDate` (`future` \| `today` \| `passed`).
-- Emails: `sendEmailBestEffort` — never fail the HTTP action if mail fails.
+- Emails: enqueue via `sendEmailBestEffort` / queue — never fail the HTTP action if mail fails. Bulk sends use Resend batch (≤100) off the request path.
 - Rate limits: auth 10/15m; apply 20/15m; guest register 20/15m.
 
 **Frontend**
@@ -173,15 +173,15 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
 | POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit |
 | GET | `/applications` | HR; `q, jobId, status` + stats |
-| POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason |
+| POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
 | GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
-| PATCH | `/applications/:id/reject` | reason ≥10 ≤500 |
-| PATCH | `/applications/:id/approve` | reason ≥10 ≤500 |
+| PATCH | `/applications/:id/reject` | reason ≥10 ≤500; `sendEmail` default true |
+| PATCH | `/applications/:id/approve` | reason ≥10 ≤500; `sendEmail` default true |
 | PATCH | `/applications/:id/trial` | no body |
 | GET | `/applications/:id/resume` `/files/:fieldId` | HR download |
 | GET/POST | `/applications/:id/interviews` | POST = schedule |
 | GET | `/interviews` | HR; filter `q, jobId, status, bucket` |
-| PATCH | `/interviews/:id/reschedule` `/cancel` `/no-show` `/complete` | |
+| PATCH | `/interviews/:id/reschedule` `/cancel` `/no-show` `/complete` | reschedule: `sendEmail` default true; same date+time as current row → 422 `INTERVIEW_UNCHANGED` |
 | POST | `/interviews/:id/notes` | HR |
 | POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day) |
 | GET | `/department-links/pending` | today’s pending registrants |
@@ -266,9 +266,9 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 - Opening detail: first GET while `submitted` sets `under_review`.
 - Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`. `trial` is not locked — a later interview write overwrites it (timestamp `trialAt` remains).
-- **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**, emails candidate. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count.
-- **Approve** (list): not if `approved` or `rejected`. Reason required (≥10 ≤500) stored as `decisionReason` + `approvedAt`. Does **not** cancel interviews. Emails candidate. Terminal.
-- **Trial** (list): not if `approved` or `rejected`. No reason. Sets `trialAt`. Does **not** cancel interviews. Emails candidate. Not terminal — can still approve, reject, or schedule more interviews. Re-trial allowed (refreshes `trialAt`, re-emails).
+- **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**. Optional `sendEmail` (default true) — approve/reject/bulk-reject modals have a Send email toggle, default on. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count. HTTP returns after the DB write; rejection emails are queued and sent in Resend batches of up to 100 (one click of 50 does not wait on SMTP).
+- **Approve** (list): not if `approved` or `rejected`. Reason required (≥10 ≤500) stored as `decisionReason` + `approvedAt`. Does **not** cancel interviews. Optional `sendEmail` (default true). Terminal.
+- **Trial** (list): not if `approved` or `rejected`. No reason. Sets `trialAt`. Does **not** cancel interviews. **No email.** Not terminal — can still approve, reject, or schedule more interviews. Re-trial allowed (refreshes `trialAt`).
 - Reapply: **not blocked and not flagged**.
 
 ### Workflow — public apply
@@ -283,9 +283,9 @@ Custom answers validated against **that job’s** `fieldsConfig` (required, type
 
 UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply sends them. Missing source → `"website"`.
 
-On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then `notifyHR("new_application")` async.
+On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Row click → detail (profile + interviews tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Row click → detail (profile + interviews tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -305,15 +305,15 @@ On success: `applicationCount++` only if job still `open` (else delete created r
 
 Completed: locked for status changes. **Notes:** writable on `scheduled` and `completed`; not on `cancelled` or `no_show`. Cancel/no-show keep existing notes. Reschedule updates the **same** row (label/date/time/duration), stays `scheduled`.
 
-**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Requires `label`, date, time, duration. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status. **Conflict:** no other `scheduled` interview for the same application with the same `date` + `time` (409 `INTERVIEW_SLOT_TAKEN`). Duration and label are not part of the check. Cancelled / completed / no-show rows do not block. Same rule on reschedule (exclude the row being updated).
+**Create (`POST /applications/:id/interviews`):** application not approved/rejected. Requires `label`, date, time, duration. Copies `departmentId` from snapshot. Emails candidate scheduled. Recomputes application status. **Conflict:** no other `scheduled` interview for the same application with the same `date` + `time` (409 `INTERVIEW_SLOT_TAKEN`). Duration and label are not part of the check. Cancelled / completed / no-show rows do not block. Same rule on reschedule (exclude the row being updated). Reschedule also requires a new `date` or `time` vs the current row (422 `INTERVIEW_UNCHANGED`); label/duration-only changes are rejected and the interviews page shows an error alert. Reschedule modal: Send email toggle, default on (`sendEmail`, default true).
 
-**Complete:** increments `completedInterviewCount`. **Cancel:** emails candidate. **No-show:** no email.
+**Complete:** increments `completedInterviewCount`. **Cancel:** no email. **No-show:** no email.
 
 **Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal: history cards in the body (compact `UserProfile` initials, note text, bottom-left calendar/clock timestamp); composer in the footer with a circular send-arrow (no Close/Add buttons). Add locked on cancelled/no-show.
 
 **HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Cancel, no-show, and complete open a confirmation modal (heading + close in the header, explanation in the body, no icon); complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
 
-**UX — schedule modal:** heading + close in the header (no helper text). Required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled).
+**UX — schedule modal:** heading + close in the header (no helper text). Required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled); reschedule adds a Send email toggle, default on.
 
 ---
 
@@ -345,15 +345,28 @@ Bell: last 20, mark one/all read, link to `/dashboard/notifications` (search, un
 
 ---
 
-## 15. Emails (stubbed)
+## 15. Emails (Resend)
 
-| Template | When |
-|---|---|
-| `interview-scheduled` / `rescheduled` / `cancelled` | candidate |
-| `application-rejected` | candidate (reason) |
-| `application-approved` | candidate (reason) |
-| `application-trial` | candidate |
-| `access-link-invite` / `approved` / `rejected` | guest |
+Optional `RESEND_API_KEY`. If `EMAIL_FROM` is unset (or still a placeholder `example.com` address), the API uses Resend's sandbox sender from their Node.js docs. Sandbox delivers only to the Resend-account email or `delivered@resend.dev`. Production: set `EMAIL_FROM` to an address on a verified domain. Missing key → log stub.
+
+Queue: in-process; HTTP never waits on Resend. Failures retry (429/5xx, 4 attempts) then log. Bulk reject uses `batch.send` (≤100 per call).
+
+Templates live in `Backend/src/services/email/templates/` (one module per family).
+
+| Template | When | Recipient |
+|---|---|---|
+| `submission-confirmed` | public apply succeeds | candidate |
+| `application-approved` | approve and `sendEmail` | candidate (includes reason) |
+| `application-rejected` | reject / bulk reject and `sendEmail` | candidate (no reason in the email) |
+| `interview-scheduled` | first schedule | candidate |
+| `interview-rescheduled` | reschedule and `sendEmail` | candidate |
+| `access-invite` | create link with email, or `POST …/send-email` | guest |
+| `access-approved` | HR approves registrant | guest + URL |
+| `access-rejected` | HR rejects registrant | guest |
+
+No email: interview cancel, no-show, trial, revoke.
+
+Approve / reject / bulk reject / reschedule modals: `ToggleRow` “Send email”, default on.
 
 ---
 

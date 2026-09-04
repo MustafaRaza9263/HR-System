@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Modal } from "@/components/ui/modal";
+import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 
 export function ReasonModal({
@@ -24,9 +25,10 @@ export function ReasonModal({
   maxLength?: number;
   confirmClassName?: string;
   onCancel: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, sendEmail: boolean) => void;
 }) {
   const [reason, setReason] = useState("");
+  const [sendEmail, setSendEmail] = useState(true);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -35,7 +37,7 @@ export function ReasonModal({
       alerts.error(`Enter a reason of at least ${minLength} characters.`);
       return;
     }
-    onConfirm(clean);
+    onConfirm(clean, sendEmail);
   }
 
   return (
@@ -81,6 +83,15 @@ export function ReasonModal({
           {reason.trim().length}/{maxLength} · minimum {minLength} characters
         </span>
       </label>
+      <div className="mt-4">
+        <ToggleRow
+          checked={sendEmail}
+          description="Notify the candidate by email."
+          disabled={pending}
+          onChange={setSendEmail}
+          title="Send email"
+        />
+      </div>
     </Modal>
   );
 }

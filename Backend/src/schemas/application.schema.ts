@@ -22,8 +22,12 @@ export const decisionReasonSchema = z.object({
     .max(500, "Reason cannot exceed 500 characters."),
 });
 
-export const rejectApplicationSchema = decisionReasonSchema;
-export const approveApplicationSchema = decisionReasonSchema;
+export const rejectApplicationSchema = decisionReasonSchema.extend({
+  sendEmail: z.boolean().optional().default(true),
+});
+export const approveApplicationSchema = decisionReasonSchema.extend({
+  sendEmail: z.boolean().optional().default(true),
+});
 
 export const bulkRejectSchema = z.object({
   jobId: objectId,
@@ -37,6 +41,7 @@ export const bulkRejectSchema = z.object({
     .max(500, "Reason cannot exceed 500 characters.")
     .optional(),
   dryRun: z.boolean().optional(),
+  sendEmail: z.boolean().optional().default(true),
 });
 
 export const applySystemFieldsSchema = z.object({

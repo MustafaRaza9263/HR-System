@@ -11,7 +11,7 @@ import {
   listDepartmentLinksQuerySchema,
   sendDepartmentLinkEmailSchema,
 } from "../schemas/interview.schema.js";
-import { sendAccessInviteEmail } from "../services/email.js";
+import { sendAccessInviteEmail } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { isAccessDateExpired, todayCalendarDate } from "../utils/date-state.js";
@@ -65,7 +65,7 @@ async function sendInvite(token: string, email: string) {
     throw new ApiError(404, "LINK_NOT_FOUND", "Access link was not found.");
   }
   const department = await Department.findById(link.departmentId).select("name").lean();
-  await sendAccessInviteEmail({
+    sendAccessInviteEmail({
     to: email.toLowerCase(),
     accessUrl: accessUrl(link.token),
     departmentName: department?.name ?? "the department",

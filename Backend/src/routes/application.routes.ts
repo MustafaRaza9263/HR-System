@@ -16,7 +16,7 @@ import {
   rejectApplicationSchema,
 } from "../schemas/application.schema.js";
 import { createInterviewSchema } from "../schemas/interview.schema.js";
-import { sendCandidateInterviewScheduled } from "../services/email.js";
+import { sendCandidateInterviewScheduled } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { buildApplicationFilter } from "../utils/application-filter.js";
 import { approveApplication, assertRejectable, markApplicationTrial, rejectApplications } from "../utils/application-reject.js";
@@ -105,7 +105,7 @@ applicationRouter.post(
       return;
     }
 
-    await rejectApplications(matches, input.reason!);
+    await rejectApplications(matches, input.reason!, input.sendEmail);
     response.status(200).json({ data: { count: matches.length } });
   }),
 );
@@ -228,7 +228,7 @@ applicationRouter.post(
     });
 
     await recomputeApplicationStatus(application._id);
-    await sendCandidateInterviewScheduled({
+    sendCandidateInterviewScheduled({
       to: application.candidateEmail,
       candidateName: application.candidateName,
       jobTitle: application.roleSnapshot.title,
@@ -269,6 +269,7 @@ applicationRouter.patch(
         },
       ],
       input.reason,
+      input.sendEmail,
     );
 
     const updated = await Application.findById(applicationId).lean();
@@ -303,6 +304,7 @@ applicationRouter.patch(
         roleSnapshot: application.roleSnapshot,
       },
       input.reason,
+      input.sendEmail,
     );
 
     const updated = await Application.findById(applicationId).lean();
@@ -330,9 +332,6 @@ applicationRouter.patch(
 
     await markApplicationTrial({
       _id: application._id,
-      candidateEmail: application.candidateEmail,
-      candidateName: application.candidateName,
-      roleSnapshot: application.roleSnapshot,
     });
 
     const updated = await Application.findById(applicationId).lean();

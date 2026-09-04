@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Modal } from "@/components/ui/modal";
+import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type { Interview, InterviewResponse } from "@/lib/interviews/types";
@@ -43,13 +44,28 @@ export function ScheduleInterviewModal({
   const [date, setDate] = useState(interview?.date ?? "");
   const [time, setTime] = useState(interview?.time ?? "09:00");
   const [duration, setDuration] = useState(interview ? String(interview.durationMinutes) : "45");
+  const [sendEmail, setSendEmail] = useState(true);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const trimmedLabel = label.trim();
       if (!trimmedLabel) throw new ApiClientError(422, "VALIDATION_ERROR", "Enter a label.");
       if (!date) throw new ApiClientError(422, "VALIDATION_ERROR", "Select an interview date.");
-      const body = { label: trimmedLabel, date, time: time || "09:00", durationMinutes: Number(duration) };
+      const nextTime = time || "09:00";
+      if (reschedule && interview && date === interview.date && nextTime === interview.time) {
+        throw new ApiClientError(
+          422,
+          "INTERVIEW_UNCHANGED",
+          "Change the date or the time to reschedule this interview.",
+        );
+      }
+      const body = {
+        label: trimmedLabel,
+        date,
+        time: nextTime,
+        durationMinutes: Number(duration),
+        ...(reschedule ? { sendEmail } : {}),
+      };
       if (reschedule && interview) {
         return apiRequest<InterviewResponse>(`/interviews/${interview.id}/reschedule`, {
           method: "PATCH",
@@ -156,6 +172,15 @@ export function ScheduleInterviewModal({
             />
           </label>
         </div>
+        {reschedule ? (
+          <ToggleRow
+            checked={sendEmail}
+            description="Notify the candidate of the new date and time."
+            disabled={saveMutation.isPending}
+            onChange={setSendEmail}
+            title="Send email"
+          />
+        ) : null}
       </div>
     </Modal>
   );

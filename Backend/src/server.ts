@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { app } from "./app.js";
 import { connectToDatabase, disconnectFromDatabase } from "./config/database.js";
 import { env } from "./config/env.js";
+import { drainEmailQueue, emailStatusLine } from "./services/email/index.js";
 import { logger } from "./utils/logger.js";
 
 await connectToDatabase();
@@ -10,6 +11,7 @@ await connectToDatabase();
 const server = createServer(app);
 server.listen(env.PORT, () => {
   logger.info(`API listening on http://localhost:${env.PORT}`);
+  logger.info(emailStatusLine());
 });
 
 let shuttingDown = false;
@@ -21,6 +23,7 @@ function shutdown(signal: string): void {
 
   server.close(async (error) => {
     try {
+      await drainEmailQueue();
       await disconnectFromDatabase();
     } finally {
       if (error) logger.error("server close failed", error);

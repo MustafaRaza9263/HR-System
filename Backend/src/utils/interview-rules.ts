@@ -45,6 +45,19 @@ export function assertScheduled(status: string) {
   }
 }
 
+export function assertRescheduleChangesSlot(
+  current: { date: string; time: string },
+  next: { date: string; time: string },
+) {
+  if (current.date === next.date && current.time === next.time) {
+    throw new ApiError(
+      422,
+      "INTERVIEW_UNCHANGED",
+      "Change the date or the time to reschedule this interview.",
+    );
+  }
+}
+
 export async function assertNoDuplicateInterviewSlot(input: {
   applicationId: Types.ObjectId | string;
   date: string;
