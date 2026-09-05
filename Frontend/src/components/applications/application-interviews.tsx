@@ -1,12 +1,24 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, CalendarPlus, CircleCheck, FilePlus, LoaderCircle, UserX, XCircle, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import {
+  CalendarClock,
+  CalendarPlus,
+  ChevronRight,
+  CircleCheck,
+  FilePlus,
+  LoaderCircle,
+  UserX,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react";
+import { Fragment, useState } from "react";
 
 import { InterviewActionConfirmModal } from "@/components/interviews/interview-action-confirm-modal";
+import { NoteCard } from "@/components/interviews/interview-note-card";
 import { InterviewNoteModal } from "@/components/interviews/interview-note-modal";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
+import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { Tooltip } from "@/components/ui/tooltip";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
@@ -19,18 +31,37 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function interviewBadge(status: DisplayStatus) {
+function interviewStatusLabel(status: DisplayStatus) {
   switch (status) {
-    case "scheduled":
-      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300";
-    case "overdue":
-      return "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300";
-    case "completed":
-      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400";
     case "no_show":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400";
+      return "No-show";
+    case "scheduled":
+      return "Scheduled";
+    case "overdue":
+      return "Overdue";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+      return "Cancelled";
     default:
-      return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+      return status;
+  }
+}
+
+function interviewStatusTone(status: DisplayStatus): PillTone {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "overdue":
+      return "danger";
+    case "cancelled":
+      return "neutral";
+    case "no_show":
+      return "warning";
+    case "scheduled":
+      return "info";
+    default:
+      return "neutral";
   }
 }
 
@@ -61,10 +92,12 @@ export function ApplicationInterviews({
   const [pending, setPending] = useState<PendingAction>(null);
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null);
   const [noteTarget, setNoteTarget] = useState<Interview | null>(null);
+  const [openNotes, setOpenNotes] = useState<ReadonlySet<string>>(() => new Set());
 
   const interviewsQuery = useQuery({
     queryKey: queryKeys.applications.interviews(applicationId),
     queryFn: async () => apiRequest<InterviewsListResponse>(`/applications/${applicationId}/interviews`),
+    staleTime: 30_000,
   });
 
   const interviews = interviewsQuery.data?.data.interviews ?? [];
@@ -77,6 +110,15 @@ export function ApplicationInterviews({
     void queryClient.invalidateQueries({ queryKey: queryKeys.applications.detail(applicationId) });
     void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
     void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.all });
+  }
+
+  function toggleNotes(interviewId: string) {
+    setOpenNotes((current) => {
+      const next = new Set(current);
+      if (next.has(interviewId)) next.delete(interviewId);
+      else next.add(interviewId);
+      return next;
+    });
   }
 
   const actionMutation = useMutation({
@@ -116,9 +158,9 @@ export function ApplicationInterviews({
   });
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 dark:border-gray-700 dark:bg-gray-800/70">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">Interviews</h2>
+    <section>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">Interviews scheduled for this application.</p>
         {canSchedule ? (
           <button
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-700"
@@ -131,60 +173,131 @@ export function ApplicationInterviews({
         ) : null}
       </div>
 
-      {interviewsQuery.isPending ? <div className="mt-4 h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-900" /> : null}
-      {interviewsQuery.isError ? <p className="mt-4 text-sm text-red-600">Interviews could not be loaded.</p> : null}
-      {interviewsQuery.isSuccess && interviews.length === 0 ? (
-        <p className="mt-4 text-sm text-gray-500">No interviews scheduled yet.</p>
-      ) : null}
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/70">
+        {interviewsQuery.isPending ? <div className="h-24 animate-pulse bg-gray-100 dark:bg-gray-900" /> : null}
+        {interviewsQuery.isError ? (
+          <p className="px-6 py-10 text-center text-sm text-red-600">Interviews could not be loaded.</p>
+        ) : null}
+        {interviewsQuery.isSuccess && interviews.length === 0 ? (
+          <p className="px-6 py-10 text-center text-sm text-gray-500">No interviews scheduled yet.</p>
+        ) : null}
 
-      <div className="mt-4 space-y-4">
-        {interviews.map((interview) => {
-          const locked = notesWriteLocked(interview.status);
-          return (
-            <article className="rounded-xl border border-gray-200 p-4 dark:border-gray-700" key={interview.id}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold text-gray-950 dark:text-white">{interview.label}</p>
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    {formatInterviewWhen(interview.date, interview.time)} · {interview.durationMinutes} min
-                  </p>
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${interviewBadge(interview.displayStatus)}`}>
-                  {interview.displayStatus.replaceAll("_", " ")}
-                </span>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-1">
-                <InterviewActions
-                  actions={interview.actions}
-                  disabledReasons={completeDisabledReasons(interview.notes.length)}
-                  pendingAction={actionMutation.isPending ? actionMutation.variables?.action : undefined}
-                  onAction={(action) => {
-                    if (action === "reschedule") setPending({ kind: "reschedule", interview });
-                    else if (action === "cancel" || action === "no_show" || action === "mark_complete") {
-                      if (action === "mark_complete" && interview.notes.length === 0) {
-                        alerts.error(COMPLETE_NOTE_REQUIRED);
-                        return;
-                      }
-                      setConfirmTarget({ interview, action });
-                    } else actionMutation.mutate({ interviewId: interview.id, action });
-                  }}
-                />
-                <Tooltip label={locked ? "View notes" : "Add note"}>
-                  <button
-                    aria-label={locked ? "View notes" : "Add note"}
-                    className="icon-button"
-                    onClick={() => setNoteTarget(interview)}
-                    type="button"
-                  >
-                    <FilePlus aria-hidden className="h-4 w-4" />
-                  </button>
-                </Tooltip>
-              </div>
-            </article>
-          );
-        })}
+        {interviewsQuery.isSuccess && interviews.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-3">Label</th>
+                  <th className="px-4 py-3">When</th>
+                  <th className="px-4 py-3">Duration</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {interviews.map((interview) => {
+                  const locked = notesWriteLocked(interview.status);
+                  const expanded = openNotes.has(interview.id);
+                  return (
+                    <Fragment key={interview.id}>
+                      <tr className="align-middle hover:bg-gray-50/80 dark:hover:bg-gray-900/40">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              aria-expanded={expanded}
+                              aria-label={expanded ? "Hide notes" : "Show notes"}
+                              className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+                              onClick={() => toggleNotes(interview.id)}
+                              type="button"
+                            >
+                              <ChevronRight aria-hidden className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`} />
+                            </button>
+                            <span className="font-medium text-gray-800 dark:text-gray-100">{interview.label}</span>
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {formatInterviewWhen(interview.date, interview.time)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {interview.durationMinutes} min
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusPills
+                            items={[{ label: interviewStatusLabel(interview.displayStatus), tone: interviewStatusTone(interview.displayStatus) }]}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1">
+                            <InterviewActions
+                              actions={interview.actions}
+                              disabledReasons={completeDisabledReasons(interview.notes.length)}
+                              pendingAction={
+                                actionMutation.isPending && actionMutation.variables?.interviewId === interview.id
+                                  ? actionMutation.variables.action
+                                  : undefined
+                              }
+                              onAction={(action) => {
+                                if (action === "reschedule") setPending({ kind: "reschedule", interview });
+                                else if (action === "cancel" || action === "no_show" || action === "mark_complete") {
+                                  if (action === "mark_complete" && interview.notes.length === 0) {
+                                    alerts.error(COMPLETE_NOTE_REQUIRED);
+                                    return;
+                                  }
+                                  setConfirmTarget({ interview, action });
+                                } else actionMutation.mutate({ interviewId: interview.id, action });
+                              }}
+                            />
+                            <Tooltip label={locked ? "View notes" : "Add note"}>
+                              <button
+                                aria-label={locked ? "View notes" : "Add note"}
+                                className="icon-button"
+                                onClick={() => setNoteTarget(interview)}
+                                type="button"
+                              >
+                                <FilePlus aria-hidden className="h-4 w-4" />
+                              </button>
+                            </Tooltip>
+                          </div>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr className="bg-gray-50/80 dark:bg-gray-900/40">
+                          <td className="px-4 py-4" colSpan={5}>
+                            {interview.notes.length === 0 ? (
+                              <p className="text-sm text-gray-500">No notes yet.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {interview.notes.map((note) => (
+                                  <NoteCard key={note.id} note={note} />
+                                ))}
+                              </div>
+                            )}
+                            {locked ? null : (
+                              <div className="mt-3 flex justify-end">
+                                <button
+                                  className="inline-flex h-9 items-center rounded-xl bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-700"
+                                  onClick={() => setNoteTarget(interview)}
+                                  type="button"
+                                >
+                                  Add note
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
+
+      <p className="mt-4 text-[13px] leading-relaxed text-gray-400">
+        Approve and trial decisions are made from the applications list. Reject is available on this page.
+      </p>
 
       {scheduling ? (
         <ScheduleInterviewModal
