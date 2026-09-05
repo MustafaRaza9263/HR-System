@@ -1,5 +1,7 @@
 import type { Types } from "mongoose";
 
+import { reconstructStatusHistory, type StatusHistoryEntry } from "./application-status.js";
+
 export interface ApplicationLike {
   _id: Types.ObjectId;
   jobId: Types.ObjectId;
@@ -44,6 +46,7 @@ export interface ApplicationLike {
   candidateAlternativePhone?: string | null;
   resumeOriginalName: string;
   status: string;
+  statusHistory?: StatusHistoryEntry[];
   source: string;
   campaign?: string | null;
   rejectionReason?: string | null;
@@ -106,6 +109,7 @@ export function serializeApplication(application: ApplicationLike) {
     resumeFileName: application.resumeOriginalName,
     hasResume: true,
     status: application.status,
+    statusHistory: serializeStatusHistory(application),
     source: application.source,
     campaign: application.campaign ?? null,
     rejectionReason: application.rejectionReason ?? null,
@@ -120,6 +124,17 @@ export function serializeApplication(application: ApplicationLike) {
     createdAt: application.createdAt,
     updatedAt: application.updatedAt,
   };
+}
+
+function serializeStatusHistory(application: ApplicationLike) {
+  const rows =
+    Array.isArray(application.statusHistory) && application.statusHistory.length > 0
+      ? application.statusHistory
+      : reconstructStatusHistory(application);
+  return rows.map((entry) => ({
+    status: entry.status,
+    at: entry.at,
+  }));
 }
 
 export function serializeListItem(application: {

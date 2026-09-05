@@ -5,6 +5,7 @@ import { Interview } from "../models/interview.model.js";
 import { sendCandidateApplicationApproved, sendEmailsBestEffort } from "../services/email/index.js";
 import { TERMINAL_APPLICATION_STATUSES } from "../schemas/application.schema.js";
 import { ApiError } from "./api-error.js";
+import { applicationStatusUpdate } from "./application-status.js";
 
 export async function cancelScheduledInterviews(applicationIds: Array<Types.ObjectId | string>) {
   if (applicationIds.length === 0) return;
@@ -30,13 +31,10 @@ export async function rejectApplications(
 
   await Application.updateMany(
     { _id: { $in: ids } },
-    {
-      $set: {
-        status: "rejected",
-        rejectionReason: reason.replace(/\s+/g, " ").trim(),
-        rejectedAt: now,
-      },
-    },
+    applicationStatusUpdate("rejected", now, {
+      rejectionReason: reason.replace(/\s+/g, " ").trim(),
+      rejectedAt: now,
+    }),
   ).exec();
 
   await cancelScheduledInterviews(ids);
@@ -73,15 +71,13 @@ export async function approveApplication(
   sendEmail = true,
 ) {
   const clean = reason.replace(/\s+/g, " ").trim();
+  const now = new Date();
   await Application.updateOne(
     { _id: application._id },
-    {
-      $set: {
-        status: "approved",
-        decisionReason: clean,
-        approvedAt: new Date(),
-      },
-    },
+    applicationStatusUpdate("approved", now, {
+      decisionReason: clean,
+      approvedAt: now,
+    }),
   ).exec();
 
   if (!sendEmail) return;
@@ -95,13 +91,9 @@ export async function approveApplication(
 }
 
 export async function markApplicationTrial(application: { _id: Types.ObjectId }) {
+  const now = new Date();
   await Application.updateOne(
     { _id: application._id },
-    {
-      $set: {
-        status: "trial",
-        trialAt: new Date(),
-      },
-    },
+    applicationStatusUpdate("trial", now, { trialAt: now }),
   ).exec();
 }

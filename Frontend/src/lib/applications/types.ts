@@ -10,6 +10,11 @@ export type ApplicationStatus =
   | "rejected"
   | "trial";
 
+export interface StatusHistoryEntry {
+  status: ApplicationStatus;
+  at: string;
+}
+
 export interface PublicJobDetail {
   id: string;
   slug: string | null;
@@ -127,6 +132,7 @@ export interface ApplicationDetail {
   aiScoredAt: string | null;
   createdAt: string;
   updatedAt: string;
+  statusHistory: StatusHistoryEntry[];
 }
 
 export interface ApplicationDetailResponse {

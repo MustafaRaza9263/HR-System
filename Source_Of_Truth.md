@@ -145,7 +145,7 @@ All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inact
 | Department | name, normalizedName unique, icon, status, createdBy | |
 | Role | name, normalizedName, departmentId, icon, status, createdBy | Unique `(departmentId, normalizedName)` |
 | Job | see §9 | slug unique when string; `wizardStep` 1–4 |
-| Application | see §10 | links **jobId only**; `roleSnapshot` frozen at apply |
+| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }` |
 | Interview | applicationId, departmentId (copied from snapshot), label (required, ≤80), date, time, durationMinutes 15–240, status, createdBy | |
 | InterviewNote | interviewId, authorName, authorEmail, content ≤2000, createdAt | Separate collection |
 | DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
@@ -268,6 +268,8 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 **Status (stored):** `submitted` → `under_review` → `interview_scheduled` \| `interviewed` → `approved` \| `rejected` \| `trial`.
 
+**Status history:** append-only `statusHistory: { status, at }[]` on the application (not a separate collection). `status` stays the denormalized current value for list filters. Every real status write also `$push`es an entry: apply (`submitted`), first detail GET (`under_review`), `recomputeApplicationStatus` (only when the computed status changes), trial (including re-trial), approve, reject/bulk-reject. Re-entries are kept (interview bounce, trial then overwrite then trial again). Existing rows without history are backfilled on boot from `createdAt` + `trialAt`/`approvedAt`/`rejectedAt`/`updatedAt` — intermediate times that were never stored stay missing. Detail JSON includes `statusHistory`; list rows do not. HR detail shows a Status timeline (`StatusPills` + `DateTimeDisplay`). Guest application modal does not render it.
+
 - Opening detail: first GET while `submitted` sets `under_review`.
 - Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`. `trial` is not locked — a later interview write overwrites it (timestamp `trialAt` remains).
 - **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**. Optional `sendEmail` (default true) — approve/reject/bulk-reject modals have a Send email toggle, default on. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count. HTTP returns after the DB write; rejection emails are queued and sent in Resend batches of up to 100 (one click of 50 does not wait on SMTP).
@@ -291,7 +293,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (profile + interviews tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (profile + interviews tabs; status timeline above the tabs). Unlocked row actions: view resume, schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 

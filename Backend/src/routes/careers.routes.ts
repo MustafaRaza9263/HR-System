@@ -282,6 +282,7 @@ careersRouter.post(
       resumeUrl: savedResume.relative,
       resumeOriginalName: savedResume.originalName,
       status: "submitted",
+      statusHistory: [{ status: "submitted", at: new Date() }],
       source: utm.source,
       campaign: utm.campaign,
       aiScore: null,

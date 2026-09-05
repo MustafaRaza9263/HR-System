@@ -9,6 +9,7 @@ import { LinkRegistrant } from "../models/link-registrant.model.js";
 import { Notification } from "../models/notification.model.js";
 import { Session } from "../models/session.model.js";
 import { User } from "../models/user.model.js";
+import { migrateApplicationStatusHistory } from "../utils/application-status.js";
 import { migrateAccessLinkRegistrants, migrateInterviewDocuments } from "../utils/interview-migrate.js";
 import { env } from "./env.js";
 
@@ -27,6 +28,7 @@ export async function connectToDatabase(): Promise<void> {
   await Job.collection.updateMany({}, { $unset: { positionsAvailable: "", positionsFilled: "" } });
   await migrateInterviewDocuments();
   await migrateAccessLinkRegistrants();
+  await migrateApplicationStatusHistory();
   await Promise.all([
     Job.createIndexes(),
     User.createIndexes(),

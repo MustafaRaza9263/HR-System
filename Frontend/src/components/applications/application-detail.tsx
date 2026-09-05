@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ApplicationInterviews } from "@/components/applications/application-interviews";
+import { ApplicationStatusTimeline } from "@/components/applications/application-status-timeline";
 import { ReasonModal } from "@/components/applications/reason-modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload, apiRequest } from "@/lib/api";
@@ -217,6 +218,8 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
                 </button>
               ) : null}
             </header>
+
+            <ApplicationStatusTimeline history={application.statusHistory ?? []} />
 
             <div className="flex gap-2">
               <button

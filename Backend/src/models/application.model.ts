@@ -86,6 +86,30 @@ const applicationSchema = new Schema(
       required: true,
       default: "submitted",
     },
+    statusHistory: {
+      type: [
+        new Schema(
+          {
+            status: {
+              type: String,
+              enum: [
+                "submitted",
+                "under_review",
+                "interview_scheduled",
+                "interviewed",
+                "approved",
+                "rejected",
+                "trial",
+              ],
+              required: true,
+            },
+            at: { type: Date, required: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
     rejectionReason: { type: String, default: null, maxlength: 500 },
     rejectedAt: { type: Date, default: null },
     decisionReason: { type: String, default: null, maxlength: 500 },

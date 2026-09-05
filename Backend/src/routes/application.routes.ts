@@ -20,7 +20,7 @@ import { sendCandidateInterviewScheduled } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { buildApplicationFilter } from "../utils/application-filter.js";
 import { approveApplication, assertRejectable, markApplicationTrial, rejectApplications } from "../utils/application-reject.js";
-import { recomputeApplicationStatus } from "../utils/application-status.js";
+import { applicationStatusUpdate, recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertNoDuplicateInterviewSlot } from "../utils/interview-rules.js";
 import { paginationMeta } from "../utils/pagination.js";
@@ -371,11 +371,19 @@ applicationRouter.get(
     }
 
     if (application.status === "submitted") {
-      await Application.updateOne(
+      const result = await Application.updateOne(
         { _id: application._id, status: "submitted" },
-        { $set: { status: "under_review" } },
+        applicationStatusUpdate("under_review", new Date()),
       ).exec();
-      application.status = "under_review";
+      if (result.matchedCount > 0) {
+        const updated = await Application.findById(applicationId).lean();
+        if (updated) {
+          response.status(200).json({
+            data: { application: serializeApplication(updated) },
+          });
+          return;
+        }
+      }
     }
 
     response.status(200).json({
