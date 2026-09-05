@@ -10,6 +10,7 @@ import {
   FileText,
   FlaskConical,
   Search,
+  StickyNote,
   UserX,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -38,6 +39,7 @@ import type { JobOptionsResponse } from "@/lib/jobs/types";
 import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
 
+import { ApplicationNotesModal } from "./application-notes-modal";
 import { ReasonModal } from "./reason-modal";
 import { ResumeViewerModal } from "./resume-viewer-modal";
 
@@ -108,6 +110,7 @@ export function ApplicationsManager() {
   } | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<ApplicationListItem | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ApplicationListItem | null>(null);
+  const [notesTarget, setNotesTarget] = useState<ApplicationListItem | null>(null);
   const [approveTarget, setApproveTarget] = useState<ApplicationListItem | null>(null);
   const [trialTarget, setTrialTarget] = useState<ApplicationListItem | null>(null);
   const [rowRejectTarget, setRowRejectTarget] = useState<ApplicationListItem | null>(null);
@@ -449,6 +452,16 @@ export function ApplicationsManager() {
                                 <FileText aria-hidden className="h-4 w-4" />
                               </button>
                             </Tooltip>
+                            <Tooltip label="View notes">
+                              <button
+                                aria-label={`View notes for ${application.candidateName}`}
+                                className="icon-button"
+                                onClick={() => setNotesTarget(application)}
+                                type="button"
+                              >
+                                <StickyNote aria-hidden className="h-4 w-4" />
+                              </button>
+                            </Tooltip>
                             {isUnlocked(application.status) ? (
                               <>
                                 <Tooltip label="Schedule interview">
@@ -567,6 +580,14 @@ export function ApplicationsManager() {
           candidateName={resumeTarget.candidateName}
           resumeFileName={resumeTarget.resumeFileName}
           onClose={() => setResumeTarget(null)}
+        />
+      ) : null}
+
+      {notesTarget ? (
+        <ApplicationNotesModal
+          applicationId={notesTarget.id}
+          candidateName={notesTarget.candidateName}
+          onClose={() => setNotesTarget(null)}
         />
       ) : null}
 
