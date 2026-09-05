@@ -317,6 +317,76 @@ a {
 [data-theme="dark"] .app-alert__action { color: #a5b4fc; }
 .app-alert__action:hover { opacity: 0.72; }
 
+.hr-dashboard-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  overflow: visible;
+}
+
+.hr-dashboard-header__glass {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 5.75rem;
+  opacity: 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface) 78%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 42%, transparent) 52%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%);
+  transition: opacity 280ms ease;
+}
+
+.hr-dashboard-header[data-scrolled="true"] .hr-dashboard-header__glass {
+  opacity: 1;
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+}
+
+.hr-header-icon {
+  height: 2.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(15 23 42 / 0.12);
+  background: rgb(255 255 255 / 0.28);
+  color: #525252;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.hr-header-icon:hover {
+  background: rgb(15 23 42 / 0.06);
+  color: #171717;
+}
+
+.hr-header-icon:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .hr-header-icon {
+  border-color: rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.04);
+  color: #d4d4d4;
+}
+
+[data-theme="dark"] .hr-header-icon:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: #ffffff;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .hr-dashboard-header[data-scrolled="true"] .hr-dashboard-header__glass {
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

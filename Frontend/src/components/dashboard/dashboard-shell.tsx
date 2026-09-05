@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
@@ -11,7 +12,10 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, user }: DashboardShellProps) {
+  const pathname = usePathname();
+  const mainRef = useRef<HTMLElement>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     void import("@/lib/notifications/fcm")
@@ -44,6 +48,16 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     };
   }, [mobileSidebarOpen]);
 
+  useEffect(() => {
+    const node = mainRef.current;
+    if (!node) return;
+
+    const update = () => setScrolled(node.scrollTop > 8);
+    update();
+    node.addEventListener("scroll", update, { passive: true });
+    return () => node.removeEventListener("scroll", update);
+  }, [pathname]);
+
   return (
     <div className="flex h-svh overflow-hidden bg-white text-gray-900 dark:bg-gray-950 dark:text-white">
       <DashboardSidebar
@@ -61,13 +75,14 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
         />
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <DashboardHeader
-          onMenuClick={() => setMobileSidebarOpen(true)}
-          user={user}
-        />
-        <main className="min-h-0 flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
-          <div className="mx-auto min-h-full w-full max-w-[100rem]">{children}</div>
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+        <main className="relative min-h-0 flex-1 overflow-y-auto" ref={mainRef}>
+          <DashboardHeader
+            onMenuClick={() => setMobileSidebarOpen(true)}
+            scrolled={scrolled}
+            user={user}
+          />
+          <div className="mx-auto w-full max-w-[100rem]">{children}</div>
         </main>
       </div>
     </div>

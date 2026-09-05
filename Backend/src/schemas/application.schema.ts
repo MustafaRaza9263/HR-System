@@ -35,6 +35,7 @@ export const approveApplicationSchema = decisionReasonSchema.extend({
 export const bulkRejectSchema = z.object({
   jobId: objectId,
   q: z.string().trim().max(200).optional(),
+  roleId: objectId.optional(),
   status: applicationStatusEnum.optional(),
   applicationIds: z.array(objectId).max(500, "Select at most 500 applications.").optional(),
   reason: z
@@ -163,6 +164,7 @@ export const listApplicationsQuerySchema = z
   .object({
     q: z.string().trim().max(200).optional(),
     jobId: objectId.optional(),
+    roleId: objectId.optional(),
     status: applicationStatusEnum.optional(),
   })
   .extend(listPaginationQuerySchema.shape);

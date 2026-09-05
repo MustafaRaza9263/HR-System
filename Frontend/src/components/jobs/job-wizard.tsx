@@ -346,7 +346,7 @@ export function JobWizard({ jobId }: JobWizardProps) {
   }
 
   return (
-    <div className="min-h-full bg-gray-50 px-4 py-8 text-gray-900 sm:px-6 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-full px-4 py-8 text-gray-900 sm:px-6 dark:text-gray-100">
       <div className="mx-auto w-full max-w-3xl scroll-mt-8" id="job-wizard-top">
         <div className="mb-6 flex items-center justify-between gap-3">
           <Link

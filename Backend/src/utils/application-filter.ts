@@ -9,6 +9,7 @@ export function escapeRegex(value: string) {
 export function buildApplicationFilter(input: {
   q?: string | undefined;
   jobId?: string | undefined;
+  roleId?: string | undefined;
   status?: string | undefined;
   applicationIds?: string[] | undefined;
   excludeTerminal?: boolean | undefined;
@@ -16,6 +17,7 @@ export function buildApplicationFilter(input: {
   const filter: Record<string, unknown> = {};
 
   if (input.jobId) filter.jobId = input.jobId;
+  if (input.roleId) filter["roleSnapshot.roleId"] = input.roleId;
 
   const statusIsTerminal =
     Boolean(input.status) && (TERMINAL_APPLICATION_STATUSES as readonly string[]).includes(input.status!);

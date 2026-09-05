@@ -14,6 +14,7 @@ const APPLICATION_LIST_PROJECT = {
   jobId: 1,
   "roleSnapshot.title": 1,
   "roleSnapshot.departmentName": 1,
+  "roleSnapshot.roleId": 1,
 } as const;
 
 interface ApplicationSnippet {
@@ -27,6 +28,7 @@ interface ApplicationSnippet {
 interface InterviewListQuery {
   q?: string | undefined;
   jobId?: string | undefined;
+  roleId?: string | undefined;
   status?: "scheduled" | "completed" | "no_show" | "cancelled" | "overdue" | undefined;
   bucket?: "scheduled" | "today" | "tomorrow" | "overdue" | undefined;
   page: number;
@@ -56,9 +58,10 @@ function interviewFieldMatch(
   return { $and: parts };
 }
 
-function applicationFieldMatch(query: Pick<InterviewListQuery, "q" | "jobId">): Record<string, unknown> | null {
+function applicationFieldMatch(query: Pick<InterviewListQuery, "q" | "jobId" | "roleId">): Record<string, unknown> | null {
   const parts: Record<string, unknown>[] = [];
   if (query.jobId) parts.push({ "application.jobId": new Types.ObjectId(query.jobId) });
+  if (query.roleId) parts.push({ "application.roleSnapshot.roleId": new Types.ObjectId(query.roleId) });
   if (query.q) {
     const rx = { $regex: escapeRegex(query.q), $options: "i" };
     parts.push({
@@ -76,26 +79,30 @@ function applicationFieldMatch(query: Pick<InterviewListQuery, "q" | "jobId">): 
   return { $and: parts };
 }
 
-async function scheduledInterviewStats(today: string, tomorrow: string) {
-  const [row] = await Interview.aggregate<{
-    scheduled: number;
-    today: number;
-    tomorrow: number;
-    overdue: number;
-  }>([
-    { $match: { status: "scheduled" } },
-    {
-      $group: {
-        _id: null,
-        scheduled: { $sum: 1 },
-        today: { $sum: { $cond: [{ $eq: ["$date", today] }, 1, 0] } },
-        tomorrow: { $sum: { $cond: [{ $eq: ["$date", tomorrow] }, 1, 0] } },
-        overdue: { $sum: { $cond: [{ $lt: ["$date", today] }, 1, 0] } },
+async function interviewBoardStats(today: string, tomorrow: string) {
+  const [[row], total] = await Promise.all([
+    Interview.aggregate<{
+      scheduled: number;
+      today: number;
+      tomorrow: number;
+      overdue: number;
+    }>([
+      { $match: { status: "scheduled" } },
+      {
+        $group: {
+          _id: null,
+          scheduled: { $sum: 1 },
+          today: { $sum: { $cond: [{ $eq: ["$date", today] }, 1, 0] } },
+          tomorrow: { $sum: { $cond: [{ $eq: ["$date", tomorrow] }, 1, 0] } },
+          overdue: { $sum: { $cond: [{ $lt: ["$date", today] }, 1, 0] } },
+        },
       },
-    },
+    ]),
+    Interview.countDocuments(),
   ]);
 
   return {
+    total,
     scheduled: row?.scheduled ?? 0,
     today: row?.today ?? 0,
     tomorrow: row?.tomorrow ?? 0,
@@ -171,7 +178,7 @@ export async function listHrInterviews(query: InterviewListQuery) {
   const interviewMatch = interviewFieldMatch(query, today, tomorrow);
   const applicationMatch = applicationFieldMatch(query);
 
-  const statsPromise = scheduledInterviewStats(today, tomorrow);
+  const statsPromise = interviewBoardStats(today, tomorrow);
 
   if (!applicationMatch) {
     const [total, interviews, stats] = await Promise.all([

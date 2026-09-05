@@ -46,6 +46,7 @@ export interface InterviewListItem extends Interview {
 }
 
 export interface InterviewBoardStats {
+  total: number;
   scheduled: number;
   today: number;
   tomorrow: number;

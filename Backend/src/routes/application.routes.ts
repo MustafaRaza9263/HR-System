@@ -55,6 +55,7 @@ applicationRouter.get(
     const filter = buildApplicationFilter({
       q: query.q,
       jobId: query.jobId,
+      roleId: query.roleId,
       status: query.status,
     });
     const skip = (query.page - 1) * query.limit;
@@ -106,6 +107,7 @@ applicationRouter.post(
     const filter = buildApplicationFilter({
       q: input.q,
       jobId: input.jobId,
+      roleId: input.roleId,
       status: input.status,
       applicationIds: input.applicationIds,
       excludeTerminal: true,

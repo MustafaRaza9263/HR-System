@@ -29,7 +29,7 @@ const groups: ConfigGroup[] = [
 
 export default function ConfigurationPage() {
   return (
-    <div className="min-h-full w-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-white">
+    <div className="min-h-full w-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-white">
       <div className="w-full space-y-8">
         {groups.map((group) => (
           <section key={group.label}>

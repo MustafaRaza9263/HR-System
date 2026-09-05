@@ -52,6 +52,25 @@ const emptyStats: ApplicationStats = {
   approved: 0,
 };
 
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  departmentId: string;
+}
+
+interface DepartmentResponse {
+  data: { departments: Department[] };
+}
+
+interface RoleResponse {
+  data: { roles: Role[] };
+}
+
 function statusLabel(status: ApplicationStatus) {
   switch (status) {
     case "submitted":
@@ -101,6 +120,7 @@ export function ApplicationsManager() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobId, setJobId] = useState("");
+  const [roleId, setRoleId] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -125,11 +145,12 @@ export function ApplicationsManager() {
     () => ({
       q: debouncedQuery || undefined,
       jobId: jobId || undefined,
+      roleId: roleId || undefined,
       status: status || undefined,
       page,
       limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, jobId, page, status],
+    [debouncedQuery, jobId, page, roleId, status],
   );
 
   const listQuery = useQuery({
@@ -143,11 +164,44 @@ export function ApplicationsManager() {
     queryFn: async () => apiRequest<JobOptionsResponse>("/jobs/options"),
   });
 
+  const rolesQuery = useQuery({
+    queryKey: queryKeys.jobRoles.list,
+    queryFn: async () => {
+      const [departments, roles] = await Promise.all([
+        apiRequest<DepartmentResponse>("/departments"),
+        apiRequest<RoleResponse>("/roles"),
+      ]);
+      return {
+        departments: departments.data.departments,
+        roles: roles.data.roles,
+      };
+    },
+  });
+
   const applications = listQuery.data?.data.applications ?? emptyApps;
   const stats = listQuery.data?.data.stats ?? emptyStats;
   const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
   const jobOptions = [{ value: "", label: "All jobs" }, ...jobs.map((job) => ({ value: job.id, label: job.title }))];
+  const roleOptions = useMemo(() => {
+    const roles = rolesQuery.data?.roles ?? [];
+    const departments = rolesQuery.data?.departments ?? [];
+    const departmentName = new Map(departments.map((department) => [department.id, department.name]));
+    const nameCounts = new Map<string, number>();
+    for (const role of roles) {
+      nameCounts.set(role.name, (nameCounts.get(role.name) ?? 0) + 1);
+    }
+    const sorted = [...roles].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    return [
+      { value: "", label: "All roles" },
+      ...sorted.map((role) => {
+        const dept = departmentName.get(role.departmentId);
+        const label =
+          (nameCounts.get(role.name) ?? 0) > 1 && dept ? `${role.name} (${dept})` : role.name;
+        return { value: role.id, label };
+      }),
+    ];
+  }, [rolesQuery.data]);
   const statusOptions = [
     { value: "", label: "All statuses" },
     ...APPLICATION_STATUSES.map((item) => ({ value: item, label: statusLabel(item) })),
@@ -179,10 +233,11 @@ export function ApplicationsManager() {
     }) =>
       apiRequest<{ data: { count: number } }>("/applications/bulk-reject", {
         method: "POST",
-        body: JSON.stringify({
+        body:         JSON.stringify({
           jobId: rejectJobId,
           q: applicationIds ? undefined : filters.q,
           status: applicationIds ? undefined : filters.status,
+          roleId: applicationIds ? undefined : filters.roleId,
           applicationIds,
           reason,
           sendEmail,
@@ -260,6 +315,7 @@ export function ApplicationsManager() {
         jobId,
         q: filters.q,
         status: filters.status,
+        roleId: filters.roleId,
       });
       if (result.data.count === 0) {
         alerts.info("No matching applications to reject.");
@@ -294,7 +350,7 @@ export function ApplicationsManager() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Application metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <MetricCard icon={ClipboardList} label="Total applications" supporting="All statuses" value={stats.total} />
@@ -320,7 +376,7 @@ export function ApplicationsManager() {
                   value={query}
                 />
               </label>
-              <FilterSheet active={Boolean(jobId || status)} title="Application filters" triggerSize="md">
+              <FilterSheet active={Boolean(jobId || roleId || status)} title="Application filters" triggerSize="md">
                 <FilterField label="Job">
                   <Dropdown
                     aria-label="Filter by job"
@@ -333,6 +389,20 @@ export function ApplicationsManager() {
                     options={jobOptions}
                     size="md"
                     value={jobId}
+                  />
+                </FilterField>
+                <FilterField label="Role">
+                  <Dropdown
+                    aria-label="Filter by role"
+                    className="w-full"
+                    onChange={(next) => {
+                      setRoleId(next);
+                      setPage(1);
+                      setSelectedIds([]);
+                    }}
+                    options={roleOptions}
+                    size="md"
+                    value={roleId}
                   />
                 </FilterField>
                 <FilterField label="Status">
@@ -354,7 +424,7 @@ export function ApplicationsManager() {
             <div className="hidden md:contents">
               <Dropdown
                 aria-label="Filter by job"
-                className="w-full xl:w-56"
+                className="w-full xl:w-52"
                 onChange={(next) => {
                   setJobId(next);
                   setPage(1);
@@ -363,6 +433,18 @@ export function ApplicationsManager() {
                 options={jobOptions}
                 size="md"
                 value={jobId}
+              />
+              <Dropdown
+                aria-label="Filter by role"
+                className="w-full xl:w-52"
+                onChange={(next) => {
+                  setRoleId(next);
+                  setPage(1);
+                  setSelectedIds([]);
+                }}
+                options={roleOptions}
+                size="md"
+                value={roleId}
               />
               <Dropdown
                 aria-label="Filter by status"
@@ -413,7 +495,7 @@ export function ApplicationsManager() {
             Applications
           </h2>
 
-          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/70">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             {listQuery.isPending ? <LoadingState /> : null}
             {listQuery.isError ? (
               <LoadError
@@ -426,7 +508,7 @@ export function ApplicationsManager() {
               />
             ) : null}
             {listQuery.isSuccess && applications.length === 0 ? (
-              <EmptyState hasQuery={Boolean(debouncedQuery || jobId || status)} />
+              <EmptyState hasQuery={Boolean(debouncedQuery || jobId || roleId || status)} />
             ) : null}
             {listQuery.isSuccess && applications.length > 0 ? (
               <div className="overflow-x-auto">

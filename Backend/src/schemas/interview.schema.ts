@@ -45,6 +45,7 @@ export const listInterviewsQuerySchema = z
   .object({
     q: z.string().trim().max(200).optional(),
     jobId: objectId.optional(),
+    roleId: objectId.optional(),
     status: z.enum(["scheduled", "completed", "no_show", "cancelled", "overdue"]).optional(),
     bucket: z.enum(["scheduled", "today", "tomorrow", "overdue"]).optional(),
   })

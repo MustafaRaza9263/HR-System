@@ -8,13 +8,14 @@ export const queryKeys = {
   },
   jobs: {
     all: ["jobs"] as const,
-    list: (filters?: { q?: string; departmentId?: string; roleId?: string; page?: number; limit?: number }) =>
+    list: (filters?: { q?: string; departmentId?: string; roleId?: string; status?: string; page?: number; limit?: number }) =>
       [
         "jobs",
         "list",
         filters?.q ?? "",
         filters?.departmentId ?? "",
         filters?.roleId ?? "",
+        filters?.status ?? "",
         filters?.page ?? 1,
         filters?.limit ?? LIST_PAGE_LIMIT,
       ] as const,
@@ -28,12 +29,13 @@ export const queryKeys = {
   },
   applications: {
     all: ["applications"] as const,
-    list: (filters?: { q?: string; jobId?: string; status?: string; page?: number; limit?: number }) =>
+    list: (filters?: { q?: string; jobId?: string; roleId?: string; status?: string; page?: number; limit?: number }) =>
       [
         "applications",
         "list",
         filters?.q ?? "",
         filters?.jobId ?? "",
+        filters?.roleId ?? "",
         filters?.status ?? "",
         filters?.page ?? 1,
         filters?.limit ?? LIST_PAGE_LIMIT,
@@ -51,12 +53,21 @@ export const queryKeys = {
   },
   interviews: {
     all: ["interviews"] as const,
-    list: (filters?: { q?: string; jobId?: string; status?: string; bucket?: string; page?: number; limit?: number }) =>
+    list: (filters?: {
+      q?: string;
+      jobId?: string;
+      roleId?: string;
+      status?: string;
+      bucket?: string;
+      page?: number;
+      limit?: number;
+    }) =>
       [
         "interviews",
         "list",
         filters?.q ?? "",
         filters?.jobId ?? "",
+        filters?.roleId ?? "",
         filters?.status ?? "",
         filters?.bucket ?? "",
         filters?.page ?? 1,

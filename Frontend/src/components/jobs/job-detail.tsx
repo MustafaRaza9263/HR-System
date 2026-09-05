@@ -108,7 +108,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
   const job = jobQuery.data.data.job;
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="mx-auto w-full max-w-3xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link

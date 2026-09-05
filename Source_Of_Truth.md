@@ -121,6 +121,7 @@ Frontend/src
 | Primary CTA indigo-600 | Create / Publish / View all |
 | Dark: `data-theme` on `<html>`, localStorage `hr-theme` | Theme |
 | Sidebar | Dashboard, Jobs, Applications, Interviews, Scoring*, Assistant*, Configuration. Collapse key `hr-sidebar-collapsed`. \*Nav only — no pages. |
+| Header | Sticky on the dashboard scroll pane. Desktop: centered page title. Mobile: circular outlined hamburger (opens sidebar) with the title left of the actions. Circular outlined icon buttons (bell / theme / profile). Glassmorphic frost when content scrolls up. No aurora / colored page wash. |
 
 ---
 
@@ -146,7 +147,7 @@ All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inact
 | Department | name, normalizedName unique, icon, status, createdBy | |
 | Role | name, normalizedName, departmentId, icon, status, createdBy | Unique `(departmentId, normalizedName)` |
 | Job | see §9 | slug unique when string; `wizardStep` 1–4 |
-| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }`; indexes `{ jobId: 1, createdAt: -1 }` and `{ createdAt: 1 }` |
+| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }`; indexes `{ jobId: 1, createdAt: -1 }`, `{ createdAt: 1 }`, and `{ "roleSnapshot.roleId": 1, createdAt: -1 }` |
 | Interview | applicationId, departmentId (copied from snapshot), label (required, ≤80), date, time, durationMinutes 15–240, status, createdBy | |
 | InterviewNote | interviewId, authorName, authorEmail, content ≤2000, createdAt | Separate collection |
 | DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
@@ -184,15 +185,15 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/careers/jobs` | `open` only |
 | GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
 | POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit; 409 `DUPLICATE_APPLICATION` if same job + (email **or** CNIC) exists in a non-`rejected` status |
-| GET | `/applications` | HR; `q, jobId, status, page, limit≤50` default 15; list fields only; stats via aggregation; `{ applications, stats, pagination }` |
-| POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
+| GET | `/applications` | HR; `q, jobId, roleId, status, page, limit≤50` default 15; `roleId` matches `roleSnapshot.roleId` (all jobs for that role); list fields only; stats via aggregation; `{ applications, stats, pagination }` |
+| POST | `/applications/bulk-reject` | HR; requires `jobId`; optional `q, roleId, status, applicationIds`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
 | GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
 | PATCH | `/applications/:id/reject` | reason ≥10 ≤500; `sendEmail` default true |
 | PATCH | `/applications/:id/approve` | reason ≥10 ≤500; `sendEmail` default true |
 | PATCH | `/applications/:id/trial` | no body |
 | GET | `/applications/:id/resume` `/files/:fieldId` | HR download |
 | GET/POST | `/applications/:id/interviews` | POST = schedule |
-| GET | `/interviews` | HR; `q, jobId, status, bucket, page, limit≤50` default 15; Mongo filters (lookup only when `q`/`jobId`); stats via aggregation; `{ interviews, stats, pagination }` |
+| GET | `/interviews` | HR; `q, jobId, roleId, status, bucket, page, limit≤50` default 15; Mongo filters (lookup only when `q`/`jobId`/`roleId`); `roleId` matches application `roleSnapshot.roleId` (all jobs for that role); stats via aggregation; `{ interviews, stats, pagination }` |
 | PATCH | `/interviews/:id/reschedule` `/cancel` `/no-show` `/complete` | reschedule: `sendEmail` default true; same date+time as current row → 422 `INTERVIEW_UNCHANGED` |
 | POST | `/interviews/:id/notes` | HR |
 | POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day) |
@@ -260,7 +261,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 **Delete:** only `draft` with `applicationCount===0`.
 
-**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role. Columns: title, dept, role, status, type, createdAt, applicants, icon actions. Backend pagination default 15. Filter dropdowns on other pages use `GET /jobs/options`, not the full list.
+**List UX:** metrics total / opened / avg applicants / closed. Search title + descriptionPlain + ObjectId. Filters dept/role/status (`open` \| `closed` \| `draft`). Columns: title, dept, role, status, type, createdAt, applicants, icon actions. Backend pagination default 15. Filter dropdowns on other pages use `GET /jobs/options`, not the full list.
 
 | Status | Actions |
 |---|---|
@@ -302,7 +303,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
 
-**HR list:** search name/email; filter job/status. Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (see HR detail UX above). Every row: view resume, view notes (read-only modal of all interview notes, grouped by interview; fetched on open via `GET /applications/:id/interviews`, not on the list payload). Unlocked row actions: schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**HR list:** search name/email; filter job / role / status. Role dropdown lists every role; `roleId` returns applications for all jobs of that role. Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (see HR detail UX above). Every row: view resume, view notes (read-only modal of all interview notes, grouped by interview; fetched on open via `GET /applications/:id/interviews`, not on the list payload). Unlocked row actions: schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -328,7 +329,7 @@ Completed: locked for status changes. **Notes:** writable on `scheduled` and `co
 
 **Notes:** HR uses session name/email; guest uses registrant name/email. History, never edited. HR may add notes only while status is `scheduled` or `completed`. Notes modal: history cards in the body (compact `UserProfile` initials, note text, bottom-left calendar/clock timestamp); composer in the footer with a circular send-arrow (no Close/Add buttons). Add locked on cancelled/no-show.
 
-**HR list:** search name/email/phone/job/label. Buckets: scheduled / today / tomorrow / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Backend pagination default 15. Cancel, no-show, and complete open a confirmation modal (heading + close in the header, explanation in the body, no icon); complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
+**HR list:** search name/email/phone/job/label. Filters: job / role / status. Role dropdown lists every role; `roleId` returns interviews for all jobs of that role. Metrics: total / scheduled / today (subtitle is tomorrow’s scheduled count) / overdue. Clickable buckets: scheduled / today / overdue. Columns: candidate (`UserProfile`), job, label, phone, when, status pills, icon actions. Backend pagination default 15. Cancel, no-show, and complete open a confirmation modal (heading + close in the header, explanation in the body, no icon); complete is blocked until a note exists. Notes use the same plus-icon modal as guest access (history + add; add locked on cancelled/no-show). Invite modal from this page.
 
 **UX — schedule modal:** heading + close in the header (no helper text). Required label + date on the first row; time + duration on the second. Same modal for reschedule (label prefilled); reschedule adds a Send email toggle, default on.
 

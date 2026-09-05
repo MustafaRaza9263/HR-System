@@ -101,6 +101,7 @@ export function JobsManager() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [roleId, setRoleId] = useState("");
+  const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [closeTarget, setCloseTarget] = useState<JobListItem | null>(null);
   const [closePendingCount, setClosePendingCount] = useState<number | null>(null);
@@ -116,10 +117,11 @@ export function JobsManager() {
       q: debouncedQuery || undefined,
       departmentId: departmentId || undefined,
       roleId: roleId || undefined,
+      status: status || undefined,
       page,
       limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, departmentId, page, roleId],
+    [debouncedQuery, departmentId, page, roleId, status],
   );
 
   const jobsQuery = useQuery({
@@ -160,6 +162,12 @@ export function JobsManager() {
   const roleOptions = [
     { value: "", label: "All roles" },
     ...filteredRoles.map((role) => ({ value: role.id, label: role.name })),
+  ];
+  const statusOptions = [
+    { value: "", label: "All statuses" },
+    { value: "open", label: "Open" },
+    { value: "closed", label: "Closed" },
+    { value: "draft", label: "Draft" },
   ];
 
   const closeMutation = useMutation({
@@ -218,7 +226,7 @@ export function JobsManager() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Job metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <MetricCard icon={BriefcaseBusiness} label="Total jobs" supporting="All statuses" value={stats.totalJobs} />
@@ -243,7 +251,7 @@ export function JobsManager() {
                   value={query}
                 />
               </label>
-              <FilterSheet active={Boolean(departmentId || roleId)} title="Job filters" triggerSize="md">
+              <FilterSheet active={Boolean(departmentId || roleId || status)} title="Job filters" triggerSize="md">
                 <FilterField label="Department">
                   <Dropdown
                     aria-label="Filter by department"
@@ -271,12 +279,25 @@ export function JobsManager() {
                     value={roleId}
                   />
                 </FilterField>
+                <FilterField label="Status">
+                  <Dropdown
+                    aria-label="Filter by status"
+                    className="w-full"
+                    onChange={(next) => {
+                      setStatus(next);
+                      setPage(1);
+                    }}
+                    options={statusOptions}
+                    size="md"
+                    value={status}
+                  />
+                </FilterField>
               </FilterSheet>
             </div>
             <div className="hidden md:contents">
               <Dropdown
                 aria-label="Filter by department"
-                className="w-full xl:w-52"
+                className="w-full xl:w-48"
                 onChange={(next) => {
                   setDepartmentId(next);
                   setRoleId("");
@@ -288,7 +309,7 @@ export function JobsManager() {
               />
               <Dropdown
                 aria-label="Filter by role"
-                className="w-full xl:w-52"
+                className="w-full xl:w-48"
                 onChange={(next) => {
                   setRoleId(next);
                   setPage(1);
@@ -296,6 +317,17 @@ export function JobsManager() {
                 options={roleOptions}
                 size="md"
                 value={roleId}
+              />
+              <Dropdown
+                aria-label="Filter by status"
+                className="w-full xl:w-44"
+                onChange={(next) => {
+                  setStatus(next);
+                  setPage(1);
+                }}
+                options={statusOptions}
+                size="md"
+                value={status}
               />
             </div>
             <Link
@@ -311,11 +343,11 @@ export function JobsManager() {
             Jobs
           </h2>
 
-          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/70">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             {jobsQuery.isPending ? <LoadingState /> : null}
             {jobsQuery.isError ? <LoadError onRetry={() => void jobsQuery.refetch()} /> : null}
             {jobsQuery.isSuccess && jobs.length === 0 ? (
-              <EmptyState hasQuery={Boolean(debouncedQuery || departmentId || roleId)} />
+              <EmptyState hasQuery={Boolean(debouncedQuery || departmentId || roleId || status)} />
             ) : null}
             {jobsQuery.isSuccess && jobs.length > 0 ? (
               <div className="overflow-x-auto">

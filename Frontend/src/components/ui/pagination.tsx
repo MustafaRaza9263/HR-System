@@ -43,7 +43,7 @@ export function PaginationBar({ pagination, onPageChange }: PaginationBarProps) 
   return (
     <nav
       aria-label="Pagination"
-      className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-gray-700 dark:bg-gray-800/70"
+      className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-gray-700 dark:bg-gray-800"
     >
       <p className="text-sm text-gray-500 dark:text-gray-400">
         Showing{" "}

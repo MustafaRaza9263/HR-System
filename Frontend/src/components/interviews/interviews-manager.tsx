@@ -6,7 +6,7 @@ import {
   Briefcase,
   CalendarClock,
   CalendarDays,
-  Clock3,
+  ClipboardList,
   Phone,
   FilePlus,
   Search,
@@ -46,8 +46,27 @@ import type { JobOptionsResponse } from "@/lib/jobs/types";
 import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
 
-const emptyStats: InterviewBoardStats = { scheduled: 0, today: 0, tomorrow: 0, overdue: 0 };
+const emptyStats: InterviewBoardStats = { total: 0, scheduled: 0, today: 0, tomorrow: 0, overdue: 0 };
 const emptyInterviews: InterviewListItem[] = [];
+
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  departmentId: string;
+}
+
+interface DepartmentResponse {
+  data: { departments: Department[] };
+}
+
+interface RoleResponse {
+  data: { roles: Role[] };
+}
 
 const STATUS_OPTIONS: Array<{ value: InterviewStatus | "overdue" | ""; label: string }> = [
   { value: "", label: "All statuses" },
@@ -104,6 +123,7 @@ export function InterviewsManager() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobId, setJobId] = useState("");
+  const [roleId, setRoleId] = useState("");
   const [status, setStatus] = useState("");
   const [bucket, setBucket] = useState("");
   const [page, setPage] = useState(1);
@@ -125,12 +145,13 @@ export function InterviewsManager() {
     () => ({
       q: debouncedQuery || undefined,
       jobId: jobId || undefined,
+      roleId: roleId || undefined,
       status: status || undefined,
       bucket: bucket || undefined,
       page,
       limit: LIST_PAGE_LIMIT,
     }),
-    [bucket, debouncedQuery, jobId, page, status],
+    [bucket, debouncedQuery, jobId, page, roleId, status],
   );
 
   const listQuery = useQuery({
@@ -144,6 +165,20 @@ export function InterviewsManager() {
     queryFn: async () => apiRequest<JobOptionsResponse>("/jobs/options"),
   });
 
+  const rolesQuery = useQuery({
+    queryKey: queryKeys.jobRoles.list,
+    queryFn: async () => {
+      const [departments, roles] = await Promise.all([
+        apiRequest<DepartmentResponse>("/departments"),
+        apiRequest<RoleResponse>("/roles"),
+      ]);
+      return {
+        departments: departments.data.departments,
+        roles: roles.data.roles,
+      };
+    },
+  });
+
   const pendingQuery = useQuery({
     queryKey: queryKeys.interviews.pendingLinks,
     queryFn: async () => apiRequest<PendingLinksResponse>("/department-links/pending"),
@@ -154,6 +189,25 @@ export function InterviewsManager() {
   const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
   const jobOptions = [{ value: "", label: "All jobs" }, ...jobs.map((job) => ({ value: job.id, label: job.title }))];
+  const roleOptions = useMemo(() => {
+    const roles = rolesQuery.data?.roles ?? [];
+    const departments = rolesQuery.data?.departments ?? [];
+    const departmentName = new Map(departments.map((department) => [department.id, department.name]));
+    const nameCounts = new Map<string, number>();
+    for (const role of roles) {
+      nameCounts.set(role.name, (nameCounts.get(role.name) ?? 0) + 1);
+    }
+    const sorted = [...roles].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    return [
+      { value: "", label: "All roles" },
+      ...sorted.map((role) => {
+        const dept = departmentName.get(role.departmentId);
+        const label =
+          (nameCounts.get(role.name) ?? 0) > 1 && dept ? `${role.name} (${dept})` : role.name;
+        return { value: role.id, label };
+      }),
+    ];
+  }, [rolesQuery.data]);
 
   const hasPending = (pendingQuery.data?.data.requests.length ?? 0) > 0;
   const liveNoteTarget = noteTarget
@@ -218,17 +272,20 @@ export function InterviewsManager() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Interview metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <MetricCard icon={ClipboardList} label="Total interviews" supporting="All statuses" value={stats.total} />
           <button className="h-full w-full text-left" onClick={() => toggleBucket("scheduled")} type="button">
             <MetricCard icon={CalendarClock} label="Scheduled" supporting={bucket === "scheduled" ? "Filter on" : "Open interviews"} value={stats.scheduled} />
           </button>
           <button className="h-full w-full text-left" onClick={() => toggleBucket("today")} type="button">
-            <MetricCard icon={CalendarDays} label="Today" supporting={bucket === "today" ? "Filter on" : "Scheduled today"} value={stats.today} />
-          </button>
-          <button className="h-full w-full text-left" onClick={() => toggleBucket("tomorrow")} type="button">
-            <MetricCard icon={Clock3} label="Tomorrow" supporting={bucket === "tomorrow" ? "Filter on" : "Scheduled tomorrow"} value={stats.tomorrow} />
+            <MetricCard
+              icon={CalendarDays}
+              label="Today"
+              supporting={`${stats.tomorrow} scheduled tomorrow`}
+              value={stats.today}
+            />
           </button>
           <button className="h-full w-full text-left" onClick={() => toggleBucket("overdue")} type="button">
             <MetricCard icon={TriangleAlert} label="Overdue" supporting={bucket === "overdue" ? "Filter on" : "Date has passed"} value={stats.overdue} />
@@ -251,7 +308,7 @@ export function InterviewsManager() {
                   value={query}
                 />
               </label>
-              <FilterSheet active={Boolean(jobId || status)} title="Interview filters" triggerSize="md">
+              <FilterSheet active={Boolean(jobId || roleId || status)} title="Interview filters" triggerSize="md">
                 <FilterField label="Job">
                   <Dropdown
                     aria-label="Filter by job"
@@ -263,6 +320,19 @@ export function InterviewsManager() {
                     options={jobOptions}
                     size="md"
                     value={jobId}
+                  />
+                </FilterField>
+                <FilterField label="Role">
+                  <Dropdown
+                    aria-label="Filter by role"
+                    className="w-full"
+                    onChange={(next) => {
+                      setRoleId(next);
+                      setPage(1);
+                    }}
+                    options={roleOptions}
+                    size="md"
+                    value={roleId}
                   />
                 </FilterField>
                 <FilterField label="Status">
@@ -283,7 +353,7 @@ export function InterviewsManager() {
             <div className="hidden md:contents">
               <Dropdown
                 aria-label="Filter by job"
-                className="w-full xl:w-56"
+                className="w-full xl:w-52"
                 onChange={(next) => {
                   setJobId(next);
                   setPage(1);
@@ -291,6 +361,17 @@ export function InterviewsManager() {
                 options={jobOptions}
                 size="md"
                 value={jobId}
+              />
+              <Dropdown
+                aria-label="Filter by role"
+                className="w-full xl:w-52"
+                onChange={(next) => {
+                  setRoleId(next);
+                  setPage(1);
+                }}
+                options={roleOptions}
+                size="md"
+                value={roleId}
               />
               <Dropdown
                 aria-label="Filter by status"
@@ -321,7 +402,7 @@ export function InterviewsManager() {
             </button>
           </div>
 
-          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/70">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
             {listQuery.isPending ? (
               <div aria-label="Loading interviews" className="space-y-3 p-4" role="status">
                 {[1, 2, 3].map((item) => (
@@ -344,7 +425,7 @@ export function InterviewsManager() {
               <div className="px-6 py-16 text-center">
                 <CalendarClock aria-hidden className="mx-auto h-9 w-9 text-gray-400" />
                 <h3 className="mt-3 text-sm font-bold">
-                  {debouncedQuery || jobId || status || bucket ? "No interviews match your filters" : "No interviews yet"}
+                  {debouncedQuery || jobId || roleId || status || bucket ? "No interviews match your filters" : "No interviews yet"}
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">Schedule interviews from an application.</p>
               </div>

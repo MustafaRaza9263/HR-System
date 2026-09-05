@@ -107,7 +107,7 @@ export function NotificationMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Notifications"
-        className="relative grid h-9 w-9 place-items-center rounded-xl text-gray-500 transition-all hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+        className="hr-header-icon relative grid"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >

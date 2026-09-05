@@ -67,7 +67,7 @@ function DashboardScrollArea({ children }: { children: ReactNode }) {
 export function DashboardCard({ title, subtitle, actions, className, children }: DashboardCardProps) {
   return (
     <section
-      className={`flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/70 ${className ?? ""}`}
+      className={`flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 ${className ?? ""}`}
     >
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 sm:px-6">
         <div className="min-w-0">

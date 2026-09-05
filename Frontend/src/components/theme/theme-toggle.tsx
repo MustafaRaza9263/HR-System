@@ -17,7 +17,7 @@ export function ThemeToggle({ className = "", variant = "default" }: ThemeToggle
   return (
     <button
       aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}
-      className={`${isHeaderVariant ? "grid h-9 w-9 place-items-center rounded-xl text-gray-600 transition-colors hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:text-gray-400 dark:hover:bg-gray-800" : "grid h-10 w-10 place-items-center rounded-xl border border-gray-200 bg-white/80 text-gray-600 shadow-sm backdrop-blur transition hover:border-gray-300 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:text-white"} ${className}`}
+      className={`${isHeaderVariant ? "hr-header-icon grid" : "grid h-10 w-10 place-items-center rounded-xl border border-gray-200 bg-white/80 text-gray-600 shadow-sm backdrop-blur transition hover:border-gray-300 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:text-white"} ${className}`}
       onClick={toggleTheme}
       title={`Switch to ${isDark ? "light" : "dark"} theme`}
       type="button"

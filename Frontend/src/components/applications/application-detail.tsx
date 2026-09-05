@@ -73,7 +73,7 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
   });
 
   return (
-    <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
+    <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="mx-auto w-full max-w-6xl space-y-6">
         <nav className="flex flex-wrap items-center gap-2 text-sm">
           <Link

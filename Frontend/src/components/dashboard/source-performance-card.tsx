@@ -106,7 +106,7 @@ export function SourcePerformanceCard({ jobOptions }: SourcePerformanceCardProps
       ) : (
         <div>
           <table className="min-w-full text-left text-sm">
-            <thead className="sticky top-0 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-400">
+            <thead className="sticky top-16 z-20 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-400">
               <tr>
                 {(
                   [

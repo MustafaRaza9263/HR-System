@@ -67,7 +67,7 @@ export function ProfileMenu({ name, email }: ProfileMenuProps) {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Open profile menu"
-        className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-semibold text-white ring-2 ring-transparent transition hover:ring-emerald-400 focus:outline-none focus:ring-emerald-500"
+        className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-semibold text-white ring-1 ring-black/10 transition hover:ring-emerald-400 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:ring-white/20"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >

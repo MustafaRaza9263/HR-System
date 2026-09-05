@@ -9,7 +9,7 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, supporting, icon: Icon }: MetricCardProps) {
   return (
-    <article className="flex h-full min-h-36 flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 dark:border-gray-700 dark:bg-gray-800/70">
+    <article className="flex h-full min-h-36 flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 dark:border-gray-700 dark:bg-gray-800">
       <div className="flex flex-col items-start sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gray-100 text-gray-600 sm:order-2 sm:h-10 sm:w-10 dark:bg-gray-800 dark:text-gray-300">
           <Icon aria-hidden className="h-4 w-4 sm:h-5 sm:w-5" />
