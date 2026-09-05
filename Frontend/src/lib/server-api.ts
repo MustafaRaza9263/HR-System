@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import type { AuthenticatedUser } from "@/lib/api";
 
@@ -16,7 +17,7 @@ function getInternalApiUrl(): string {
   ).replace(/\/$/, "");
 }
 
-export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
+export const getCurrentUser = cache(async (): Promise<AuthenticatedUser | null> => {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
   if (!sessionCookie) return null;
@@ -33,4 +34,4 @@ export async function getCurrentUser(): Promise<AuthenticatedUser | null> {
   } catch {
     return null;
   }
-}
+});

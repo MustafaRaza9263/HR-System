@@ -71,6 +71,16 @@ export const queryKeys = {
   departments: {
     list: ["departments", "list"] as const,
   },
+  dashboard: {
+    all: ["dashboard"] as const,
+    summary: ["dashboard", "summary"] as const,
+    trend: (job: string, granularity: string) => ["dashboard", "trend", job, granularity] as const,
+    pipeline: (job: string) => ["dashboard", "pipeline", job] as const,
+    sources: (job: string) => ["dashboard", "sources", job] as const,
+    upcoming: (day: string) => ["dashboard", "upcoming", day] as const,
+    interviewers: ["dashboard", "interviewers"] as const,
+    activity: ["dashboard", "activity"] as const,
+  },
   notifications: {
     all: ["notifications"] as const,
     list: (filters?: NotificationListFilters) =>

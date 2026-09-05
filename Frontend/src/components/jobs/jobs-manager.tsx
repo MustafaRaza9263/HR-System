@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
+import { FilterField, FilterSheet } from "@/components/ui/filter-sheet";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
 import { PaginationBar } from "@/components/ui/pagination";
@@ -152,6 +153,15 @@ export function JobsManager() {
     return roles.filter((role) => role.departmentId === departmentId);
   }, [metaQuery.data?.roles, departmentId]);
 
+  const departmentOptions = [
+    { value: "", label: "All departments" },
+    ...departments.map((department) => ({ value: department.id, label: department.name })),
+  ];
+  const roleOptions = [
+    { value: "", label: "All roles" },
+    ...filteredRoles.map((role) => ({ value: role.id, label: role.name })),
+  ];
+
   const closeMutation = useMutation({
     mutationFn: async ({ jobId, closeReason }: { jobId: string; closeReason: string }) => {
       const result = await apiRequest<JobMutationResponse>(`/jobs/${jobId}/close`, {
@@ -210,7 +220,7 @@ export function JobsManager() {
   return (
     <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
       <div className="w-full space-y-6">
-        <section aria-label="Job metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Job metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <MetricCard icon={BriefcaseBusiness} label="Total jobs" supporting="All statuses" value={stats.totalJobs} />
           <MetricCard icon={FolderOpen} label="Total opened jobs" supporting="Currently accepting applications" value={stats.totalOpened} />
           <MetricCard icon={UsersRound} label="Average applicants on a job" supporting="Across all jobs" value={stats.averageApplicants} />
@@ -219,48 +229,75 @@ export function JobsManager() {
 
         <section aria-labelledby="jobs-table-title">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search jobs</span>
-              <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
-                onChange={(event) => {
-                  setQuery(event.target.value);
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search jobs</span>
+                <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search by title, description, or job id…"
+                  value={query}
+                />
+              </label>
+              <FilterSheet active={Boolean(departmentId || roleId)} title="Job filters" triggerSize="md">
+                <FilterField label="Department">
+                  <Dropdown
+                    aria-label="Filter by department"
+                    className="w-full"
+                    onChange={(next) => {
+                      setDepartmentId(next);
+                      setRoleId("");
+                      setPage(1);
+                    }}
+                    options={departmentOptions}
+                    size="md"
+                    value={departmentId}
+                  />
+                </FilterField>
+                <FilterField label="Role">
+                  <Dropdown
+                    aria-label="Filter by role"
+                    className="w-full"
+                    onChange={(next) => {
+                      setRoleId(next);
+                      setPage(1);
+                    }}
+                    options={roleOptions}
+                    size="md"
+                    value={roleId}
+                  />
+                </FilterField>
+              </FilterSheet>
+            </div>
+            <div className="hidden md:contents">
+              <Dropdown
+                aria-label="Filter by department"
+                className="w-full xl:w-52"
+                onChange={(next) => {
+                  setDepartmentId(next);
+                  setRoleId("");
                   setPage(1);
                 }}
-                placeholder="Search by title, description, or job id…"
-                value={query}
+                options={departmentOptions}
+                size="md"
+                value={departmentId}
               />
-            </label>
-            <Dropdown
-              aria-label="Filter by department"
-              className="w-full xl:w-52"
-              onChange={(next) => {
-                setDepartmentId(next);
-                setRoleId("");
-                setPage(1);
-              }}
-              options={[
-                { value: "", label: "All departments" },
-                ...departments.map((department) => ({ value: department.id, label: department.name })),
-              ]}
-              size="md"
-              value={departmentId}
-            />
-            <Dropdown
-              aria-label="Filter by role"
-              className="w-full xl:w-52"
-              onChange={(next) => {
-                setRoleId(next);
-                setPage(1);
-              }}
-              options={[
-                { value: "", label: "All roles" },
-                ...filteredRoles.map((role) => ({ value: role.id, label: role.name })),
-              ]}
-              size="md"
-              value={roleId}
-            />
+              <Dropdown
+                aria-label="Filter by role"
+                className="w-full xl:w-52"
+                onChange={(next) => {
+                  setRoleId(next);
+                  setPage(1);
+                }}
+                options={roleOptions}
+                size="md"
+                value={roleId}
+              />
+            </div>
             <Link
               className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
               href="/dashboard/jobs/new"

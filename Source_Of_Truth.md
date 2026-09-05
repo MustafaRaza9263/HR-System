@@ -110,6 +110,7 @@ Frontend/src
 | `UserProfile` | Name + email + initials avatar in tables |
 | `DateTimeDisplay` | Absolute date + time (not relative) in HR tables |
 | `Dropdown` | Filters and selects |
+| `FilterSheet` | List filters on mobile: funnel icon in the search row opens the Modal bottom sheet |
 | `Modal` | All dialogs. Desktop: centered card. Mobile: iOS bottom sheet with slide open/close. Do not copy overlay CSS per screen. |
 | Rounded-2xl bordered table card | All list tables |
 | `PaginationBar` | Bottom of paginated list tables: “Showing a–b of n” + page numbers |
@@ -145,7 +146,7 @@ All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inact
 | Department | name, normalizedName unique, icon, status, createdBy | |
 | Role | name, normalizedName, departmentId, icon, status, createdBy | Unique `(departmentId, normalizedName)` |
 | Job | see §9 | slug unique when string; `wizardStep` 1–4 |
-| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }` |
+| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }`; indexes `{ jobId: 1, createdAt: -1 }` and `{ createdAt: 1 }` |
 | Interview | applicationId, departmentId (copied from snapshot), label (required, ≤80), date, time, durationMinutes 15–240, status, createdBy | |
 | InterviewNote | interviewId, authorName, authorEmail, content ≤2000, createdAt | Separate collection |
 | DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
@@ -171,6 +172,13 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/jobs` | HR; `q, departmentId, roleId, status, page, limit≤50` default 15; slim list rows (no description/fieldsConfig); stats via aggregation; `{ jobs, stats, pagination }` |
 | POST | `/jobs` | HR draft |
 | GET | `/jobs/options` | HR; compact `{ id, title, status }[]` for filter dropdowns |
+| GET | `/dashboard/summary` | HR; KPI counts + 6-month Karachi range |
+| GET | `/dashboard/trend` | HR; `job=all\|open\|compare\|:id`; `granularity=daily\|weekly\|monthly\|yearly` (default daily); zero-filled buckets for last 30 days / 12 weeks / 12 months / 5 years; `compare` returns one series per open job |
+| GET | `/dashboard/pipeline` | HR; same `job` filter; all-time status counts |
+| GET | `/dashboard/sources` | HR; same `job` filter; source + nested campaigns |
+| GET | `/dashboard/upcoming-interviews` | HR; `day=today\|tomorrow`; scheduled slim rows |
+| GET | `/dashboard/interviewers` | HR; today’s unexpired-link guests (`approved` / `pending_approval`) |
+| GET | `/dashboard/activity` | HR; latest notifications; `limit` default 8, max 20 |
 | GET/PATCH/DELETE | `/jobs/:jobId` | PATCH/DELETE **draft only**; DELETE also `applicationCount===0` |
 | POST | `/jobs/:id/publish` `/close` `/duplicate` | see §9 |
 | GET | `/careers/jobs` | `open` only |
@@ -290,7 +298,7 @@ Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 4
 
 Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path.
 
-UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply sends them. Missing source → `"website"`.
+UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply sends them. Stored **lowercase**. Missing source → `"website"`. Missing or `organic` campaign → `"Organic"` (one bucket on `/dashboard/sources`).
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
 
@@ -387,5 +395,5 @@ Approve / reject / bulk reject / reschedule modals: `ToggleRow` “Send email”
 - No reopen; next cycle = Duplicate.
 - Hiring capacity is not tracked (no positions / `filled`). Approved count is a list metric only.
 - Scoring + Assistant sidebar links have no routes.
-- Dashboard home metrics are static placeholders.
+- Dashboard home (`/dashboard`): per-widget aggregation APIs (not one payload, not list endpoints). Trend buckets last 30 days / 12 weeks / 12 months / 5 years (`$dateTrunc` timezone `Asia/Karachi`, weeks start Monday); job-filtered aggregations use `{ jobId, createdAt }`. Client `staleTime` 45s. Job dropdowns share `GET /jobs/options` (drafts hidden).
 - Guest never sees HR panel. HR never uses guest cookie.

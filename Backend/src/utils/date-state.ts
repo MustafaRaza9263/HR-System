@@ -62,8 +62,12 @@ export function isAccessDateExpired(accessDate: string, now = new Date()): boole
   return accessDate < calendarDate(now);
 }
 
+/** First instant of a Karachi calendar day (PKT, UTC+5, no DST). */
+export function startOfCalendarInstant(isoDate: string): Date {
+  return new Date(`${isoDate}T00:00:00+05:00`);
+}
+
 /** First instant of the next Karachi calendar day (PKT, UTC+5, no DST). */
 export function endOfAccessInstant(accessDate: string): Date {
-  const next = shiftCalendarDate(accessDate, 1);
-  return new Date(`${next}T00:00:00+05:00`);
+  return startOfCalendarInstant(shiftCalendarDate(accessDate, 1));
 }

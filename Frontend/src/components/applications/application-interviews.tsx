@@ -384,7 +384,7 @@ export function InterviewActions({
   if (actions.length === 0) return null;
 
   return (
-    <div className={`flex flex-wrap items-center gap-1 ${className ?? ""}`.trim()}>
+    <div className={`flex flex-nowrap items-center gap-1 ${className ?? ""}`.trim()}>
       {actions.map((action) => {
         const Icon = ACTION_ICONS[action];
         const blocked = disabledReasons?.[action];

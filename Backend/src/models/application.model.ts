@@ -126,6 +126,7 @@ const applicationSchema = new Schema(
 );
 
 applicationSchema.index({ jobId: 1, createdAt: -1 });
+applicationSchema.index({ createdAt: 1 });
 applicationSchema.index({ candidateEmail: 1, createdAt: -1 });
 applicationSchema.index({ status: 1, createdAt: -1 });
 applicationSchema.index({ jobId: 1, candidateEmail: 1 });

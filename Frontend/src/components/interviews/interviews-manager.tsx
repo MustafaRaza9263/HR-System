@@ -23,6 +23,7 @@ import { InterviewNoteModal } from "@/components/interviews/interview-note-modal
 import { InviteInterviewersModal } from "@/components/interviews/invite-interviewers-modal";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { Dropdown } from "@/components/ui/dropdown";
+import { FilterField, FilterSheet } from "@/components/ui/filter-sheet";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PaginationBar } from "@/components/ui/pagination";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
@@ -152,6 +153,7 @@ export function InterviewsManager() {
   const stats = listQuery.data?.data.stats ?? emptyStats;
   const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
+  const jobOptions = [{ value: "", label: "All jobs" }, ...jobs.map((job) => ({ value: job.id, label: job.title }))];
 
   const hasPending = (pendingQuery.data?.data.requests.length ?? 0) > 0;
   const liveNoteTarget = noteTarget
@@ -218,58 +220,90 @@ export function InterviewsManager() {
   return (
     <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
       <div className="w-full space-y-6">
-        <section aria-label="Interview metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <button className="text-left" onClick={() => toggleBucket("scheduled")} type="button">
+        <section aria-label="Interview metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <button className="h-full w-full text-left" onClick={() => toggleBucket("scheduled")} type="button">
             <MetricCard icon={CalendarClock} label="Scheduled" supporting={bucket === "scheduled" ? "Filter on" : "Open interviews"} value={stats.scheduled} />
           </button>
-          <button className="text-left" onClick={() => toggleBucket("today")} type="button">
+          <button className="h-full w-full text-left" onClick={() => toggleBucket("today")} type="button">
             <MetricCard icon={CalendarDays} label="Today" supporting={bucket === "today" ? "Filter on" : "Scheduled today"} value={stats.today} />
           </button>
-          <button className="text-left" onClick={() => toggleBucket("tomorrow")} type="button">
+          <button className="h-full w-full text-left" onClick={() => toggleBucket("tomorrow")} type="button">
             <MetricCard icon={Clock3} label="Tomorrow" supporting={bucket === "tomorrow" ? "Filter on" : "Scheduled tomorrow"} value={stats.tomorrow} />
           </button>
-          <button className="text-left" onClick={() => toggleBucket("overdue")} type="button">
+          <button className="h-full w-full text-left" onClick={() => toggleBucket("overdue")} type="button">
             <MetricCard icon={TriangleAlert} label="Overdue" supporting={bucket === "overdue" ? "Filter on" : "Date has passed"} value={stats.overdue} />
           </button>
         </section>
 
         <section>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search interviews</span>
-              <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                onChange={(event) => {
-                  setQuery(event.target.value);
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search interviews</span>
+                <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search by candidate, email, phone, job, or label…"
+                  value={query}
+                />
+              </label>
+              <FilterSheet active={Boolean(jobId || status)} title="Interview filters" triggerSize="md">
+                <FilterField label="Job">
+                  <Dropdown
+                    aria-label="Filter by job"
+                    className="w-full"
+                    onChange={(next) => {
+                      setJobId(next);
+                      setPage(1);
+                    }}
+                    options={jobOptions}
+                    size="md"
+                    value={jobId}
+                  />
+                </FilterField>
+                <FilterField label="Status">
+                  <Dropdown
+                    aria-label="Filter by status"
+                    className="w-full"
+                    onChange={(next) => {
+                      setStatus(next);
+                      setPage(1);
+                    }}
+                    options={STATUS_OPTIONS}
+                    size="md"
+                    value={status}
+                  />
+                </FilterField>
+              </FilterSheet>
+            </div>
+            <div className="hidden md:contents">
+              <Dropdown
+                aria-label="Filter by job"
+                className="w-full xl:w-56"
+                onChange={(next) => {
+                  setJobId(next);
                   setPage(1);
                 }}
-                placeholder="Search by candidate, email, phone, job, or label…"
-                value={query}
+                options={jobOptions}
+                size="md"
+                value={jobId}
               />
-            </label>
-            <Dropdown
-              aria-label="Filter by job"
-              className="w-full xl:w-56"
-              onChange={(next) => {
-                setJobId(next);
-                setPage(1);
-              }}
-              options={[{ value: "", label: "All jobs" }, ...jobs.map((job) => ({ value: job.id, label: job.title }))]}
-              size="md"
-              value={jobId}
-            />
-            <Dropdown
-              aria-label="Filter by status"
-              className="w-full xl:w-48"
-              onChange={(next) => {
-                setStatus(next);
-                setPage(1);
-              }}
-              options={STATUS_OPTIONS}
-              size="md"
-              value={status}
-            />
+              <Dropdown
+                aria-label="Filter by status"
+                className="w-full xl:w-48"
+                onChange={(next) => {
+                  setStatus(next);
+                  setPage(1);
+                }}
+                options={STATUS_OPTIONS}
+                size="md"
+                value={status}
+              />
+            </div>
             <button
               aria-label={hasPending ? "Invitation, pending requests" : "Invitation"}
               className="relative inline-flex h-12 shrink-0 items-center justify-center gap-2 overflow-visible rounded-xl bg-indigo-600 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
@@ -361,8 +395,8 @@ export function InterviewsManager() {
                             items={[{ label: statusLabel(interview.displayStatus), tone: statusTone(interview.displayStatus) }]}
                           />
                         </td>
-                        <td className="px-4 py-3 align-middle">
-                          <div className="flex items-center gap-1">
+                        <td className="whitespace-nowrap px-4 py-3 align-middle">
+                          <div className="flex flex-nowrap items-center gap-1">
                             <InterviewActions
                               actions={interview.actions}
                               disabledReasons={completeDisabledReasons(interview.notes.length)}

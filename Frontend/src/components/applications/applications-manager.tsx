@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { Dropdown } from "@/components/ui/dropdown";
+import { FilterField, FilterSheet } from "@/components/ui/filter-sheet";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
 import { PaginationBar } from "@/components/ui/pagination";
@@ -146,6 +147,11 @@ export function ApplicationsManager() {
   const stats = listQuery.data?.data.stats ?? emptyStats;
   const pagination = listQuery.data?.data.pagination ?? emptyPagination(page);
   const jobs = jobsQuery.data?.data.jobs ?? [];
+  const jobOptions = [{ value: "", label: "All jobs" }, ...jobs.map((job) => ({ value: job.id, label: job.title }))];
+  const statusOptions = [
+    { value: "", label: "All statuses" },
+    ...APPLICATION_STATUSES.map((item) => ({ value: item, label: statusLabel(item) })),
+  ];
 
   const rejectableSelected = applications.filter(
     (item) => selectedIds.includes(item.id) && isUnlocked(item.status),
@@ -290,7 +296,7 @@ export function ApplicationsManager() {
   return (
     <div className="min-h-full bg-gray-50 p-4 text-gray-900 sm:p-6 md:p-8 dark:bg-gray-900 dark:text-gray-100">
       <div className="w-full space-y-6">
-        <section aria-label="Application metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Application metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <MetricCard icon={ClipboardList} label="Total applications" supporting="All statuses" value={stats.total} />
           <MetricCard icon={CalendarClock} label="Scheduled" supporting="Interview scheduled" value={stats.scheduled} />
           <MetricCard icon={UserX} label="Rejected" supporting="Closed as not a fit" value={stats.rejected} />
@@ -299,50 +305,78 @@ export function ApplicationsManager() {
 
         <section aria-labelledby="applications-table-title">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <label className="relative min-w-0 flex-1">
-              <span className="sr-only">Search applications</span>
-              <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
-                onChange={(event) => {
-                  setQuery(event.target.value);
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search applications</span>
+                <Search aria-hidden className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  className="h-12 w-full rounded-xl border border-gray-300 bg-white pl-12 pr-4 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(1);
+                    setSelectedIds([]);
+                  }}
+                  placeholder="Search by candidate name or email…"
+                  value={query}
+                />
+              </label>
+              <FilterSheet active={Boolean(jobId || status)} title="Application filters" triggerSize="md">
+                <FilterField label="Job">
+                  <Dropdown
+                    aria-label="Filter by job"
+                    className="w-full"
+                    onChange={(next) => {
+                      setJobId(next);
+                      setPage(1);
+                      setSelectedIds([]);
+                    }}
+                    options={jobOptions}
+                    size="md"
+                    value={jobId}
+                  />
+                </FilterField>
+                <FilterField label="Status">
+                  <Dropdown
+                    aria-label="Filter by status"
+                    className="w-full"
+                    onChange={(next) => {
+                      setStatus(next);
+                      setPage(1);
+                      setSelectedIds([]);
+                    }}
+                    options={statusOptions}
+                    size="md"
+                    value={status}
+                  />
+                </FilterField>
+              </FilterSheet>
+            </div>
+            <div className="hidden md:contents">
+              <Dropdown
+                aria-label="Filter by job"
+                className="w-full xl:w-56"
+                onChange={(next) => {
+                  setJobId(next);
                   setPage(1);
                   setSelectedIds([]);
                 }}
-                placeholder="Search by candidate name or email…"
-                value={query}
+                options={jobOptions}
+                size="md"
+                value={jobId}
               />
-            </label>
-            <Dropdown
-              aria-label="Filter by job"
-              className="w-full xl:w-56"
-              onChange={(next) => {
-                setJobId(next);
-                setPage(1);
-                setSelectedIds([]);
-              }}
-              options={[
-                { value: "", label: "All jobs" },
-                ...jobs.map((job) => ({ value: job.id, label: job.title })),
-              ]}
-              size="md"
-              value={jobId}
-            />
-            <Dropdown
-              aria-label="Filter by status"
-              className="w-full xl:w-48"
-              onChange={(next) => {
-                setStatus(next);
-                setPage(1);
-                setSelectedIds([]);
-              }}
-              options={[
-                { value: "", label: "All statuses" },
-                ...APPLICATION_STATUSES.map((item) => ({ value: item, label: statusLabel(item) })),
-              ]}
-              size="md"
-              value={status}
-            />
+              <Dropdown
+                aria-label="Filter by status"
+                className="w-full xl:w-48"
+                onChange={(next) => {
+                  setStatus(next);
+                  setPage(1);
+                  setSelectedIds([]);
+                }}
+                options={statusOptions}
+                size="md"
+                value={status}
+              />
+            </div>
           </div>
 
           {selectedIds.length > 0 || jobId ? (
