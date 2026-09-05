@@ -13,6 +13,7 @@ import { applySystemFieldsSchema, educationEntriesSchema, experienceEntriesSchem
 import { enqueueApplicationSideEffects } from "../services/application-side-effects.js";
 import { ApiError } from "../utils/api-error.js";
 import { parseAnswersJson, validateCustomFieldAnswers, type JobCustomField } from "../utils/application-answers.js";
+import { assertNoDuplicateApplication } from "../utils/application-duplicate.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { saveUpload } from "../utils/uploads.js";
 import { extractUtm } from "../utils/utm.js";
@@ -190,6 +191,12 @@ careersRouter.post(
       candidateCnic: body.candidateCnic,
       candidateMaritalStatus: body.candidateMaritalStatus,
       candidateAlternativePhone: body.candidateAlternativePhone,
+    });
+
+    await assertNoDuplicateApplication({
+      jobId: job._id,
+      candidateEmail: system.candidateEmail,
+      candidateCnic: system.candidateCnic,
     });
 
     const uploaded = filesByField(request.files as Express.Multer.File[] | undefined);

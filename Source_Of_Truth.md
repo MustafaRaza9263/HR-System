@@ -175,7 +175,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | POST | `/jobs/:id/publish` `/close` `/duplicate` | see §9 |
 | GET | `/careers/jobs` | `open` only |
 | GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
-| POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit |
+| POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit; 409 `DUPLICATE_APPLICATION` if same job + (email **or** CNIC) exists in a non-`rejected` status |
 | GET | `/applications` | HR; `q, jobId, status, page, limit≤50` default 15; list fields only; stats via aggregation; `{ applications, stats, pagination }` |
 | POST | `/applications/bulk-reject` | HR; requires `jobId`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
 | GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
@@ -273,7 +273,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 - **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**. Optional `sendEmail` (default true) — approve/reject/bulk-reject modals have a Send email toggle, default on. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count. HTTP returns after the DB write; rejection emails are queued and sent in Resend batches of up to 100 (one click of 50 does not wait on SMTP).
 - **Approve** (list): not if `approved` or `rejected`. Reason required (≥10 ≤500) stored as `decisionReason` + `approvedAt`. Does **not** cancel interviews. Optional `sendEmail` (default true). Terminal.
 - **Trial** (list): not if `approved` or `rejected`. No reason. Sets `trialAt`. Does **not** cancel interviews. **No email.** Not terminal — can still approve, reject, or schedule more interviews. Re-trial allowed (refreshes `trialAt`).
-- Reapply: **not blocked and not flagged**.
+- Reapply: blocked unless every existing application for that job with the same email **or** CNIC is **rejected**. Not flagged on the HR list.
 
 ### Workflow — public apply
 
@@ -282,6 +282,8 @@ Multiple drafts for same dept+role are allowed until one publishes.
 Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
 
 **Required system fields:** name, email, phone, date of birth, CNIC (`xxxxx-xxxxxxx-x`), marital status (Single / Married / Divorced / Widowed), resume (pdf/doc/docx ≤5MB). Optional: alternative phone. **Required sections:** ≥1 experience (company, title, startDate; currentlyWorking checkbox disables end date; optional salary; end ≥ start when set), ≥1 education (school, degree; optional CGPA/percentage). Max 8 each.
+
+**Duplicate apply:** after system-field parse, 409 `DUPLICATE_APPLICATION` (“You already have an application for this role.”) if another row for this job has the same email **or** CNIC and status is not `rejected`. A rejected-only match is allowed. Apply page shows this on the existing error alert (not a field error).
 
 Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path.
 

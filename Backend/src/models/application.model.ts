@@ -104,6 +104,8 @@ const applicationSchema = new Schema(
 applicationSchema.index({ jobId: 1, createdAt: -1 });
 applicationSchema.index({ candidateEmail: 1, createdAt: -1 });
 applicationSchema.index({ status: 1, createdAt: -1 });
+applicationSchema.index({ jobId: 1, candidateEmail: 1 });
+applicationSchema.index({ jobId: 1, candidateCnic: 1 });
 
 export type ApplicationDocument = InferSchemaType<typeof applicationSchema>;
 export const Application = model("Application", applicationSchema);
