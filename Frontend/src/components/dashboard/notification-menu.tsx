@@ -207,14 +207,14 @@ export function NotificationMenu() {
           <div className="border-t border-gray-100 bg-gray-50/50 p-3 dark:border-gray-800 dark:bg-gray-800/30">
             <div className="grid grid-cols-2 gap-2">
               <Link
-                className="rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                className="flex w-full items-center justify-center rounded-lg bg-gray-900 px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                 href="/dashboard/notifications"
                 onClick={() => setOpen(false)}
               >
                 View all notifications
               </Link>
               <button
-                className="rounded-lg px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                className="flex w-full items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
                 onClick={() => setOpen(false)}
                 type="button"
               >

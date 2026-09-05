@@ -18,6 +18,16 @@ import { queryKeys } from "@/lib/query/query-keys";
 
 type SortKey = "name" | "applications" | "interviewed" | "approved" | "rate";
 
+const SOURCE_COLUMNS: Array<[SortKey, string]> = [
+  ["name", "Source"],
+  ["applications", "Applications"],
+  ["interviewed", "Interviewed"],
+  ["approved", "Approved"],
+  ["rate", "Approval %"],
+];
+
+const SOURCE_GRID = "grid grid-cols-5 items-center";
+
 interface SourcePerformanceCardProps {
   jobOptions: DropdownOption[];
 }
@@ -104,39 +114,29 @@ export function SourcePerformanceCard({ jobOptions }: SourcePerformanceCardProps
       ) : rows.length === 0 ? (
         <DashboardEmpty>No source data yet.</DashboardEmpty>
       ) : (
-        <div>
-          <table className="min-w-full text-left text-sm">
-            <thead className="sticky top-16 z-20 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-400">
-              <tr>
-                {(
-                  [
-                    ["name", "Source"],
-                    ["applications", "Applications"],
-                    ["interviewed", "Interviewed"],
-                    ["approved", "Approved"],
-                    ["rate", "Approval %"],
-                  ] as Array<[SortKey, string]>
-                ).map(([key, label]) => (
-                  <th className="px-3 py-2" key={key}>
-                    <button className="font-bold uppercase tracking-wide hover:text-gray-800 dark:hover:text-gray-200" onClick={() => toggleSort(key)} type="button">
-                      {label}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {rows.map((row) => (
-                <SourceRows
-                  expanded={expanded === row.source}
-                  key={row.source}
-                  maxApplications={maxApplications}
-                  onToggle={() => setExpanded((current) => (current === row.source ? null : row.source))}
-                  row={row}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div className="flex h-full min-h-0 flex-1 flex-col">
+          <div
+            className={`${SOURCE_GRID} shrink-0 border-b border-gray-200 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400`}
+          >
+            {SOURCE_COLUMNS.map(([key, label]) => (
+              <div className="px-3 py-2" key={key}>
+                <button className="font-bold uppercase tracking-wide hover:text-gray-800 dark:hover:text-gray-200" onClick={() => toggleSort(key)} type="button">
+                  {label}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="hr-hide-scrollbar min-h-0 flex-1 overflow-y-auto">
+            {rows.map((row) => (
+              <SourceRows
+                expanded={expanded === row.source}
+                key={row.source}
+                maxApplications={maxApplications}
+                onToggle={() => setExpanded((current) => (current === row.source ? null : row.source))}
+                row={row}
+              />
+            ))}
+          </div>
         </div>
       )}
     </DashboardCard>
@@ -156,44 +156,38 @@ function SourceRows({
 }) {
   const barWidth = Math.round((row.applications / maxApplications) * 100);
   return (
-    <>
-      <tr className="cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-900/40" onClick={onToggle}>
-        <td className="px-3 py-2.5">
+    <div className="border-b border-gray-100 dark:border-gray-800">
+      <div className={`${SOURCE_GRID} cursor-pointer hover:bg-gray-50/80 dark:hover:bg-gray-900/40`} onClick={onToggle}>
+        <div className="px-3 py-2.5 text-sm">
           <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded border border-gray-200 text-xs text-gray-500 dark:border-gray-700">
             {expanded ? "−" : "+"}
           </span>
           {row.name}
-        </td>
-        <td className="px-3 py-2.5">
+        </div>
+        <div className="px-3 py-2.5 text-sm">
           {row.applications.toLocaleString()}
-          <span className="mt-1 block h-1 w-24 overflow-hidden rounded bg-gray-100 dark:bg-gray-800">
+          <span className="mt-1 block h-1 w-24 max-w-full overflow-hidden rounded bg-gray-100 dark:bg-gray-800">
             <span className="block h-full rounded bg-indigo-600" style={{ width: `${barWidth}%` }} />
           </span>
-        </td>
-        <td className="px-3 py-2.5">{row.interviewed.toLocaleString()}</td>
-        <td className="px-3 py-2.5">{row.approved.toLocaleString()}</td>
-        <td className={`px-3 py-2.5 font-bold ${rateClass(row.rate)}`}>{row.rate.toFixed(1)}%</td>
-      </tr>
-      {expanded ? (
-        <tr>
-          <td className="px-3 pb-3" colSpan={5}>
-            <div className="rounded-lg bg-gray-50 px-3 py-1 dark:bg-gray-900/60">
-              {row.campaigns.map((campaign, index) => (
-                <div
-                  className="grid grid-cols-5 gap-2 border-b border-gray-100 py-1.5 text-xs text-gray-500 last:border-b-0 dark:border-gray-800 dark:text-gray-400"
-                  key={`${campaign.name}-${index}`}
-                >
-                  <span className="font-semibold text-gray-900 dark:text-white">{campaign.name}</span>
-                  <span>{campaign.applications.toLocaleString()}</span>
-                  <span>{campaign.interviewed.toLocaleString()}</span>
-                  <span>{campaign.approved.toLocaleString()}</span>
-                  <span>{campaign.rate.toFixed(1)}%</span>
-                </div>
-              ))}
+        </div>
+        <div className="px-3 py-2.5 text-sm">{row.interviewed.toLocaleString()}</div>
+        <div className="px-3 py-2.5 text-sm">{row.approved.toLocaleString()}</div>
+        <div className={`px-3 py-2.5 text-sm font-bold ${rateClass(row.rate)}`}>{row.rate.toFixed(1)}%</div>
+      </div>
+      {expanded
+        ? row.campaigns.map((campaign, index) => (
+            <div
+              className={`${SOURCE_GRID} bg-gray-50 text-xs text-gray-500 dark:bg-gray-900/50 dark:text-gray-400`}
+              key={`${row.source}-${campaign.name}-${index}`}
+            >
+              <div className="py-2 pl-11 pr-3 font-semibold text-gray-900 dark:text-white">{campaign.name}</div>
+              <div className="px-3 py-2">{campaign.applications.toLocaleString()}</div>
+              <div className="px-3 py-2">{campaign.interviewed.toLocaleString()}</div>
+              <div className="px-3 py-2">{campaign.approved.toLocaleString()}</div>
+              <div className={`px-3 py-2 font-bold ${rateClass(campaign.rate)}`}>{campaign.rate.toFixed(1)}%</div>
             </div>
-          </td>
-        </tr>
-      ) : null}
-    </>
+          ))
+        : null}
+    </div>
   );
 }

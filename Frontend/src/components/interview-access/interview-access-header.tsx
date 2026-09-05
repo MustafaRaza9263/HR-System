@@ -12,6 +12,7 @@ import {
 } from "@floating-ui/react";
 import { useState } from "react";
 
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { StatusPills, type PillTone } from "@/components/ui/status-pills";
 import { getInitials } from "@/components/ui/user-profile";
@@ -59,7 +60,8 @@ export function InterviewAccessHeader({
         <h1 className="justify-self-center truncate text-center text-sm font-bold text-gray-950 md:text-base dark:text-white">
           Interviewer Portal
         </h1>
-        <div className="justify-self-end">
+        <div className="flex items-center gap-2 justify-self-end">
+          <ThemeToggle variant="header" />
           {session ? <ProfileMenu expiresAt={expiresAt} session={session} /> : null}
         </div>
       </div>

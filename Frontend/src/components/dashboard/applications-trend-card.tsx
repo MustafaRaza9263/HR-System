@@ -232,7 +232,7 @@ export function ApplicationsTrendCard({ jobOptions }: ApplicationsTrendCardProps
       subtitle={`Applications received · ${TREND_RANGE_LABEL[granularity]}`}
       title="Applications trend"
     >
-      <div className="flex h-full min-h-0 flex-col [&_.recharts-surface]:outline-none [&_.recharts-wrapper]:outline-none">
+      <div className="flex h-full min-h-0 flex-1 flex-col [&_.recharts-surface]:outline-none [&_.recharts-wrapper]:outline-none">
         {trendQuery.isPending && !trendQuery.data ? (
           <DashboardSkeleton />
         ) : !hasValues ? (
