@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  transpilePackages: ["react-phone-number-input", "libphonenumber-js", "country-flag-icons"],
 };
 
 export default nextConfig;

@@ -1,3 +1,5 @@
+import { isValidPhoneNumber } from "react-phone-number-input";
+
 import type { CustomField } from "@/lib/jobs/types";
 import { getStoredUtm } from "@/lib/utm";
 
@@ -82,6 +84,7 @@ function todayIsoDate() {
 }
 
 function isValidPhone(value: string) {
+  if (isValidPhoneNumber(value)) return true;
   return /^[+\d][\d\s().-]*$/.test(value) && value.replace(/\D/g, "").length >= 7;
 }
 

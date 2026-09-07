@@ -7,11 +7,14 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
+import { DateInput, todayIsoDate } from "@/components/ui/date-input";
 import { Dropdown } from "@/components/ui/dropdown";
+import { FileUploader } from "@/components/ui/file-uploader";
+import { PhoneField } from "@/components/ui/phone-field";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
 import type { ApplyResponse, PublicJobDetail, PublicJobDetailResponse } from "@/lib/applications/types";
-import { ALLOWED_UPLOAD_ACCEPT, MARITAL_STATUSES, MAX_UPLOAD_BYTES } from "@/lib/applications/types";
+import { MARITAL_STATUSES } from "@/lib/applications/types";
 import {
   buildApplyFormData,
   emptyEducation,
@@ -189,11 +192,10 @@ function CustomFieldInput({
           {field.label}
           {field.required ? <span className="text-red-500"> *</span> : null}
         </span>
-        <input
-          className={inputClass}
+        <DateInput
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          type="date"
+          invalid={Boolean(error)}
+          onChange={(date) => onChange(date)}
           value={typeof value === "string" ? value : ""}
         />
         <FieldError message={error} />
@@ -223,23 +225,20 @@ function CustomFieldInput({
   if (field.type === "file") {
     const file = value instanceof File ? value : null;
     return (
-      <label className="block">
+      <div>
         <span className="mb-2 block text-sm font-semibold">
           {field.label}
           {field.required ? <span className="text-red-500"> *</span> : null}
         </span>
-        <input
-          accept={ALLOWED_UPLOAD_ACCEPT}
-          className="block w-full text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border file:border-neutral-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold dark:text-neutral-300 dark:file:border-gray-700 dark:file:bg-gray-900 dark:file:text-white"
+        <FileUploader
           disabled={disabled}
-          onChange={(event) => onChange(event.target.files?.[0] ?? null)}
-          type="file"
+          file={file}
+          invalid={Boolean(error)}
+          label={field.label}
+          onChange={(next) => onChange(next)}
         />
-        <p className="mt-1 text-xs text-neutral-400">
-          PDF or Word, up to 5 MB{file ? ` · ${file.name}` : ""}
-        </p>
         <FieldError message={error} />
-      </label>
+      </div>
     );
   }
 
@@ -383,48 +382,50 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                   />
                   <FieldError message={errors.candidateEmail} />
                 </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold">
-                    Phone <span className="text-red-500">*</span>
-                  </span>
-                  <input
+                <div>
+                  <PhoneField
                     autoComplete="tel"
-                    className={inputClass}
                     disabled={busy}
-                    maxLength={30}
-                    onChange={(event) => setValues((current) => ({ ...current, candidatePhone: event.target.value }))}
-                    type="tel"
+                    invalid={Boolean(errors.candidatePhone)}
+                    numberLabel="Phone"
+                    onChange={(phone) =>
+                      setValues((current) =>
+                        current.candidatePhone === phone ? current : { ...current, candidatePhone: phone },
+                      )
+                    }
+                    required
                     value={values.candidatePhone}
                   />
                   <FieldError message={errors.candidatePhone} />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold">Alternative phone number</span>
-                  <input
+                </div>
+                <div>
+                  <PhoneField
                     autoComplete="tel"
-                    className={inputClass}
                     disabled={busy}
-                    maxLength={30}
-                    onChange={(event) =>
-                      setValues((current) => ({ ...current, candidateAlternativePhone: event.target.value }))
+                    invalid={Boolean(errors.candidateAlternativePhone)}
+                    numberLabel="Alternative phone number"
+                    onChange={(phone) =>
+                      setValues((current) =>
+                        current.candidateAlternativePhone === phone
+                          ? current
+                          : { ...current, candidateAlternativePhone: phone },
+                      )
                     }
-                    type="tel"
                     value={values.candidateAlternativePhone}
                   />
                   <FieldError message={errors.candidateAlternativePhone} />
-                </label>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-semibold">
                       Date of birth <span className="text-red-500">*</span>
                     </span>
-                    <input
-                      className={inputClass}
+                    <DateInput
                       disabled={busy}
-                      onChange={(event) =>
-                        setValues((current) => ({ ...current, candidateDateOfBirth: event.target.value }))
-                      }
-                      type="date"
+                      invalid={Boolean(errors.candidateDateOfBirth)}
+                      max={todayIsoDate()}
+                      min="1920-01-01"
+                      onChange={(date) => setValues((current) => ({ ...current, candidateDateOfBirth: date }))}
                       value={values.candidateDateOfBirth}
                     />
                     <FieldError message={errors.candidateDateOfBirth} />
@@ -461,23 +462,27 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                   />
                   <FieldError message={errors.candidateMaritalStatus} />
                 </label>
-                <label className="block">
+                <div>
                   <span className="mb-2 block text-sm font-semibold">
                     Resume <span className="text-red-500">*</span>
                   </span>
-                  <input
-                    accept={ALLOWED_UPLOAD_ACCEPT}
-                    className="block w-full text-sm text-neutral-600 file:mr-3 file:rounded-lg file:border file:border-neutral-300 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold dark:text-neutral-300 dark:file:border-gray-700 dark:file:bg-gray-900 dark:file:text-white"
+                  <FileUploader
                     disabled={busy}
-                    onChange={(event) => setValues((current) => ({ ...current, resume: event.target.files?.[0] ?? null }))}
-                    type="file"
+                    file={values.resume}
+                    invalid={Boolean(errors.resume)}
+                    label="Resume"
+                    onChange={(file) => {
+                      setValues((current) => ({ ...current, resume: file }));
+                      setErrors((current) => {
+                        if (!current.resume) return current;
+                        const next = { ...current };
+                        delete next.resume;
+                        return next;
+                      });
+                    }}
                   />
-                  <p className="mt-1 text-xs text-neutral-400">
-                    PDF or Word, up to {Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB
-                    {values.resume ? ` · ${values.resume.name}` : ""}
-                  </p>
                   <FieldError message={errors.resume} />
-                </label>
+                </div>
               </>
             ) : null}
 
@@ -573,36 +578,34 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                           <span className="mb-2 block text-sm font-semibold">
                             Start date <span className="text-red-500">*</span>
                           </span>
-                          <input
-                            className={inputClass}
+                          <DateInput
                             disabled={busy}
-                            onChange={(event) =>
+                            invalid={Boolean(errors[`experience.${index}.startDate`])}
+                            onChange={(date) =>
                               setValues((current) => ({
                                 ...current,
                                 experience: current.experience.map((item) =>
-                                  item.id === entry.id ? { ...item, startDate: event.target.value } : item,
+                                  item.id === entry.id ? { ...item, startDate: date } : item,
                                 ),
                               }))
                             }
-                            type="date"
                             value={entry.startDate}
                           />
                           <FieldError message={errors[`experience.${index}.startDate`]} />
                         </label>
                         <label className="block">
                           <span className="mb-2 block text-sm font-semibold">End date</span>
-                          <input
-                            className={inputClass}
+                          <DateInput
                             disabled={busy || entry.currentlyWorking}
-                            onChange={(event) =>
+                            invalid={Boolean(errors[`experience.${index}.endDate`])}
+                            onChange={(date) =>
                               setValues((current) => ({
                                 ...current,
                                 experience: current.experience.map((item) =>
-                                  item.id === entry.id ? { ...item, endDate: event.target.value } : item,
+                                  item.id === entry.id ? { ...item, endDate: date } : item,
                                 ),
                               }))
                             }
-                            type="date"
                             value={entry.currentlyWorking ? "" : entry.endDate}
                           />
                           <FieldError message={errors[`experience.${index}.endDate`]} />
@@ -765,36 +768,34 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className="block">
                           <span className="mb-2 block text-sm font-semibold">Start date</span>
-                          <input
-                            className={inputClass}
+                          <DateInput
                             disabled={busy}
-                            onChange={(event) =>
+                            invalid={Boolean(errors[`education.${index}.startDate`])}
+                            onChange={(date) =>
                               setValues((current) => ({
                                 ...current,
                                 education: current.education.map((item) =>
-                                  item.id === entry.id ? { ...item, startDate: event.target.value } : item,
+                                  item.id === entry.id ? { ...item, startDate: date } : item,
                                 ),
                               }))
                             }
-                            type="date"
                             value={entry.startDate}
                           />
                           <FieldError message={errors[`education.${index}.startDate`]} />
                         </label>
                         <label className="block">
                           <span className="mb-2 block text-sm font-semibold">End date</span>
-                          <input
-                            className={inputClass}
+                          <DateInput
                             disabled={busy}
-                            onChange={(event) =>
+                            invalid={Boolean(errors[`education.${index}.endDate`])}
+                            onChange={(date) =>
                               setValues((current) => ({
                                 ...current,
                                 education: current.education.map((item) =>
-                                  item.id === entry.id ? { ...item, endDate: event.target.value } : item,
+                                  item.id === entry.id ? { ...item, endDate: date } : item,
                                 ),
                               }))
                             }
-                            type="date"
                             value={entry.endDate}
                           />
                           <FieldError message={errors[`education.${index}.endDate`]} />

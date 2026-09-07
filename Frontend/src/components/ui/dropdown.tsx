@@ -12,12 +12,24 @@ import {
   useInteractions,
 } from "@floating-ui/react";
 import { Check, ChevronDown, Search } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 export interface DropdownOption {
   value: string;
   label: string;
   disabled?: boolean;
+  leading?: ReactNode;
+  meta?: string;
+  keywords?: string;
 }
 
 type DropdownSize = "sm" | "md";
@@ -34,6 +46,9 @@ interface DropdownProps {
   name?: string;
   required?: boolean;
   className?: string;
+  triggerClassName?: string;
+  compactTrigger?: boolean;
+  menuMinWidth?: number;
   "aria-label"?: string;
   "aria-labelledby"?: string;
 }
@@ -57,6 +72,9 @@ export function Dropdown({
   name,
   required,
   className,
+  triggerClassName,
+  compactTrigger = false,
+  menuMinWidth,
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy,
 }: DropdownProps) {
@@ -80,7 +98,10 @@ export function Dropdown({
   const filtered = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase();
     if (!clean) return options;
-    return options.filter((option) => option.label.toLocaleLowerCase().includes(clean));
+    return options.filter((option) => {
+      const haystack = `${option.label} ${option.meta ?? ""} ${option.keywords ?? ""} ${option.value}`;
+      return haystack.toLocaleLowerCase().includes(clean);
+    });
   }, [options, query]);
 
   function openMenu() {
@@ -112,7 +133,7 @@ export function Dropdown({
         padding: 8,
         apply({ availableHeight, rects, elements }) {
           Object.assign(elements.floating.style, {
-            width: `${rects.reference.width}px`,
+            width: `${Math.max(rects.reference.width, menuMinWidth ?? 0)}px`,
             maxHeight: `${Math.min(MENU_MAX_HEIGHT, Math.max(72, availableHeight))}px`,
           });
         },
@@ -285,17 +306,28 @@ export function Dropdown({
         aria-controls={open ? listboxId : undefined}
         aria-expanded={open}
         aria-haspopup="listbox"
-        aria-label={ariaLabel}
+        aria-label={
+          ariaLabel ??
+          (compactTrigger && selected ? [selected.label, selected.meta].filter(Boolean).join(" ") : undefined)
+        }
         aria-labelledby={ariaLabelledBy}
         className={cx(
-          "flex w-full items-center rounded-xl border bg-white px-3.5 text-left text-sm outline-none transition",
+          "flex w-full items-center rounded-xl border text-left text-sm outline-none transition",
           triggerHeight,
-          size === "md" ? "shadow-sm" : "",
-          open
-            ? "border-indigo-500 ring-3 ring-indigo-500/10"
-            : "border-gray-300 focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600",
-          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-gray-400 dark:hover:border-gray-500",
-          "dark:bg-gray-800 dark:text-white",
+          triggerClassName
+            ? cx(
+                triggerClassName,
+                open && "border-neutral-500",
+                disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+              )
+            : cx(
+                size === "md" ? "shadow-sm" : "",
+                open
+                  ? "border-indigo-500 ring-3 ring-indigo-500/10"
+                  : "border-gray-300 focus:border-indigo-500 focus:ring-3 focus:ring-indigo-500/10 dark:border-gray-600",
+                disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-gray-400 dark:hover:border-gray-500",
+                "bg-white px-3.5 dark:bg-gray-800 dark:text-white",
+              ),
         )}
         disabled={disabled}
         id={triggerId}
@@ -316,8 +348,13 @@ export function Dropdown({
         }}
         ref={setReferenceEl}
       >
+        {selected?.leading ? <span className="mr-2 shrink-0">{selected.leading}</span> : null}
         <span className={cx("min-w-0 flex-1 truncate", selected ? "text-gray-900 dark:text-white" : "text-gray-400")}>
-          {selected?.label ?? placeholder}
+          {selected
+            ? compactTrigger
+              ? (selected.meta ?? selected.label)
+              : [selected.label, selected.meta].filter(Boolean).join(" ")
+            : placeholder}
         </span>
         <ChevronDown
           aria-hidden
@@ -378,7 +415,7 @@ export function Dropdown({
                       aria-disabled={option.disabled || undefined}
                       aria-selected={isSelected}
                       className={cx(
-                        "flex h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-sm transition",
+                        "flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition",
                         option.disabled && "cursor-not-allowed opacity-40",
                         isActive && !isSelected && "bg-gray-100 dark:bg-gray-800",
                         isSelected && "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300",
@@ -396,7 +433,9 @@ export function Dropdown({
                       }}
                       role="option"
                     >
+                      {option.leading ? <span className="shrink-0">{option.leading}</span> : null}
                       <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                      {option.meta ? <span className="shrink-0 text-xs text-gray-400">{option.meta}</span> : null}
                       {isSelected ? <Check aria-hidden className="h-4 w-4 shrink-0" /> : null}
                     </div>
                   );
