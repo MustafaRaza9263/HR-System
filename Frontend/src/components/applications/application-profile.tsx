@@ -9,6 +9,7 @@ import { StatusPills } from "@/components/ui/status-pills";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload } from "@/lib/api";
 import type { ApplicationAnswer, ApplicationDetail, EducationEntry, ExperienceEntry } from "@/lib/applications/types";
+import { parseHttpUrl } from "@/lib/applications/http-url";
 import { formatSalaryAmount } from "@/lib/applications/salary";
 import { formatCalendarDate } from "@/lib/interviews/format";
 import type { FieldSection } from "@/lib/jobs/types";
@@ -46,10 +47,6 @@ function educationRange(entry: EducationEntry) {
   const end = entry.endDate ? formatCalendarDate(entry.endDate, "yyyy") : null;
   if (start && end) return `${start} – ${end}`;
   return start || end || null;
-}
-
-function isHttpUrl(value: string) {
-  return /^https?:\/\//i.test(value.trim());
 }
 
 function formatAnswerValue(answer: ApplicationAnswer): string {
@@ -302,7 +299,7 @@ function AnswerFact({
   onDownload: (path: string, filename: string, key: string) => void;
 }) {
   const display = formatAnswerValue(answer);
-  const linkable = answer.type === "text" && typeof answer.value === "string" && isHttpUrl(answer.value);
+  const href = answer.type === "url" && typeof answer.value === "string" ? parseHttpUrl(answer.value) : null;
   const spanFile = answer.type === "file";
 
   return (
@@ -321,10 +318,10 @@ function AnswerFact({
             <Download aria-hidden className="h-3.5 w-3.5" />
             {downloading === answer.fieldId ? "Downloading…" : (answer.fileName ?? "Download file")}
           </button>
-        ) : linkable ? (
+        ) : href ? (
           <a
             className="break-all hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
-            href={String(answer.value)}
+            href={href}
             rel="noopener noreferrer"
             target="_blank"
           >

@@ -252,6 +252,29 @@ function CustomFieldInput({
     );
   }
 
+  if (field.type === "url") {
+    return (
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold">
+          {field.label}
+          {field.required ? <span className="text-red-500"> *</span> : null}
+        </span>
+        <input
+          autoComplete="url"
+          className={inputClass}
+          disabled={disabled}
+          inputMode="url"
+          maxLength={maxLength}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="https://"
+          type="url"
+          value={typeof value === "string" ? value : ""}
+        />
+        <FieldError message={error} />
+      </label>
+    );
+  }
+
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-semibold">

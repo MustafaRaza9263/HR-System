@@ -16,7 +16,7 @@ const customFieldSchema = new Schema(
     label: { type: String, required: true, trim: true, maxlength: 120 },
     type: {
       type: String,
-      enum: ["text", "textarea", "number", "select", "date", "checkbox", "file"],
+      enum: ["text", "textarea", "url", "number", "select", "date", "checkbox", "file"],
       required: true,
     },
     required: { type: Boolean, required: true, default: false },

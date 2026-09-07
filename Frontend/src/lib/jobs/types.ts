@@ -13,6 +13,7 @@ export type JobType =
 export type CustomFieldType =
   | "text"
   | "textarea"
+  | "url"
   | "number"
   | "select"
   | "date"
@@ -141,6 +142,7 @@ export const JOB_TYPES: JobType[] = [
 export const FIELD_TYPES: CustomFieldType[] = [
   "text",
   "textarea",
+  "url",
   "number",
   "select",
   "date",

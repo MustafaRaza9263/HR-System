@@ -4,6 +4,7 @@ import { DEFAULT_SALARY_CURRENCY, parseSalaryDigits } from "@/lib/applications/s
 import type { CustomField } from "@/lib/jobs/types";
 import { getStoredUtm } from "@/lib/utm";
 
+import { parseHttpUrl } from "./http-url";
 import { MARITAL_STATUSES, MAX_UPLOAD_BYTES } from "./types";
 
 export interface ExperienceFormEntry {
@@ -233,10 +234,18 @@ export function validateApplyForm(fields: CustomField[], values: ApplyFormValues
       continue;
     }
 
-    if ((field.type === "text" || field.type === "textarea") && typeof field.constraint?.maxLength === "number") {
+    if (
+      (field.type === "text" || field.type === "textarea" || field.type === "url") &&
+      typeof field.constraint?.maxLength === "number"
+    ) {
       if (text.length > field.constraint.maxLength) {
         errors[field.id] = `${field.label} must be at most ${field.constraint.maxLength} characters.`;
+        continue;
       }
+    }
+
+    if (field.type === "url" && !parseHttpUrl(text)) {
+      errors[field.id] = `Enter an http or https URL for ${field.label}.`;
     }
 
     if (field.type === "select") {

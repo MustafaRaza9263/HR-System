@@ -5,6 +5,7 @@ import {
   salaryCurrencyEnum,
 } from "../../schemas/application.schema.js";
 import type { JobCustomField } from "../../utils/application-answers.js";
+import { parseHttpUrl } from "../../utils/http-url.js";
 
 const MAX_ENTRIES = 8;
 
@@ -160,7 +161,7 @@ function sanitizeCustomAnswer(field: JobCustomField, raw: unknown): string | num
   const text = raw.trim();
   if (!text) return undefined;
 
-  if ((field.type === "text" || field.type === "textarea") && typeof field.constraint?.maxLength === "number") {
+  if ((field.type === "text" || field.type === "textarea" || field.type === "url") && typeof field.constraint?.maxLength === "number") {
     if (text.length > field.constraint.maxLength) return undefined;
   }
 
@@ -171,6 +172,8 @@ function sanitizeCustomAnswer(field: JobCustomField, raw: unknown): string | num
   }
 
   if (field.type === "date") return parseDate(text);
+
+  if (field.type === "url") return parseHttpUrl(text) ?? undefined;
 
   return text;
 }

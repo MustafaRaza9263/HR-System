@@ -16,6 +16,7 @@ export const jobTypeEnum = z.enum([
 export const fieldTypeEnum = z.enum([
   "text",
   "textarea",
+  "url",
   "number",
   "select",
   "date",

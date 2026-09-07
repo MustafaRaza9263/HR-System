@@ -668,7 +668,7 @@ function FieldEditorModal({
     }
 
     const constraint = { ...draft.constraint };
-    if (draft.type === "text" || draft.type === "textarea") {
+    if (draft.type === "text" || draft.type === "textarea" || draft.type === "url") {
       if (constraint.maxLength !== undefined && constraint.maxLength < 1) {
         alerts.error("Max length must be at least 1.");
         return;
@@ -758,7 +758,7 @@ function FieldEditorModal({
             title="Required"
           />
 
-          {draft.type === "text" || draft.type === "textarea" ? (
+          {draft.type === "text" || draft.type === "textarea" || draft.type === "url" ? (
             <label className="block">
               <span className="mb-2 block text-sm font-bold">Max length</span>
               <input

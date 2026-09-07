@@ -235,7 +235,7 @@ Frontend routes: `/` careers, `/apply/[slug]`, `/login` `/register`, `/dashboard
 
 **Fields:** title, departmentId, roleId, description (TipTap JSON), descriptionPlain, jobType (`Full-time` \| `Part-time` \| `Contract` \| `Temporary` \| `Internship` \| `Fresher`), salaryMin/Max ≥0, fieldsConfig.customFields[], status, closeReason, applicationCount, wizardStep, slug (null until publish), publishedAt, closedAt, createdBy.
 
-**fieldsConfig.customFields[]:** `{ id, label, type: text|textarea|number|select|date|checkbox|file, required, constraint?, section: personal|experience|education }`. Max 50. Select needs ≥1 option. Empty list allowed.
+**fieldsConfig.customFields[]:** `{ id, label, type: text|textarea|url|number|select|date|checkbox|file, required, constraint?, section: personal|experience|education }`. Max 50. Select needs ≥1 option. Empty list allowed. `url` is a single `http://` or `https://` link (optional maxLength, same as text). No host allowlist. Existing published jobs do not gain URL fields until duplicated.
 
 ### Workflow — create (wizard)
 
@@ -245,7 +245,7 @@ Each **Next** upserts draft (`POST /jobs` then `PATCH`). Stay on step until save
 
 1. **Basics** — active dept → roles of that dept → title auto-fills from role name until user edits title → jobType, salary (`max ≥ min` when both set).
 2. **Description** — TipTap (bold/italic/lists/headings). Blank JSON allowed on draft; **required to publish**. Does not read/write Role.
-3. **Fields** — add/edit/remove custom fields only. Field editor: required is a full-line toggle; select options are type-and-enter chips. No section toggles.
+3. **Fields** — add/edit/remove custom fields only. Field editor: required is a full-line toggle; select options are type-and-enter chips; `url` uses optional max length like text. No section toggles.
 4. **Review** — public-style preview. **Publish** or leave as draft (no slug).
 
 **Publish (`POST …/publish`) — API-enforced:**
@@ -282,7 +282,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 **Status history:** append-only `statusHistory: { status, at }[]` on the application (not a separate collection). `status` stays the denormalized current value for list filters. Every real status write also `$push`es an entry: apply (`submitted`), first detail GET (`under_review`), `recomputeApplicationStatus` (only when the computed status changes), trial (including re-trial), approve, reject/bulk-reject. Re-entries are kept (interview bounce, trial then overwrite then trial again). Existing rows without history are backfilled on boot from `createdAt` + `trialAt`/`approvedAt`/`rejectedAt`/`updatedAt` — intermediate times that were never stored stay missing. Detail JSON includes `statusHistory`; list rows do not. Guest application modal does not render it.
 
 - Opening detail: first GET while `submitted` sets `under_review`.
-- **HR detail UX:** candidate header (initials avatar, mailto/tel, `StatusPills`, job link) → quick facts from the detail payload (applied `DateTimeDisplay`, source, interview summary from `status` + `completedInterviewCount`, resume opens existing viewer on click) → decision banner for `approved` / `rejected` / `trial` → Profile / Interviews tabs. Profile is two columns: personal / experience / education / custom answers, plus sidebar snapshot and status timeline (`StatusPills` + `DateTimeDisplay`). Interviews tab is the same table + `icon-button` actions as the interviews list; notes expand from the interview payload already returned by `GET /applications/:id/interviews` (batched notes, no extra fetch). Interviews are requested only when that tab is opened. Reject stays on detail. Approve / trial stay on the list.
+- **HR detail UX:** candidate header (initials avatar, mailto/tel, `StatusPills`, job link) → quick facts from the detail payload (applied `DateTimeDisplay`, source, interview summary from `status` + `completedInterviewCount`, resume opens existing viewer on click) → decision banner for `approved` / `rejected` / `trial` → Profile / Interviews tabs. Profile is two columns: personal / experience / education / custom answers, plus sidebar snapshot and status timeline (`StatusPills` + `DateTimeDisplay`). `url` answers render as external links; `text` answers are not auto-linkified. Interviews tab is the same table + `icon-button` actions as the interviews list; notes expand from the interview payload already returned by `GET /applications/:id/interviews` (batched notes, no extra fetch). Interviews are requested only when that tab is opened. Reject stays on detail. Approve / trial stay on the list.
 - Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`. `trial` is not locked — a later interview write overwrites it (timestamp `trialAt` remains).
 - **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**. Optional `sendEmail` (default true) — approve/reject/bulk-reject modals have a Send email toggle, default on. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count. HTTP returns after the DB write; rejection emails are queued and sent in Resend batches of up to 100 (one click of 50 does not wait on SMTP).
 - **Approve** (list): not if `approved` or `rejected`. Reason required (≥10 ≤500) stored as `decisionReason` + `approvedAt`. Does **not** cancel interviews. Optional `sendEmail` (default true). Terminal.
@@ -299,7 +299,7 @@ Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 4
 
 **Duplicate apply:** after system-field parse, 409 `DUPLICATE_APPLICATION` (“You already have an application for this role.”) if another row for this job has the same email **or** CNIC and status is not `rejected`. A rejected-only match is allowed. Apply page shows this on the existing error alert (not a field error).
 
-Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path.
+Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). `url` must parse as `http://` or `https://` (no credentials). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path. Apply UI uses an `input type="url"` for `url` fields.
 
 UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply sends them. Stored **lowercase**. Missing source → `"website"`. Missing or `organic` campaign → `"Organic"` (one bucket on `/dashboard/sources`).
 
@@ -307,7 +307,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 1. `extractResumeText(buffer, name, mime)` — PDF text layer (`unpdf`); `.docx` (`mammoth`); `.doc` or empty/scanned (< ~30 alphanumeric chars) → null. No OCR. Same helper is reused later by ranking.
 2. No usable text → 422 `RESUME_UNREADABLE` → toast `Couldn't read this resume — please fill the form manually.` No LLM call.
-3. Usable text → one `generateStructured(resumeText, job-specific JSON schema)` call. Schema = system fields + experience[] + education[] + this job’s `customFields` (file fields omitted). Model cannot invent keys.
+3. Usable text → one `generateStructured(resumeText, job-specific JSON schema)` call. Schema = system fields + experience[] + education[] + this job’s `customFields` (file fields omitted; `url` included as http/https). Model cannot invent keys.
 4. Response is sanitized against the same apply Zod/type/select/constraint rules, field by field. Invalid/unknown/empty values are dropped, not coerced. Partial JSON is returned: `{ data: { fields, extractedFieldCount } }`.
 5. Frontend patches only present keys. Real `/apply` validation still runs on submit.
 
@@ -357,7 +357,7 @@ URL: `{FRONTEND_URL}/interview-access/{token}`. Expires when `accessDate < today
 
 **HR:** approve / reject only from `pending_approval` on unexpired link. Approve sets `approvedAt`, emails guest with URL. Reject emails. **Revoke** only from `approved` (no email). Expired link: cannot approve/reject or email the URL.
 
-**Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume preview + application details + add notes + mark complete (requires ≥1 note) on those rows. Mark complete notifies HR (`interview_completed`). Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
+**Approved guest:** list interviews `departmentId + accessDate + status=scheduled` only. Resume preview + application details (url answers as external links) + add notes + mark complete (requires ≥1 note) on those rows. Mark complete notifies HR (`interview_completed`). Revoked/pending → 403. Wrong-day or expired → 410 on live routes.
 
 **UX — guest `/interview-access/[token]`:** Header `HR System` (left) · `Interviewer Portal` (center) · initials avatar (right). Avatar opens name, email, status, expires-at. **Expired or invalid link:** no header — centered expiry/unavailable card only. Approved view is a table (Candidate, Job, Label, Duration, icon actions: mark complete, view CV modal, view application modal, add note modal). Mark complete uses the same confirmation modal as HR (heading + close in the header, explanation in the body, no icon). Register / pending / rejected / revoked stay as centered cards under the header.
 

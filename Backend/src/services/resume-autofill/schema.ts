@@ -52,9 +52,17 @@ function customFieldSchema(field: JobCustomField): JsonSchema | null {
 
   const schema: JsonSchema = {
     type: ["string", "null"],
-    description: field.type === "date" ? `${field.label} as YYYY-MM-DD` : field.label,
+    description:
+      field.type === "date"
+        ? `${field.label} as YYYY-MM-DD`
+        : field.type === "url"
+          ? `${field.label} as an http or https URL`
+          : field.label,
   };
-  if ((field.type === "text" || field.type === "textarea") && typeof field.constraint?.maxLength === "number") {
+  if (
+    (field.type === "text" || field.type === "textarea" || field.type === "url") &&
+    typeof field.constraint?.maxLength === "number"
+  ) {
     schema.maxLength = field.constraint.maxLength;
   }
   return schema;
@@ -109,4 +117,5 @@ Dates must be YYYY-MM-DD.
 Phone numbers must be E.164 (start with + and the country calling code).
 CNIC must be 13 digits.
 Select and marital-status values must match the schema enums exactly.
+URL fields must be a full http or https URL.
 Never add keys that are not in the schema.`;

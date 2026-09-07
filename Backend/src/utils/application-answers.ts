@@ -1,9 +1,10 @@
 import { ApiError } from "./api-error.js";
+import { parseHttpUrl } from "./http-url.js";
 
 export interface JobCustomField {
   id: string;
   label: string;
-  type: "text" | "textarea" | "number" | "select" | "date" | "checkbox" | "file";
+  type: "text" | "textarea" | "url" | "number" | "select" | "date" | "checkbox" | "file";
   required: boolean;
   constraint?: {
     maxLength?: number | null;
@@ -199,10 +200,17 @@ export function validateCustomFieldAnswers(
     const text = raw.trim();
     if (!text && !field.required) continue;
 
-    if (field.type === "text" || field.type === "textarea") {
+    if (field.type === "text" || field.type === "textarea" || field.type === "url") {
       const maxLength = field.constraint?.maxLength;
       if (typeof maxLength === "number" && text.length > maxLength) {
         addFieldError(fields, field.id, `${field.label} must be at most ${maxLength} characters.`);
+        continue;
+      }
+    }
+
+    if (field.type === "url") {
+      if (!parseHttpUrl(text)) {
+        addFieldError(fields, field.id, `Enter an http or https URL for ${field.label}.`);
         continue;
       }
     }

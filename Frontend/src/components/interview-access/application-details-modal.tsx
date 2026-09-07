@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload, apiRequest } from "@/lib/api";
 import type { ApplicationAnswer, ApplicationDetailResponse } from "@/lib/applications/types";
+import { parseHttpUrl } from "@/lib/applications/http-url";
 import { formatSalaryAmount } from "@/lib/applications/salary";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -255,6 +256,8 @@ function AnswerRow({
   downloading: string | null;
   onDownload: (filename: string, key: string) => void;
 }) {
+  const href = answer.type === "url" && typeof answer.value === "string" ? parseHttpUrl(answer.value) : null;
+
   return (
     <>
       <dt className="text-sm font-semibold text-gray-700 dark:text-gray-200">{answer.label}</dt>
@@ -269,6 +272,15 @@ function AnswerRow({
             <Download aria-hidden className="h-3.5 w-3.5" />
             {downloading === answer.fieldId ? "Downloading…" : (answer.fileName ?? "Download file")}
           </button>
+        ) : href ? (
+          <a
+            className="break-all font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+            href={href}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {formatAnswerValue(answer)}
+          </a>
         ) : (
           formatAnswerValue(answer)
         )}
