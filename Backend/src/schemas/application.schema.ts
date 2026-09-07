@@ -48,9 +48,10 @@ export const bulkRejectSchema = z.object({
   sendEmail: z.boolean().optional().default(true),
 });
 
-export const maritalStatusEnum = z.enum(["Single", "Married", "Divorced", "Widowed"]);
+export const MARITAL_STATUS_VALUES = ["Single", "Married", "Divorced", "Widowed"] as const;
+export const maritalStatusEnum = z.enum(MARITAL_STATUS_VALUES);
 
-const salaryCurrencyEnum = z.enum([
+export const SALARY_CURRENCY_CODES = [
   "PKR",
   "USD",
   "EUR",
@@ -70,7 +71,8 @@ const salaryCurrencyEnum = z.enum([
   "SGD",
   "CHF",
   "JPY",
-]);
+] as const;
+export const salaryCurrencyEnum = z.enum(SALARY_CURRENCY_CODES);
 
 function preprocessSalary(value: unknown) {
   if (value === "" || value === undefined || value === null) return null;

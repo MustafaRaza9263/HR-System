@@ -33,6 +33,9 @@ const envSchema = z
       z.string().trim().email().optional(),
     ),
     FIREBASE_PRIVATE_KEY: optionalEnvString,
+    LLM_PROVIDER: z.enum(["gemini"]).default("gemini"),
+    LLM_MODEL: z.string().trim().min(1).default("gemini-3.1-flash-lite"),
+    GEMINI_API_KEY: optionalEnvString,
   })
   .superRefine((values, context) => {
     if (values.COOKIE_SAME_SITE === "none" && values.NODE_ENV !== "production") {

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { ApplyAutofillButton } from "@/components/careers/apply-autofill-button";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { DateInput, todayIsoDate } from "@/components/ui/date-input";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -15,8 +16,14 @@ import { SalaryField } from "@/components/ui/salary-field";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
+import { applyAutofillToForm } from "@/lib/applications/autofill";
 import { DEFAULT_SALARY_CURRENCY } from "@/lib/applications/salary";
-import type { ApplyResponse, PublicJobDetail, PublicJobDetailResponse } from "@/lib/applications/types";
+import type {
+  ApplyResponse,
+  PublicJobDetail,
+  PublicJobDetailResponse,
+  ResumeAutofillResponse,
+} from "@/lib/applications/types";
 import { MARITAL_STATUSES } from "@/lib/applications/types";
 import {
   buildApplyFormData,
@@ -334,19 +341,51 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
         mutation.mutate();
       }}
     >
-      <div>
-        <h2
-          className="scroll-mt-20 font-sans text-2xl font-bold tracking-tight text-neutral-950 sm:text-[1.75rem] dark:text-white"
-          id={APPLY_HEADING_ID}
-        >
-          Apply for this job
-        </h2>
-        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-          <span aria-hidden className="font-semibold text-red-500">
-            *
-          </span>{" "}
-          indicates a required field
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2
+            className="scroll-mt-20 font-sans text-2xl font-bold tracking-tight text-neutral-950 sm:text-[1.75rem] dark:text-white"
+            id={APPLY_HEADING_ID}
+          >
+            Apply for this job
+          </h2>
+          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+            <span aria-hidden className="font-semibold text-red-500">
+              *
+            </span>{" "}
+            indicates a required field
+          </p>
+        </div>
+        <ApplyAutofillButton
+          disabled={busy}
+          onFile={async (file) => {
+            if (!job.slug) return false;
+            setValues((current) => ({ ...current, resume: file }));
+            setErrors((current) => {
+              if (!current.resume) return current;
+              const next = { ...current };
+              delete next.resume;
+              return next;
+            });
+            try {
+              const formData = new FormData();
+              formData.append("resume", file);
+              const result = await apiFormRequest<ResumeAutofillResponse>(
+                `/careers/jobs/${encodeURIComponent(job.slug)}/resume-autofill`,
+                formData,
+              );
+              setValues((current) => applyAutofillToForm(current, result.data.fields, file));
+              return true;
+            } catch (error) {
+              if (error instanceof ApiClientError && error.code === "RATE_LIMITED") {
+                alerts.error(error.message);
+              } else {
+                alerts.error("Couldn't read this resume — please fill the form manually.");
+              }
+              return false;
+            }
+          }}
+        />
       </div>
 
       {grouped.map((group) => (

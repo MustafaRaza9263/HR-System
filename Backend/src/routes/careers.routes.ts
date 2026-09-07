@@ -3,7 +3,7 @@ import { rateLimit } from "express-rate-limit";
 import type { Types } from "mongoose";
 import type { ZodError } from "zod";
 
-import { handleApplyUpload } from "../middleware/apply-upload.js";
+import { handleApplyUpload, handleAutofillUpload } from "../middleware/apply-upload.js";
 import { verifyBrowserOrigin } from "../middleware/origin.js";
 import { Application } from "../models/application.model.js";
 import { Department } from "../models/department.model.js";
@@ -11,11 +11,12 @@ import { Job } from "../models/job.model.js";
 import { Role } from "../models/role.model.js";
 import { applySystemFieldsSchema, educationEntriesSchema, experienceEntriesSchema } from "../schemas/application.schema.js";
 import { enqueueApplicationSideEffects } from "../services/application-side-effects.js";
+import { autofillFromResume } from "../services/resume-autofill/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { parseAnswersJson, validateCustomFieldAnswers, type JobCustomField } from "../utils/application-answers.js";
 import { assertNoDuplicateApplication } from "../utils/application-duplicate.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { saveUpload } from "../utils/uploads.js";
+import { assertAllowedUpload, saveUpload } from "../utils/uploads.js";
 import { extractUtm } from "../utils/utm.js";
 
 export const careersRouter = Router();
@@ -160,6 +161,42 @@ careersRouter.get(
         job: serializePublicJob(job, names),
       },
     });
+  }),
+);
+
+careersRouter.post(
+  "/jobs/:slug/resume-autofill",
+  verifyBrowserOrigin,
+  applyLimiter,
+  handleAutofillUpload,
+  asyncHandler(async (request, response) => {
+    const slug = request.params.slug;
+    if (typeof slug !== "string" || !slug.trim()) {
+      throw new ApiError(404, "JOB_NOT_FOUND", "This role was not found.");
+    }
+
+    const job = await Job.findOne({ slug: slug.trim() }).lean();
+    if (!job || !job.slug || job.status === "draft") {
+      throw new ApiError(404, "JOB_NOT_FOUND", "This role was not found.");
+    }
+    if (job.status !== "open") {
+      throw new ApiError(409, "JOB_NOT_OPEN", "This role is no longer accepting applications.");
+    }
+
+    const resume = request.file;
+    if (!resume) {
+      throw new ApiError(422, "VALIDATION_ERROR", "Upload a resume.", {
+        fields: { resume: ["Upload a resume."] },
+      });
+    }
+    assertAllowedUpload(resume);
+
+    const data = await autofillFromResume({
+      file: resume,
+      customFields: toCustomFields(job),
+    });
+
+    response.status(200).json({ data });
   }),
 );
 

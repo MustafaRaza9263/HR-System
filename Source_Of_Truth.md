@@ -13,7 +13,7 @@ HR hiring workspace: departments/roles → jobs → public apply → application
 | HR register/login | Password reset, MFA, email verify, RBAC |
 | Dept + Role CRUD (soft inactive) | Role JD template (`defaultDescription` does not exist) |
 | Job 4-step wizard, list, detail, publish/close/duplicate/delete | Reopen closed |
-| Public careers + apply | Duplicate-apply flag; tags; AI score/chat |
+| Public careers + apply + resume autofill | Duplicate-apply flag; tags; AI score/chat; OCR on scanned resumes |
 | Application list/detail, reject + bulk reject, approve/trial from list | Approve / trial on application detail |
 | Interview schedule/notes/actions | Interviewer assignment; time-based overdue |
 | Dept-day guest invite + approve/reject/revoke | Marketing dashboard |
@@ -35,6 +35,7 @@ HR hiring workspace: departments/roles → jobs → public apply → application
 | Uploads | multer memory → disk; PDF/DOC/DOCX; 5 MB; max 12 files/apply |
 | Push | Firebase Admin (optional env); FCM tokens on User |
 | Email | Resend (`RESEND_API_KEY`); in-process queue; stub log if key unset |
+| LLM | Provider-agnostic `generateStructured`; Gemini via `GEMINI_API_KEY` (test model `gemini-3.1-flash-lite`) |
 | Web | Next.js 16 App Router, React 19, Tailwind 4, TanStack Query 5 |
 | Editor | TipTap JSON `{ type: "doc", content? }` |
 | Icons | lucide-react |
@@ -66,9 +67,9 @@ Backend/src
   models/                one collection per file
   routes/                Express routers = controllers (no extra layer)
   schemas/               Zod
-  services/              auth, email/ (transport, queue, templates), application-side-effects
+  services/              auth, email/ (transport, queue, templates), llm/ (structured-output adapters), resume-autofill, application-side-effects
   notifications/         catalog, service, stream (SSE), fcm, routes
-  utils/                 rules, serialize, pagination, cookies, token, uploads, dates
+  utils/                 rules, serialize, pagination, cookies, token, uploads, dates, extract-resume-text
 
 Frontend/src
   app/                   routes only; pages compose client managers
@@ -90,7 +91,7 @@ Frontend/src
 - List tables (jobs, applications, interviews, notifications): `{ pagination: { total, page, limit, pages } }` inside `data`. Offset pagination (`skip`/`limit`). Stats from aggregations, never by loading the full collection.
 - Calendar helpers: `todayCalendarDate`, `getDateStateFromCalendarDate` (`future` \| `today` \| `passed`).
 - Emails: enqueue via `sendEmailBestEffort` / queue — never fail the HTTP action if mail fails. Bulk sends use Resend batch (≤100) off the request path.
-- Rate limits: auth 10/15m; apply 20/15m; guest register 20/15m.
+- Rate limits: auth 10/15m; apply 20/15m (shared with resume autofill); guest register 20/15m.
 
 **Frontend**
 
@@ -185,6 +186,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/careers/jobs` | `open` only |
 | GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
 | POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit; 409 `DUPLICATE_APPLICATION` if same job + (email **or** CNIC) exists in a non-`rejected` status |
+| POST | `/careers/jobs/:slug/resume-autofill` | public; multipart resume only; origin; same rate limit as apply; **no DB write**; 422 `RESUME_UNREADABLE` if text missing/unusable or the model fails |
 | GET | `/applications` | HR; `q, jobId, roleId, status, page, limit≤50` default 15; `roleId` matches `roleSnapshot.roleId` (all jobs for that role); list fields only; stats via aggregation; `{ applications, stats, pagination }` |
 | POST | `/applications/bulk-reject` | HR; requires `jobId`; optional `q, roleId, status, applicationIds`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
 | GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
@@ -289,7 +291,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 ### Workflow — public apply
 
-`/` lists `open` jobs grouped by department accordion. Filters: team + search title/dept/jobType. Apply → `/apply/[slug]`. Apply page: no brand header; eyebrow is department name only; no divider before the description; Source Serif 4 on this route only. After the JD: divider, sans “Apply for this job”, serif “* indicates a required field”. Apply now scrolls to that heading with a gap below the viewport top and focuses the name field.
+`/` lists `open` jobs grouped by department accordion. Filters: team + search title/dept/jobType. Apply → `/apply/[slug]`. Apply page: no brand header; eyebrow is department name only; no divider before the description; Source Serif 4 on this route only. After the JD: divider, sans “Apply for this job” with outlined **Autofill my application** on the right, serif “* indicates a required field”. Apply now scrolls to that heading with a gap below the viewport top and focuses the name field.
 
 Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
 
@@ -300,6 +302,16 @@ Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 4
 Custom answers validated against **that job’s** `fieldsConfig` (required, type, constraints, select options, file types). Stored with label/type/section snapshot. Files saved under uploads; JSON returns `hasFile` not path.
 
 UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply sends them. Stored **lowercase**. Missing source → `"website"`. Missing or `organic` campaign → `"Organic"` (one bucket on `/dashboard/sources`).
+
+**Resume autofill (pre-fill only):** clicking Autofill opens a file picker (same pdf/doc/docx ≤5MB as apply). The chosen file is set as the form resume locally and sent to `POST /careers/jobs/:slug/resume-autofill`. The button stays disabled until that request finishes; the label cycles shimmering status text (not tied to backend steps). The rest of the form stays usable. **No disk write, no Application row, never stores the resume.** Job is read only to load `fieldsConfig`.
+
+1. `extractResumeText(buffer, name, mime)` — PDF text layer (`unpdf`); `.docx` (`mammoth`); `.doc` or empty/scanned (< ~30 alphanumeric chars) → null. No OCR. Same helper is reused later by ranking.
+2. No usable text → 422 `RESUME_UNREADABLE` → toast `Couldn't read this resume — please fill the form manually.` No LLM call.
+3. Usable text → one `generateStructured(resumeText, job-specific JSON schema)` call. Schema = system fields + experience[] + education[] + this job’s `customFields` (file fields omitted). Model cannot invent keys.
+4. Response is sanitized against the same apply Zod/type/select/constraint rules, field by field. Invalid/unknown/empty values are dropped, not coerced. Partial JSON is returned: `{ data: { fields, extractedFieldCount } }`.
+5. Frontend patches only present keys. Real `/apply` validation still runs on submit.
+
+Autofill does not replace apply. Closed job → 409 `JOB_NOT_OPEN`. Missing LLM key or model failure → same `RESUME_UNREADABLE` toast.
 
 On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
 
@@ -398,3 +410,29 @@ Approve / reject / bulk reject / reschedule modals: `ToggleRow` “Send email”
 - Scoring + Assistant sidebar links have no routes.
 - Dashboard home (`/dashboard`): per-widget aggregation APIs (not one payload, not list endpoints). Trend buckets last 30 days / 12 weeks / 12 months / 5 years (`$dateTrunc` timezone `Asia/Karachi`, weeks start Monday); job-filtered aggregations use `{ jobId, createdAt }`. Client `staleTime` 45s. Job dropdowns share `GET /jobs/options` (drafts hidden).
 - Guest never sees HR panel. HR never uses guest cookie.
+
+---
+
+## 17. LLM (provider-agnostic)
+
+All model calls go through `getLlmProvider().generateStructured({ systemPrompt, userPrompt, jsonSchema })` in `Backend/src/services/llm/`. Extraction, schema building, and sanitize must not import a vendor SDK.
+
+Env:
+
+| Variable | Role |
+|---|---|
+| `LLM_PROVIDER` | Adapter id. Currently `gemini` (default). |
+| `LLM_MODEL` | Passed through unchanged to the adapter. Test: `gemini-3.1-flash-lite`. |
+| `GEMINI_API_KEY` | Gemini only. Optional at boot (like Resend); missing key fails the autofill request with `RESUME_UNREADABLE`, not process start. |
+
+**Change model (same provider):** set `LLM_MODEL` in env. No code change.
+
+**Add a provider:**
+
+1. Add `Backend/src/services/llm/providers/<id>.ts` exporting `create<Id>Provider(): LlmProvider` that maps `generateStructured` onto that vendor’s structured-output API. Read `<ID>_API_KEY` from env. Do not leak vendor errors to the client.
+2. Add `<ID>_API_KEY` as `optionalEnvString` in `config/env.ts`, and add `"<id>"` to the `LLM_PROVIDER` enum.
+3. Register `case "<id>": return create<Id>Provider();` in `createLlmProvider()` (`services/llm/index.ts`). Keep the `never` default so missing cases fail typecheck.
+4. Document the env vars in `Backend/.env.example`. Set `LLM_PROVIDER=<id>` and `LLM_MODEL=<vendor-model-id>`.
+5. Do not change `extractResumeText`, autofill schema/sanitize, or the careers route when swapping models or providers.
+
+Missing/invalid credentials, timeouts, and malformed model JSON all surface as `RESUME_UNREADABLE`. Do not add a retry loop.

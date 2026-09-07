@@ -157,3 +157,45 @@ export type MaritalStatus = (typeof MARITAL_STATUSES)[number];
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const ALLOWED_UPLOAD_ACCEPT = ".pdf,.doc,.docx";
+
+export interface ResumeAutofillExperience {
+  company?: string;
+  title?: string;
+  startDate?: string;
+  endDate?: string;
+  currentlyWorking?: boolean;
+  salary?: number;
+  salaryCurrency?: string;
+  description?: string;
+}
+
+export interface ResumeAutofillEducation {
+  school?: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  cgpaPercentage?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ResumeAutofillFields {
+  candidateName?: string;
+  candidateEmail?: string;
+  candidatePhone?: string;
+  candidateDateOfBirth?: string;
+  candidateCnic?: string;
+  candidateMaritalStatus?: string;
+  candidateAlternativePhone?: string;
+  expectedSalary?: number;
+  expectedSalaryCurrency?: string;
+  experience?: ResumeAutofillExperience[];
+  education?: ResumeAutofillEducation[];
+  answers?: Record<string, string | number | boolean>;
+}
+
+export interface ResumeAutofillResponse {
+  data: {
+    fields: ResumeAutofillFields;
+    extractedFieldCount: number;
+  };
+}
