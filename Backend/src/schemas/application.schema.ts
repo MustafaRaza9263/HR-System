@@ -38,6 +38,9 @@ export const bulkRejectSchema = z.object({
   roleId: objectId.optional(),
   status: applicationStatusEnum.optional(),
   applicationIds: z.array(objectId).max(500, "Select at most 500 applications.").optional(),
+  scoreMin: z.number().min(0).max(10).optional(),
+  scoreMax: z.number().min(0).max(10).optional(),
+  scoreLessThan: z.number().min(0).max(10).optional(),
   reason: z
     .string()
     .trim()
@@ -213,5 +216,10 @@ export const listApplicationsQuerySchema = z
     jobId: objectId.optional(),
     roleId: objectId.optional(),
     status: applicationStatusEnum.optional(),
+    sort: z.enum(["createdAt", "score"]).optional().default("createdAt"),
+    dir: z.enum(["asc", "desc"]).optional(),
+    scoreMin: z.coerce.number().min(0).max(10).optional(),
+    scoreMax: z.coerce.number().min(0).max(10).optional(),
+    scoreLessThan: z.coerce.number().min(0).max(10).optional(),
   })
   .extend(listPaginationQuerySchema.shape);

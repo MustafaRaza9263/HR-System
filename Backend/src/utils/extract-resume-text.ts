@@ -44,7 +44,7 @@ async function extractPdfText(buffer: Buffer) {
 /**
  * Pulls plain text from a resume buffer. Returns null when the file is
  * unreadable (legacy .doc, scanned/image PDF, empty extract, or parser error).
- * Does not persist anything. Safe to reuse from ranking later.
+ * Does not persist anything. Reused by application scoring.
  */
 export async function extractResumeText(file: ResumeFileBytes): Promise<string | null> {
   const kind = resumeKind(file);

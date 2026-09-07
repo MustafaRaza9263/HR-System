@@ -58,14 +58,42 @@ export interface ApplicationLike {
   approvedAt?: Date | null;
   trialAt?: Date | null;
   completedInterviewCount?: number;
-  aiScore?: number | null;
-  aiSummary?: string | null;
-  aiScoredAt?: Date | null;
+  scoring?: {
+    status?: string | null;
+    score?: number | null;
+    summary?: string | null;
+    strengths?: string[];
+    gaps?: string[];
+    provider?: string | null;
+    model?: string | null;
+    linksAttempted?: number;
+    linksUsed?: number;
+    scoredAt?: Date | null;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export function serializeApplication(application: ApplicationLike) {
+export function serializeScoring(scoring: ApplicationLike["scoring"]) {
+  const status =
+    scoring?.status === "pending" || scoring?.status === "completed" || scoring?.status === "failed"
+      ? scoring.status
+      : null;
+  return {
+    status,
+    score: typeof scoring?.score === "number" ? scoring.score : null,
+    summary: scoring?.summary ?? null,
+    strengths: Array.isArray(scoring?.strengths) ? scoring.strengths : [],
+    gaps: Array.isArray(scoring?.gaps) ? scoring.gaps : [],
+    provider: scoring?.provider ?? null,
+    model: scoring?.model ?? null,
+    linksAttempted: scoring?.linksAttempted ?? 0,
+    linksUsed: scoring?.linksUsed ?? 0,
+    scoredAt: scoring?.scoredAt ?? null,
+  };
+}
+
+export function serializeApplication(application: ApplicationLike, options?: { includeScoring?: boolean }) {
   return {
     id: application._id.toString(),
     jobId: application.jobId.toString(),
@@ -124,9 +152,7 @@ export function serializeApplication(application: ApplicationLike) {
     approvedAt: application.approvedAt ?? null,
     trialAt: application.trialAt ?? null,
     completedInterviewCount: application.completedInterviewCount ?? 0,
-    aiScore: application.aiScore ?? null,
-    aiSummary: application.aiSummary ?? null,
-    aiScoredAt: application.aiScoredAt ?? null,
+    scoring: options?.includeScoring === false ? null : serializeScoring(application.scoring),
     createdAt: application.createdAt,
     updatedAt: application.updatedAt,
   };
@@ -152,6 +178,7 @@ export function serializeListItem(application: {
   status: string;
   createdAt: Date;
   resumeOriginalName: string;
+  scoring?: { status?: string | null; score?: number | null } | null;
 }) {
   return {
     id: application._id.toString(),
@@ -162,6 +189,13 @@ export function serializeListItem(application: {
     departmentName: application.roleSnapshot.departmentName,
     roleName: application.roleSnapshot.roleName,
     status: application.status,
+    score: typeof application.scoring?.score === "number" ? application.scoring.score : null,
+    scoringStatus:
+      application.scoring?.status === "pending" ||
+      application.scoring?.status === "completed" ||
+      application.scoring?.status === "failed"
+        ? application.scoring.status
+        : null,
     createdAt: application.createdAt,
     resumeFileName: application.resumeOriginalName,
   };

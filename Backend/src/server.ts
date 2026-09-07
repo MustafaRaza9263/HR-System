@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { app } from "./app.js";
 import { connectToDatabase, disconnectFromDatabase } from "./config/database.js";
 import { env } from "./config/env.js";
+import { drainScoringQueue } from "./services/application-scoring/queue.js";
 import { drainEmailQueue, emailStatusLine } from "./services/email/index.js";
 import { logger } from "./utils/logger.js";
 
@@ -24,6 +25,7 @@ function shutdown(signal: string): void {
   server.close(async (error) => {
     try {
       await drainEmailQueue();
+      await drainScoringQueue();
       await disconnectFromDatabase();
     } finally {
       if (error) logger.error("server close failed", error);

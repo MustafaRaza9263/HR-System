@@ -9,6 +9,7 @@ import { LinkRegistrant } from "../models/link-registrant.model.js";
 import { Notification } from "../models/notification.model.js";
 import { Session } from "../models/session.model.js";
 import { User } from "../models/user.model.js";
+import { failStaleScoring } from "../services/application-scoring/index.js";
 import { migrateApplicationStatusHistory } from "../utils/application-status.js";
 import { migrateAccessLinkRegistrants, migrateInterviewDocuments } from "../utils/interview-migrate.js";
 import { env } from "./env.js";
@@ -29,6 +30,8 @@ export async function connectToDatabase(): Promise<void> {
   await migrateInterviewDocuments();
   await migrateAccessLinkRegistrants();
   await migrateApplicationStatusHistory();
+  await Application.collection.updateMany({}, { $unset: { aiScore: "", aiSummary: "", aiScoredAt: "" } });
+  await failStaleScoring();
   await Promise.all([
     Job.createIndexes(),
     User.createIndexes(),

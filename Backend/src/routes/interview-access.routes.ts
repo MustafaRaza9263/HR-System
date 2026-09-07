@@ -302,7 +302,7 @@ interviewAccessRouter.get(
     if (!application) {
       throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
     }
-    response.status(200).json({ data: { application: serializeApplication(application) } });
+    response.status(200).json({ data: { application: serializeApplication(application, { includeScoring: false }) } });
   }),
 );
 

@@ -49,6 +49,8 @@ export function ApplicationDetail({ applicationId }: { applicationId: string }) 
   const detailQuery = useQuery({
     queryKey: queryKeys.applications.detail(applicationId),
     queryFn: async () => apiRequest<ApplicationDetailResponse>(`/applications/${applicationId}`),
+    refetchInterval: (query) =>
+      query.state.data?.data.application.scoring?.status === "pending" ? 8_000 : false,
   });
 
   const application = detailQuery.data?.data.application;

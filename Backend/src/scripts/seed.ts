@@ -265,6 +265,32 @@ async function main() {
       completedInterviewCount: status === "interviewed" || status === "approved" || status === "trial" ? 1 : 0,
       source: sourceSpec.source,
       campaign: pick(rng, sourceSpec.campaigns),
+      scoring:
+        rng() > 0.15
+          ? {
+              status: "completed" as const,
+              score: Math.round(rng() * 100) / 10,
+              summary: `${name} is a reasonable fit for ${job.title} based on prior experience.`,
+              strengths: ["Relevant recent experience", "Clear communication in the application"],
+              gaps: ["Some job-specific tools are not evidenced"],
+              provider: "seed",
+              model: "seed",
+              linksAttempted: 0,
+              linksUsed: 0,
+              scoredAt: createdAt,
+            }
+          : {
+              status: "failed" as const,
+              score: null,
+              summary: null,
+              strengths: [],
+              gaps: [],
+              provider: null,
+              model: null,
+              linksAttempted: 0,
+              linksUsed: 0,
+              scoredAt: createdAt,
+            },
       createdAt,
       updatedAt: createdAt,
     });

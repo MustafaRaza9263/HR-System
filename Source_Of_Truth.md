@@ -13,7 +13,7 @@ HR hiring workspace: departments/roles → jobs → public apply → application
 | HR register/login | Password reset, MFA, email verify, RBAC |
 | Dept + Role CRUD (soft inactive) | Role JD template (`defaultDescription` does not exist) |
 | Job 4-step wizard, list, detail, publish/close/duplicate/delete | Reopen closed |
-| Public careers + apply + resume autofill | Duplicate-apply flag; tags; AI score/chat; OCR on scanned resumes |
+| Public careers + apply + resume autofill + application scoring | Duplicate-apply flag; tags; AI chat; OCR on scanned resumes |
 | Application list/detail, reject + bulk reject, approve/trial from list | Approve / trial on application detail |
 | Interview schedule/notes/actions | Interviewer assignment; time-based overdue |
 | Dept-day guest invite + approve/reject/revoke | Marketing dashboard |
@@ -67,9 +67,9 @@ Backend/src
   models/                one collection per file
   routes/                Express routers = controllers (no extra layer)
   schemas/               Zod
-  services/              auth, email/ (transport, queue, templates), llm/ (structured-output adapters), resume-autofill, application-side-effects
+  services/              auth, email/ (transport, queue, templates), llm/ (structured-output adapters), resume-autofill, application-scoring, application-side-effects
   notifications/         catalog, service, stream (SSE), fcm, routes
-  utils/                 rules, serialize, pagination, cookies, token, uploads, dates, extract-resume-text
+  utils/                 rules, serialize, pagination, cookies, token, uploads, dates, extract-resume-text, extract-link-text
 
 Frontend/src
   app/                   routes only; pages compose client managers
@@ -148,7 +148,7 @@ All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inact
 | Department | name, normalizedName unique, icon, status, createdBy | |
 | Role | name, normalizedName, departmentId, icon, status, createdBy | Unique `(departmentId, normalizedName)` |
 | Job | see §9 | slug unique when string; `wizardStep` 1–4 |
-| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }`; indexes `{ jobId: 1, createdAt: -1 }`, `{ createdAt: 1 }`, and `{ "roleSnapshot.roleId": 1, createdAt: -1 }` |
+| Application | see §11 | links **jobId only**; `roleSnapshot` frozen at apply; `statusHistory[]` append-only `{ status, at }`; `scoring` denormalized on the row; indexes `{ jobId: 1, createdAt: -1 }`, `{ createdAt: 1 }`, `{ "roleSnapshot.roleId": 1, createdAt: -1 }`, and `{ "scoring.score": 1, createdAt: -1 }` |
 | Interview | applicationId, departmentId (copied from snapshot), label (required, ≤80), date, time, durationMinutes 15–240, status, createdBy | |
 | InterviewNote | interviewId, authorName, authorEmail, content ≤2000, createdAt | Separate collection |
 | DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
@@ -187,9 +187,11 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/careers/jobs/:slug` | not draft; closed still 200 (apply blocked) |
 | POST | `/careers/jobs/:slug/apply` | multipart; origin; rate limit; 409 `DUPLICATE_APPLICATION` if same job + (email **or** CNIC) exists in a non-`rejected` status |
 | POST | `/careers/jobs/:slug/resume-autofill` | public; multipart resume only; origin; same rate limit as apply; **no DB write**; 422 `RESUME_UNREADABLE` if text missing/unusable or the model fails |
-| GET | `/applications` | HR; `q, jobId, roleId, status, page, limit≤50` default 15; `roleId` matches `roleSnapshot.roleId` (all jobs for that role); list fields only; stats via aggregation; `{ applications, stats, pagination }` |
-| POST | `/applications/bulk-reject` | HR; requires `jobId`; optional `q, roleId, status, applicationIds`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
-| GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review` |
+| GET | `/applications` | HR; `q, jobId, roleId, status, sort=createdAt\|score, dir=asc\|desc, scoreMin, scoreMax, scoreLessThan, page, limit≤50` default 15; `roleId` matches `roleSnapshot.roleId` (all jobs for that role); list fields only (includes `score` + `scoringStatus`); stats via aggregation; `{ applications, stats, pagination }` |
+| POST | `/applications/bulk-reject` | HR; requires `jobId`; optional `q, roleId, status, applicationIds, scoreMin, scoreMax, scoreLessThan`; `dryRun` skips reason; `sendEmail` default true (queued, non-blocking) |
+| GET | `/applications/:id` | HR; **side effect:** `submitted` → `under_review`; includes `scoring` |
+| GET | `/applications/:id/score` | HR; returns `Application.scoring` |
+| POST | `/applications/:id/score/retry` | HR; origin; **only when `scoring.status === "failed"`** (else 409); enqueues the same job, does not wait; 202 |
 | PATCH | `/applications/:id/reject` | reason ≥10 ≤500; `sendEmail` default true |
 | PATCH | `/applications/:id/approve` | reason ≥10 ≤500; `sendEmail` default true |
 | PATCH | `/applications/:id/trial` | no body |
@@ -207,7 +209,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | POST | `/interview-access/:token/register` | live link only |
 | GET | `/interview-access/:token/interviews` | approved guest |
 | GET | `…/interviews/:id/resume` | approved guest, scheduled, same dept+date |
-| GET | `…/interviews/:id/application` | same; application profile (no status side effect) |
+| GET | `…/interviews/:id/application` | same; application profile (no status side effect, no `scoring`) |
 | GET | `…/interviews/:id/files/:fieldId` | same; custom-field file |
 | POST | `…/interviews/:id/notes` | same |
 | PATCH | `…/interviews/:id/complete` | same; requires ≥1 note |
@@ -282,7 +284,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 **Status history:** append-only `statusHistory: { status, at }[]` on the application (not a separate collection). `status` stays the denormalized current value for list filters. Every real status write also `$push`es an entry: apply (`submitted`), first detail GET (`under_review`), `recomputeApplicationStatus` (only when the computed status changes), trial (including re-trial), approve, reject/bulk-reject. Re-entries are kept (interview bounce, trial then overwrite then trial again). Existing rows without history are backfilled on boot from `createdAt` + `trialAt`/`approvedAt`/`rejectedAt`/`updatedAt` — intermediate times that were never stored stay missing. Detail JSON includes `statusHistory`; list rows do not. Guest application modal does not render it.
 
 - Opening detail: first GET while `submitted` sets `under_review`.
-- **HR detail UX:** candidate header (initials avatar, mailto/tel, `StatusPills`, job link) → quick facts from the detail payload (applied `DateTimeDisplay`, source, interview summary from `status` + `completedInterviewCount`, resume opens existing viewer on click) → decision banner for `approved` / `rejected` / `trial` → Profile / Interviews tabs. Profile is two columns: personal / experience / education / custom answers, plus sidebar snapshot and status timeline (`StatusPills` + `DateTimeDisplay`). `url` answers render as external links; `text` answers are not auto-linkified. Interviews tab is the same table + `icon-button` actions as the interviews list; notes expand from the interview payload already returned by `GET /applications/:id/interviews` (batched notes, no extra fetch). Interviews are requested only when that tab is opened. Reject stays on detail. Approve / trial stay on the list.
+- **HR detail UX:** candidate header (initials avatar, mailto/tel, `StatusPills`, job link) → quick facts from the detail payload (applied `DateTimeDisplay`, source, interview summary from `status` + `completedInterviewCount`, resume opens existing viewer on click) → decision banner for `approved` / `rejected` / `trial` → Profile / Interviews tabs. Profile is two columns: personal / experience / education / custom answers, plus an **AI scoring** card (`StatusPills` score 0–10, summary, strengths/gaps lists, `scoredAt` via `DateTimeDisplay`; pending = “Scoring in progress”; failed = “Scoring failed” + Retry only in that state), plus sidebar snapshot and status timeline (`StatusPills` + `DateTimeDisplay`). `url` answers render as external links; `text` answers are not auto-linkified. Interviews tab is the same table + `icon-button` actions as the interviews list; notes expand from the interview payload already returned by `GET /applications/:id/interviews` (batched notes, no extra fetch). Interviews are requested only when that tab is opened. Reject stays on detail. Approve / trial stay on the list.
 - Interview writes call `recomputeApplicationStatus`: if not locked (`approved`/`rejected`): any `scheduled` interview → `interview_scheduled`; else any `completed` → `interviewed`; else `under_review`. `trial` is not locked — a later interview write overwrites it (timestamp `trialAt` remains).
 - **Reject** (single/bulk): not if `approved` or `rejected`. Sets reason + `rejectedAt`, **cancels all scheduled interviews**. Optional `sendEmail` (default true) — approve/reject/bulk-reject modals have a Send email toggle, default on. Bulk: same list filters + optional `applicationIds`; `jobId` required; `dryRun` returns count. HTTP returns after the DB write; rejection emails are queued and sent in Resend batches of up to 100 (one click of 50 does not wait on SMTP).
 - **Approve** (list): not if `approved` or `rejected`. Reason required (≥10 ≤500) stored as `decisionReason` + `approvedAt`. Does **not** cancel interviews. Optional `sendEmail` (default true). Terminal.
@@ -305,7 +307,7 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 **Resume autofill (pre-fill only):** clicking Autofill opens a file picker (same pdf/doc/docx ≤5MB as apply). The chosen file is set as the form resume locally and sent to `POST /careers/jobs/:slug/resume-autofill`. The button stays disabled until that request finishes; the label cycles shimmering status text (not tied to backend steps). The rest of the form stays usable. **No disk write, no Application row, never stores the resume.** Job is read only to load `fieldsConfig`.
 
-1. `extractResumeText(buffer, name, mime)` — PDF text layer (`unpdf`); `.docx` (`mammoth`); `.doc` or empty/scanned (< ~30 alphanumeric chars) → null. No OCR. Same helper is reused later by ranking.
+1. `extractResumeText(buffer, name, mime)` — PDF text layer (`unpdf`); `.docx` (`mammoth`); `.doc` or empty/scanned (< ~30 alphanumeric chars) → null. No OCR. Same helper is reused by application scoring.
 2. No usable text → 422 `RESUME_UNREADABLE` → toast `Couldn't read this resume — please fill the form manually.` No LLM call.
 3. Usable text → one `generateStructured(resumeText, job-specific JSON schema)` call. Schema = system fields + experience[] + education[] + this job’s `customFields` (file fields omitted; `url` included as http/https). Model cannot invent keys.
 4. Response is sanitized against the same apply Zod/type/select/constraint rules, field by field. Invalid/unknown/empty values are dropped, not coerced. Partial JSON is returned: `{ data: { fields, extractedFieldCount } }`.
@@ -313,9 +315,11 @@ UTM: frontend captures `utm_source`/`utm_campaign` into sessionStorage; apply se
 
 Autofill does not replace apply. Closed job → 409 `JOB_NOT_OPEN`. Missing LLM key or model failure → same `RESUME_UNREADABLE` toast.
 
-On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")` and `submission-confirmed` email to the candidate.
+On success: `applicationCount++` only if job still `open` (else delete created row + 409). Then async: `notifyHR("new_application")`, `submission-confirmed` email to the candidate, and **application scoring** (in-process queue, after the HTTP response).
 
-**HR list:** search name/email; filter job / role / status. Role dropdown lists every role; `roleId` returns applications for all jobs of that role. Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (see HR detail UX above). Every row: view resume, view notes (read-only modal of all interview notes, grouped by interview; fetched on open via `GET /applications/:id/interviews`, not on the list payload). Unlocked row actions: schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar. Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**Application scoring (advisory only):** one denormalized `scoring` object on the Application (`pending` \| `completed` \| `failed`; score 0–10 one decimal, summary, strengths[], gaps[], provider, model, linksAttempted, linksUsed, scoredAt). No separate collection. Never writes `Application.status` or calls `recomputeApplicationStatus`. `completed` is terminal. Retry is HR-only and only when `failed`. Gathering: `extractResumeText` on the stored resume; regex URLs in CV text + `url` custom answers; best-effort link fetch (`extract-link-text`, ~8s, silent drop); JD title/`descriptionPlain`/dept/role; application system fields + experience + education + non-file answers. Each source clipped ~8k chars. One `generateStructured()` call. Malformed JSON / missing key / timeout → `failed` after 4 internal attempts (same posture as email). Boot marks leftover `pending` as `failed` so Retry appears. Logs each step; dumps gathered context before the model call.
+
+**HR list:** search name/email; filter job / role / status / score range (below 4, 4–6.9, 7–10). Role dropdown lists every role; `roleId` returns applications for all jobs of that role. Score column uses `StatusPills`; click **Score** to sort asc/desc (default list remains newest first until Score is clicked). Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (see HR detail UX above). Every row: view resume, view notes (read-only modal of all interview notes, grouped by interview; fetched on open via `GET /applications/:id/interviews`, not on the list payload). Unlocked row actions: schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar (same list filters, including score). Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -407,7 +411,7 @@ Approve / reject / bulk reject / reschedule modals: `ToggleRow` “Send email”
 - At most one posting may **become `open`** per dept+role while any other draft/open exists.
 - No reopen; next cycle = Duplicate.
 - Hiring capacity is not tracked (no positions / `filled`). Approved count is a list metric only.
-- Scoring + Assistant sidebar links have no routes.
+- Scoring + Assistant sidebar links have no routes. Scoring lives on application list + detail, not a separate page.
 - Dashboard home (`/dashboard`): per-widget aggregation APIs (not one payload, not list endpoints). Trend buckets last 30 days / 12 weeks / 12 months / 5 years (`$dateTrunc` timezone `Asia/Karachi`, weeks start Monday); job-filtered aggregations use `{ jobId, createdAt }`. Client `staleTime` 45s. Job dropdowns share `GET /jobs/options` (drafts hidden).
 - Guest never sees HR panel. HR never uses guest cookie.
 
@@ -423,7 +427,7 @@ Env:
 |---|---|
 | `LLM_PROVIDER` | Adapter id. Currently `gemini` (default). |
 | `LLM_MODEL` | Passed through unchanged to the adapter. Test: `gemini-3.1-flash-lite`. |
-| `GEMINI_API_KEY` | Gemini only. Optional at boot (like Resend); missing key fails the autofill request with `RESUME_UNREADABLE`, not process start. |
+| `GEMINI_API_KEY` | Gemini only. Optional at boot (like Resend); missing key fails the autofill request with `RESUME_UNREADABLE`, and marks application scoring `failed`, not process start. |
 
 **Change model (same provider):** set `LLM_MODEL` in env. No code change.
 
@@ -433,6 +437,6 @@ Env:
 2. Add `<ID>_API_KEY` as `optionalEnvString` in `config/env.ts`, and add `"<id>"` to the `LLM_PROVIDER` enum.
 3. Register `case "<id>": return create<Id>Provider();` in `createLlmProvider()` (`services/llm/index.ts`). Keep the `never` default so missing cases fail typecheck.
 4. Document the env vars in `Backend/.env.example`. Set `LLM_PROVIDER=<id>` and `LLM_MODEL=<vendor-model-id>`.
-5. Do not change `extractResumeText`, autofill schema/sanitize, or the careers route when swapping models or providers.
+5. Do not change `extractResumeText`, `extract-link-text`, autofill schema/sanitize, scoring gather/sanitize, or the careers route when swapping models or providers.
 
-Missing/invalid credentials, timeouts, and malformed model JSON all surface as `RESUME_UNREADABLE`. Do not add a retry loop.
+Missing/invalid credentials, timeouts, and malformed model JSON all surface as `RESUME_UNREADABLE` on the **autofill HTTP path** (no retry loop there). Application scoring is async: the same failures are retried a fixed number of times like email, then stored as `scoring.status = "failed"`.

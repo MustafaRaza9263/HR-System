@@ -1,5 +1,6 @@
 import { notifyHR } from "../notifications/index.js";
 import { logger } from "../utils/logger.js";
+import { enqueueScoring } from "./application-scoring/queue.js";
 import { sendSubmissionConfirmed } from "./email/index.js";
 
 export function enqueueApplicationSideEffects(input: {
@@ -17,5 +18,6 @@ export function enqueueApplicationSideEffects(input: {
     void notifyHR("new_application", input.applicationId).catch((error) => {
       logger.error("notifyHR failed", error);
     });
+    enqueueScoring(input.applicationId);
   });
 }

@@ -16,6 +16,7 @@ import {
   rejectApplicationSchema,
 } from "../schemas/application.schema.js";
 import { createInterviewSchema } from "../schemas/interview.schema.js";
+import { enqueueScoring } from "../services/application-scoring/queue.js";
 import { sendCandidateInterviewScheduled } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { buildApplicationFilter } from "../utils/application-filter.js";
@@ -24,7 +25,7 @@ import { applicationStatusUpdate, recomputeApplicationStatus } from "../utils/ap
 import { asyncHandler } from "../utils/async-handler.js";
 import { assertNoDuplicateInterviewSlot } from "../utils/interview-rules.js";
 import { paginationMeta } from "../utils/pagination.js";
-import { serializeApplication, serializeListItem } from "../utils/serialize-application.js";
+import { serializeApplication, serializeListItem, serializeScoring } from "../utils/serialize-application.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
 import { contentDispositionFilename, resolveUploadPath } from "../utils/uploads.js";
 
@@ -57,18 +58,19 @@ applicationRouter.get(
       jobId: query.jobId,
       roleId: query.roleId,
       status: query.status,
+      scoreMin: query.scoreMin,
+      scoreMax: query.scoreMax,
+      scoreLessThan: query.scoreLessThan,
     });
     const skip = (query.page - 1) * query.limit;
+    const listSelect =
+      "jobId candidateName candidateEmail roleSnapshot.title roleSnapshot.departmentName roleSnapshot.roleName status createdAt resumeOriginalName scoring.score scoring.status";
+    const sortDir = query.dir === "asc" ? 1 : -1;
+    const sort: Record<string, 1 | -1> =
+      query.sort === "score" ? { "scoring.score": sortDir, createdAt: -1 } : { createdAt: -1 };
 
     const [applications, total, statusCounts] = await Promise.all([
-      Application.find(filter)
-        .select(
-          "jobId candidateName candidateEmail roleSnapshot.title roleSnapshot.departmentName roleSnapshot.roleName status createdAt resumeOriginalName",
-        )
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(query.limit)
-        .lean(),
+      Application.find(filter).select(listSelect).sort(sort).skip(skip).limit(query.limit).lean(),
       Application.countDocuments(filter),
       Application.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
     ]);
@@ -111,6 +113,9 @@ applicationRouter.post(
       status: input.status,
       applicationIds: input.applicationIds,
       excludeTerminal: true,
+      scoreMin: input.scoreMin,
+      scoreMax: input.scoreMax,
+      scoreLessThan: input.scoreLessThan,
     });
 
     const matches = await Application.find(filter)
@@ -124,6 +129,69 @@ applicationRouter.post(
 
     await rejectApplications(matches, input.reason!, input.sendEmail);
     response.status(200).json({ data: { count: matches.length } });
+  }),
+);
+
+applicationRouter.get(
+  "/:applicationId/score",
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const application = await Application.findById(applicationId).select("scoring").lean();
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+
+    response.status(200).json({ data: { scoring: serializeScoring(application.scoring) } });
+  }),
+);
+
+applicationRouter.post(
+  "/:applicationId/score/retry",
+  verifyBrowserOrigin,
+  asyncHandler(async (request, response) => {
+    const applicationId = request.params.applicationId;
+    if (typeof applicationId !== "string") {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    assertObjectId(applicationId);
+
+    const application = await Application.findById(applicationId).select("scoring").lean();
+    if (!application) {
+      throw new ApiError(404, "APPLICATION_NOT_FOUND", "Application was not found.");
+    }
+    if (application.scoring?.status !== "failed") {
+      throw new ApiError(409, "SCORING_NOT_RETRYABLE", "Scoring can only be retried after a failure.");
+    }
+
+    const updated = await Application.findOneAndUpdate(
+      { _id: applicationId, "scoring.status": "failed" },
+      {
+        $set: {
+          "scoring.status": "pending",
+          "scoring.score": null,
+          "scoring.summary": null,
+          "scoring.strengths": [],
+          "scoring.gaps": [],
+          "scoring.provider": null,
+          "scoring.model": null,
+          "scoring.linksAttempted": 0,
+          "scoring.linksUsed": 0,
+          "scoring.scoredAt": null,
+        },
+      },
+      { new: true, projection: { scoring: 1 } },
+    ).lean();
+    if (!updated) {
+      throw new ApiError(409, "SCORING_NOT_RETRYABLE", "Scoring can only be retried after a failure.");
+    }
+
+    enqueueScoring(applicationId);
+    response.status(202).json({ data: { scoring: serializeScoring(updated.scoring) } });
   }),
 );
 

@@ -1,6 +1,8 @@
 import type { CustomField, FieldSection, JobStatus, JobType, RichTextDoc } from "@/lib/jobs/types";
 import type { ListPagination } from "@/lib/pagination";
 
+import type { ScoringStatus } from "./scoring";
+
 export type ApplicationStatus =
   | "submitted"
   | "under_review"
@@ -78,6 +80,8 @@ export interface ApplicationListItem {
   departmentName: string;
   roleName: string;
   status: ApplicationStatus;
+  score: number | null;
+  scoringStatus: ScoringStatus | null;
   createdAt: string;
   resumeFileName: string;
 }
@@ -95,6 +99,19 @@ export interface ApplicationsListResponse {
     stats: ApplicationStats;
     pagination: ListPagination;
   };
+}
+
+export interface ApplicationScoring {
+  status: ScoringStatus | null;
+  score: number | null;
+  summary: string | null;
+  strengths: string[];
+  gaps: string[];
+  provider: string | null;
+  model: string | null;
+  linksAttempted: number;
+  linksUsed: number;
+  scoredAt: string | null;
 }
 
 export interface ApplicationDetail {
@@ -130,9 +147,7 @@ export interface ApplicationDetail {
   approvedAt: string | null;
   trialAt: string | null;
   completedInterviewCount: number;
-  aiScore: number | null;
-  aiSummary: string | null;
-  aiScoredAt: string | null;
+  scoring: ApplicationScoring | null;
   createdAt: string;
   updatedAt: string;
   statusHistory: StatusHistoryEntry[];

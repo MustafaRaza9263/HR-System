@@ -327,9 +327,18 @@ careersRouter.post(
       statusHistory: [{ status: "submitted", at: new Date() }],
       source: utm.source,
       campaign: utm.campaign,
-      aiScore: null,
-      aiSummary: null,
-      aiScoredAt: null,
+      scoring: {
+        status: "pending",
+        score: null,
+        summary: null,
+        strengths: [],
+        gaps: [],
+        provider: null,
+        model: null,
+        linksAttempted: 0,
+        linksUsed: 0,
+        scoredAt: null,
+      },
     });
 
     const incremented = await Job.updateOne(

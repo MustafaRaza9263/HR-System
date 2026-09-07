@@ -39,7 +39,7 @@ export function createGeminiProvider(): LlmProvider {
     async generateStructured(input: GenerateStructuredInput) {
       const apiKey = env.GEMINI_API_KEY;
       if (!apiKey) {
-        logger.warn("resume autofill skipped: GEMINI_API_KEY is not set");
+        logger.warn("llm generateStructured skipped: GEMINI_API_KEY is not set");
         throw resumeUnreadableError();
       }
 

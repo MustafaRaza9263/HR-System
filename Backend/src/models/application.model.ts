@@ -57,6 +57,27 @@ const educationEntrySchema = new Schema(
   { _id: false },
 );
 
+const scoringSchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: ["pending", "completed", "failed"],
+      required: true,
+      default: "pending",
+    },
+    score: { type: Number, default: null, min: 0, max: 10 },
+    summary: { type: String, default: null, maxlength: 2000 },
+    strengths: { type: [String], default: [] },
+    gaps: { type: [String], default: [] },
+    provider: { type: String, default: null, maxlength: 40 },
+    model: { type: String, default: null, maxlength: 80 },
+    linksAttempted: { type: Number, required: true, default: 0, min: 0 },
+    linksUsed: { type: Number, required: true, default: 0, min: 0 },
+    scoredAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const applicationSchema = new Schema(
   {
     jobId: { type: Schema.Types.ObjectId, ref: "Job", required: true, index: true },
@@ -121,9 +142,7 @@ const applicationSchema = new Schema(
     completedInterviewCount: { type: Number, required: true, default: 0, min: 0 },
     source: { type: String, required: true, default: "website", maxlength: 80 },
     campaign: { type: String, default: null, maxlength: 120 },
-    aiScore: { type: Number, default: null, min: 0, max: 100 },
-    aiSummary: { type: String, default: null, maxlength: 4000 },
-    aiScoredAt: { type: Date, default: null },
+    scoring: { type: scoringSchema, default: () => ({}) },
   },
   { timestamps: true, versionKey: false },
 );
@@ -135,6 +154,7 @@ applicationSchema.index({ candidateEmail: 1, createdAt: -1 });
 applicationSchema.index({ status: 1, createdAt: -1 });
 applicationSchema.index({ jobId: 1, candidateEmail: 1 });
 applicationSchema.index({ jobId: 1, candidateCnic: 1 });
+applicationSchema.index({ "scoring.score": 1, createdAt: -1 });
 
 export type ApplicationDocument = InferSchemaType<typeof applicationSchema>;
 export const Application = model("Application", applicationSchema);

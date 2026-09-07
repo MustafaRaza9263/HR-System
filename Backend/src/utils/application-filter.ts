@@ -13,6 +13,9 @@ export function buildApplicationFilter(input: {
   status?: string | undefined;
   applicationIds?: string[] | undefined;
   excludeTerminal?: boolean | undefined;
+  scoreMin?: number | undefined;
+  scoreMax?: number | undefined;
+  scoreLessThan?: number | undefined;
 }): Record<string, unknown> {
   const filter: Record<string, unknown> = {};
 
@@ -44,6 +47,12 @@ export function buildApplicationFilter(input: {
   if (input.applicationIds && input.applicationIds.length > 0) {
     filter._id = { $in: input.applicationIds.map((id) => new Types.ObjectId(id)) };
   }
+
+  const score: Record<string, number> = {};
+  if (typeof input.scoreMin === "number") score.$gte = input.scoreMin;
+  if (typeof input.scoreMax === "number") score.$lte = input.scoreMax;
+  if (typeof input.scoreLessThan === "number") score.$lt = input.scoreLessThan;
+  if (Object.keys(score).length > 0) filter["scoring.score"] = score;
 
   return filter;
 }

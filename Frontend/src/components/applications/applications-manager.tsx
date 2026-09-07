@@ -36,6 +36,7 @@ import type {
   ApplicationsListResponse,
 } from "@/lib/applications/types";
 import { APPLICATION_STATUSES } from "@/lib/applications/types";
+import { formatScore, SCORE_RANGE_OPTIONS, scoreRangeParams, scoreTone } from "@/lib/applications/scoring";
 import type { JobOptionsResponse } from "@/lib/jobs/types";
 import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -122,6 +123,8 @@ export function ApplicationsManager() {
   const [jobId, setJobId] = useState("");
   const [roleId, setRoleId] = useState("");
   const [status, setStatus] = useState("");
+  const [scoreRange, setScoreRange] = useState("");
+  const [scoreSort, setScoreSort] = useState<"asc" | "desc" | null>(null);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [rejectTarget, setRejectTarget] = useState<{
@@ -141,16 +144,22 @@ export function ApplicationsManager() {
     return () => window.clearTimeout(timer);
   }, [query]);
 
+  const scoreFilters = scoreRangeParams(scoreRange);
   const filters = useMemo(
     () => ({
       q: debouncedQuery || undefined,
       jobId: jobId || undefined,
       roleId: roleId || undefined,
       status: status || undefined,
+      sort: scoreSort ? "score" : undefined,
+      dir: scoreSort ?? undefined,
+      scoreMin: scoreFilters.scoreMin,
+      scoreMax: scoreFilters.scoreMax,
+      scoreLessThan: scoreFilters.scoreLessThan,
       page,
       limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, jobId, page, roleId, status],
+    [debouncedQuery, jobId, page, roleId, scoreFilters.scoreLessThan, scoreFilters.scoreMax, scoreFilters.scoreMin, scoreSort, status],
   );
 
   const listQuery = useQuery({
@@ -238,6 +247,9 @@ export function ApplicationsManager() {
           q: applicationIds ? undefined : filters.q,
           status: applicationIds ? undefined : filters.status,
           roleId: applicationIds ? undefined : filters.roleId,
+          scoreMin: applicationIds ? undefined : filters.scoreMin,
+          scoreMax: applicationIds ? undefined : filters.scoreMax,
+          scoreLessThan: applicationIds ? undefined : filters.scoreLessThan,
           applicationIds,
           reason,
           sendEmail,
@@ -316,6 +328,9 @@ export function ApplicationsManager() {
         q: filters.q,
         status: filters.status,
         roleId: filters.roleId,
+        scoreMin: filters.scoreMin,
+        scoreMax: filters.scoreMax,
+        scoreLessThan: filters.scoreLessThan,
       });
       if (result.data.count === 0) {
         alerts.info("No matching applications to reject.");
@@ -343,6 +358,11 @@ export function ApplicationsManager() {
       jobId: resolvedJobId,
       applicationIds: rejectableSelected.map((item) => item.id),
     });
+  }
+
+  function toggleScoreSort() {
+    setScoreSort((current) => (current === "desc" ? "asc" : "desc"));
+    setPage(1);
   }
 
   function toggleSelected(id: string) {
@@ -376,7 +396,7 @@ export function ApplicationsManager() {
                   value={query}
                 />
               </label>
-              <FilterSheet active={Boolean(jobId || roleId || status)} title="Application filters" triggerSize="md">
+              <FilterSheet active={Boolean(jobId || roleId || status || scoreRange)} title="Application filters" triggerSize="md">
                 <FilterField label="Job">
                   <Dropdown
                     aria-label="Filter by job"
@@ -419,6 +439,20 @@ export function ApplicationsManager() {
                     value={status}
                   />
                 </FilterField>
+                <FilterField label="Score">
+                  <Dropdown
+                    aria-label="Filter by score"
+                    className="w-full"
+                    onChange={(next) => {
+                      setScoreRange(next);
+                      setPage(1);
+                      setSelectedIds([]);
+                    }}
+                    options={SCORE_RANGE_OPTIONS}
+                    size="md"
+                    value={scoreRange}
+                  />
+                </FilterField>
               </FilterSheet>
             </div>
             <div className="hidden md:contents">
@@ -457,6 +491,18 @@ export function ApplicationsManager() {
                 options={statusOptions}
                 size="md"
                 value={status}
+              />
+              <Dropdown
+                aria-label="Filter by score"
+                className="w-full xl:w-44"
+                onChange={(next) => {
+                  setScoreRange(next);
+                  setPage(1);
+                  setSelectedIds([]);
+                }}
+                options={SCORE_RANGE_OPTIONS}
+                size="md"
+                value={scoreRange}
               />
             </div>
           </div>
@@ -508,7 +554,7 @@ export function ApplicationsManager() {
               />
             ) : null}
             {listQuery.isSuccess && applications.length === 0 ? (
-              <EmptyState hasQuery={Boolean(debouncedQuery || jobId || roleId || status)} />
+              <EmptyState hasQuery={Boolean(debouncedQuery || jobId || roleId || status || scoreRange)} />
             ) : null}
             {listQuery.isSuccess && applications.length > 0 ? (
               <div className="overflow-x-auto">
@@ -522,6 +568,15 @@ export function ApplicationsManager() {
                       <th className="px-4 py-3">Job</th>
                       <th className="px-4 py-3">Department / role</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3" aria-sort={scoreSort ? (scoreSort === "asc" ? "ascending" : "descending") : "none"}>
+                        <button
+                          className="font-bold uppercase tracking-wide hover:text-gray-800 dark:hover:text-gray-200"
+                          onClick={toggleScoreSort}
+                          type="button"
+                        >
+                          Score
+                        </button>
+                      </th>
                       <th className="px-4 py-3">Applied At</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
@@ -552,6 +607,13 @@ export function ApplicationsManager() {
                         </td>
                         <td className="px-4 py-3 align-middle">
                           <StatusPills items={[{ label: statusLabel(application.status), tone: statusTone(application.status) }]} />
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          {typeof application.score === "number" ? (
+                            <StatusPills items={[{ label: formatScore(application.score), tone: scoreTone(application.score) }]} />
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           <DateTimeDisplay value={application.createdAt} />

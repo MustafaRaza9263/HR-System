@@ -29,7 +29,19 @@ export const queryKeys = {
   },
   applications: {
     all: ["applications"] as const,
-    list: (filters?: { q?: string; jobId?: string; roleId?: string; status?: string; page?: number; limit?: number }) =>
+    list: (filters?: {
+      q?: string;
+      jobId?: string;
+      roleId?: string;
+      status?: string;
+      sort?: string;
+      dir?: string;
+      scoreMin?: number;
+      scoreMax?: number;
+      scoreLessThan?: number;
+      page?: number;
+      limit?: number;
+    }) =>
       [
         "applications",
         "list",
@@ -37,6 +49,11 @@ export const queryKeys = {
         filters?.jobId ?? "",
         filters?.roleId ?? "",
         filters?.status ?? "",
+        filters?.sort ?? "",
+        filters?.dir ?? "",
+        filters?.scoreMin ?? "",
+        filters?.scoreMax ?? "",
+        filters?.scoreLessThan ?? "",
         filters?.page ?? 1,
         filters?.limit ?? LIST_PAGE_LIMIT,
       ] as const,

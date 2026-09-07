@@ -1,18 +1,22 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { ApplicationStatusTimeline, applicationStatusLabel, applicationStatusTone } from "@/components/applications/application-status-timeline";
+import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { StatusPills } from "@/components/ui/status-pills";
 import { alerts } from "@/lib/alerts";
-import { ApiClientError, apiDownload } from "@/lib/api";
-import type { ApplicationAnswer, ApplicationDetail, EducationEntry, ExperienceEntry } from "@/lib/applications/types";
+import { ApiClientError, apiDownload, apiRequest } from "@/lib/api";
 import { parseHttpUrl } from "@/lib/applications/http-url";
+import { formatScore, scoreTone } from "@/lib/applications/scoring";
+import type { ApplicationAnswer, ApplicationDetail, ApplicationScoring, EducationEntry, ExperienceEntry } from "@/lib/applications/types";
 import { formatSalaryAmount } from "@/lib/applications/salary";
 import { formatCalendarDate } from "@/lib/interviews/format";
 import type { FieldSection } from "@/lib/jobs/types";
+import { queryKeys } from "@/lib/query/query-keys";
 
 const CARD =
   "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 dark:border-gray-700 dark:bg-gray-800/70";
@@ -79,9 +83,25 @@ function CardTitle({ children, count }: { children: ReactNode; count?: number })
 }
 
 export function ApplicationProfile({ application }: { application: ApplicationDetail }) {
+  const queryClient = useQueryClient();
   const [downloading, setDownloading] = useState<string | null>(null);
   const experienceEntries = application.experienceEntries ?? [];
   const educationEntries = application.educationEntries ?? [];
+
+  const retryScoring = useMutation({
+    mutationFn: async () =>
+      apiRequest<{ data: { scoring: ApplicationScoring } }>(`/applications/${application.id}/score/retry`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.detail(application.id) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+      alerts.success("Scoring queued again.");
+    },
+    onError: (error) => {
+      alerts.error(errorMessage(error, "Scoring could not be retried."));
+    },
+  });
 
   const answersBySection = useMemo(() => {
     const groups: Record<FieldSection, ApplicationAnswer[]> = { personal: [], experience: [], education: [] };
@@ -241,19 +261,11 @@ export function ApplicationProfile({ application }: { application: ApplicationDe
 
         <article className={CARD}>
           <CardTitle>AI scoring</CardTitle>
-          {application.aiScore === null && !application.aiSummary ? (
-            <p className="text-sm text-gray-500">Not scored yet</p>
-          ) : (
-            <div className="space-y-2 text-sm">
-              <p>
-                <span className="font-semibold">Score: </span>
-                {application.aiScore === null ? "Not scored yet" : application.aiScore}
-              </p>
-              {application.aiSummary ? (
-                <p className="text-gray-600 dark:text-gray-300">{application.aiSummary}</p>
-              ) : null}
-            </div>
-          )}
+          <ScoringCard
+            onRetry={() => retryScoring.mutate()}
+            retrying={retryScoring.isPending}
+            scoring={application.scoring}
+          />
         </article>
       </div>
 
@@ -283,6 +295,72 @@ export function ApplicationProfile({ application }: { application: ApplicationDe
           </article>
         ) : null}
       </aside>
+    </div>
+  );
+}
+
+function ScoringCard({
+  scoring,
+  retrying,
+  onRetry,
+}: {
+  scoring: ApplicationScoring | null;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  if (scoring?.status === "pending") {
+    return <p className="text-sm text-gray-500">Scoring in progress</p>;
+  }
+
+  if (scoring?.status === "failed") {
+    return (
+      <div>
+        <p className="text-sm text-gray-500">Scoring failed</p>
+        <button
+          className="mt-3 h-9 rounded-lg border border-gray-300 bg-white px-3 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          disabled={retrying}
+          onClick={onRetry}
+          type="button"
+        >
+          {retrying ? "Retrying…" : "Retry"}
+        </button>
+      </div>
+    );
+  }
+
+  if (scoring?.status !== "completed" || typeof scoring.score !== "number") {
+    return <p className="text-sm text-gray-500">Not scored yet</p>;
+  }
+
+  return (
+    <div className="space-y-4 text-sm">
+      <StatusPills items={[{ label: formatScore(scoring.score), tone: scoreTone(scoring.score) }]} />
+      <p className="text-gray-600 dark:text-gray-300">{scoring.summary}</p>
+      {scoring.strengths.length > 0 ? (
+        <div>
+          <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-gray-400">Strengths</h3>
+          <ul className="list-disc space-y-1 pl-4 text-gray-600 dark:text-gray-300">
+            {scoring.strengths.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {scoring.gaps.length > 0 ? (
+        <div>
+          <h3 className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-gray-400">Gaps</h3>
+          <ul className="list-disc space-y-1 pl-4 text-gray-600 dark:text-gray-300">
+            {scoring.gaps.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {scoring.scoredAt ? (
+        <Fact label="Scored">
+          <DateTimeDisplay value={scoring.scoredAt} />
+        </Fact>
+      ) : null}
     </div>
   );
 }
