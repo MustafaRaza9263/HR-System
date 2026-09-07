@@ -229,10 +229,10 @@ export function JobsManager() {
     <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Job metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <MetricCard icon={BriefcaseBusiness} label="Total jobs" supporting="All statuses" value={stats.totalJobs} />
-          <MetricCard icon={FolderOpen} label="Total opened jobs" supporting="Currently accepting applications" value={stats.totalOpened} />
-          <MetricCard icon={UsersRound} label="Average applicants on a job" supporting="Across all jobs" value={stats.averageApplicants} />
-          <MetricCard icon={XCircle} label="Total closed jobs" supporting="Manually closed postings" value={stats.totalClosed} />
+          <MetricCard icon={BriefcaseBusiness} label="Total jobs" supporting="All statuses" tone="info" value={stats.totalJobs} />
+          <MetricCard icon={FolderOpen} label="Total opened jobs" supporting="Currently accepting applications" tone="success" value={stats.totalOpened} />
+          <MetricCard icon={UsersRound} label="Average applicants on a job" supporting="Across all jobs" tone="violet" value={stats.averageApplicants} />
+          <MetricCard icon={XCircle} label="Total closed jobs" supporting="Manually closed postings" tone="warning" value={stats.totalClosed} />
         </section>
 
         <section aria-labelledby="jobs-table-title">

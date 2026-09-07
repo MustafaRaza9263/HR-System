@@ -220,10 +220,10 @@ export function JobRolesManager() {
     <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Job role metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <MetricCard icon={Building2} label="Total Departments" supporting="Organization categories" value={departments.length} />
-          <MetricCard icon={BriefcaseBusiness} label="Total Roles" supporting="Reusable job titles" value={roles.length} />
-          <MetricCard icon={CirclePlus} label="Open Roles" supporting="Available when jobs are connected" value="—" />
-          <MetricCard icon={Power} label="Closed Roles" supporting="Available when jobs are connected" value="—" />
+          <MetricCard icon={Building2} label="Total Departments" supporting="Organization categories" tone="info" value={departments.length} />
+          <MetricCard icon={BriefcaseBusiness} label="Total Roles" supporting="Reusable job titles" tone="sky" value={roles.length} />
+          <MetricCard icon={CirclePlus} label="Open Roles" supporting="Available when jobs are connected" tone="success" value="—" />
+          <MetricCard icon={Power} label="Closed Roles" supporting="Available when jobs are connected" tone="warning" value="—" />
         </section>
 
         <section aria-labelledby="department-list-title">

@@ -71,24 +71,28 @@ export function DashboardManager({ userName }: { userName: string }) {
             icon={BriefcaseBusiness}
             label="Open jobs"
             supporting={summary ? deltaLabel(summary.openJobs.delta, "this month") : "Loading…"}
+            tone={summary ? "success" : "neutral"}
             value={summary?.openJobs.value ?? "—"}
           />
           <MetricCard
             icon={UsersRound}
             label="Applications"
             supporting={summary ? deltaLabel(summary.applications.delta, "today") : "Loading…"}
+            tone={summary ? "success" : "neutral"}
             value={summary?.applications.value ?? "—"}
           />
           <MetricCard
             icon={Clock3}
             label="Scheduled interviews"
             supporting="today"
+            tone="info"
             value={summary?.interviewsToday.value ?? "—"}
           />
           <MetricCard
             icon={UserRoundCheck}
             label="Hired candidates"
             supporting={summary ? deltaLabel(summary.hired.delta, "this month") : "Loading…"}
+            tone={summary ? "success" : "neutral"}
             value={summary?.hired.value ?? "—"}
           />
         </section>

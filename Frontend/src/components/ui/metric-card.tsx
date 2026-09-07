@@ -1,13 +1,26 @@
 import type { LucideIcon } from "lucide-react";
 
+import type { PillTone } from "@/components/ui/status-pills";
+
 interface MetricCardProps {
   label: string;
   value: string | number;
   supporting: string;
   icon: LucideIcon;
+  tone?: PillTone;
 }
 
-export function MetricCard({ label, value, supporting, icon: Icon }: MetricCardProps) {
+const SUPPORTING_TONE_CLASS: Record<PillTone, string> = {
+  success: "text-emerald-600 dark:text-emerald-400",
+  danger: "text-red-600 dark:text-red-400",
+  warning: "text-amber-600 dark:text-amber-400",
+  info: "text-indigo-600 dark:text-indigo-400",
+  sky: "text-sky-600 dark:text-sky-400",
+  violet: "text-violet-600 dark:text-violet-400",
+  neutral: "text-gray-600 dark:text-gray-300",
+};
+
+export function MetricCard({ label, value, supporting, icon: Icon, tone = "info" }: MetricCardProps) {
   return (
     <article className="flex h-full min-h-36 flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5 dark:border-gray-700 dark:bg-gray-800">
       <div className="flex flex-col items-start sm:flex-row sm:items-start sm:justify-between sm:gap-3">
@@ -23,7 +36,7 @@ export function MetricCard({ label, value, supporting, icon: Icon }: MetricCardP
           </p>
         </div>
       </div>
-      <p className="mt-auto pt-3 text-xs text-gray-400 dark:text-gray-500">{supporting}</p>
+      <p className={`mt-auto pt-3 text-xs font-medium ${SUPPORTING_TONE_CLASS[tone]}`}>{supporting}</p>
     </article>
   );
 }

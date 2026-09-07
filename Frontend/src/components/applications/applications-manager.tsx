@@ -353,10 +353,10 @@ export function ApplicationsManager() {
     <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Application metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <MetricCard icon={ClipboardList} label="Total applications" supporting="All statuses" value={stats.total} />
-          <MetricCard icon={CalendarClock} label="Scheduled" supporting="Interview scheduled" value={stats.scheduled} />
-          <MetricCard icon={UserX} label="Rejected" supporting="Closed as not a fit" value={stats.rejected} />
-          <MetricCard icon={CircleCheck} label="Approved" supporting="Hired or offered" value={stats.approved} />
+          <MetricCard icon={ClipboardList} label="Total applications" supporting="All statuses" tone="info" value={stats.total} />
+          <MetricCard icon={CalendarClock} label="Scheduled" supporting="Interview scheduled" tone="sky" value={stats.scheduled} />
+          <MetricCard icon={UserX} label="Rejected" supporting="Closed as not a fit" tone="danger" value={stats.rejected} />
+          <MetricCard icon={CircleCheck} label="Approved" supporting="Hired or offered" tone="success" value={stats.approved} />
         </section>
 
         <section aria-labelledby="applications-table-title">

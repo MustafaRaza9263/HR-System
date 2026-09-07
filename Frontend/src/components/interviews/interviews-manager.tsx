@@ -275,20 +275,33 @@ export function InterviewsManager() {
     <div className="min-h-full p-4 text-gray-900 sm:p-6 md:p-8 dark:text-gray-100">
       <div className="w-full space-y-6">
         <section aria-label="Interview metrics" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <MetricCard icon={ClipboardList} label="Total interviews" supporting="All statuses" value={stats.total} />
+          <MetricCard icon={ClipboardList} label="Total interviews" supporting="All statuses" tone="info" value={stats.total} />
           <button className="h-full w-full text-left" onClick={() => toggleBucket("scheduled")} type="button">
-            <MetricCard icon={CalendarClock} label="Scheduled" supporting={bucket === "scheduled" ? "Filter on" : "Open interviews"} value={stats.scheduled} />
+            <MetricCard
+              icon={CalendarClock}
+              label="Scheduled"
+              supporting={bucket === "scheduled" ? "Filter on" : "Open interviews"}
+              tone={bucket === "scheduled" ? "info" : "sky"}
+              value={stats.scheduled}
+            />
           </button>
           <button className="h-full w-full text-left" onClick={() => toggleBucket("today")} type="button">
             <MetricCard
               icon={CalendarDays}
               label="Today"
               supporting={`${stats.tomorrow} scheduled tomorrow`}
+              tone={bucket === "today" ? "info" : "violet"}
               value={stats.today}
             />
           </button>
           <button className="h-full w-full text-left" onClick={() => toggleBucket("overdue")} type="button">
-            <MetricCard icon={TriangleAlert} label="Overdue" supporting={bucket === "overdue" ? "Filter on" : "Date has passed"} value={stats.overdue} />
+            <MetricCard
+              icon={TriangleAlert}
+              label="Overdue"
+              supporting={bucket === "overdue" ? "Filter on" : "Date has passed"}
+              tone="warning"
+              value={stats.overdue}
+            />
           </button>
         </section>
 
