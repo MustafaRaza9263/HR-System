@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { Dropdown } from "@/components/ui/dropdown";
+import { FilterField, FilterSheet } from "@/components/ui/filter-sheet";
 import { apiRequest } from "@/lib/api";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -40,7 +41,7 @@ export function CareersBoard() {
   });
 
   const jobs = careersQuery.data?.data.jobs ?? EMPTY_JOBS;
-  const teams = careersQuery.data?.data.teams ?? EMPTY_TEAMS
+  const teams = careersQuery.data?.data.teams ?? EMPTY_TEAMS;
 
   const filteredJobs = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase();
@@ -88,27 +89,37 @@ export function CareersBoard() {
           <h1 className="text-4xl font-bold tracking-[-0.04em] text-neutral-950 sm:text-5xl dark:text-white">
             Join our team
           </h1>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <Dropdown
-              aria-label="Filter by team"
-              className="w-full min-w-[10.5rem] sm:w-[12.5rem]"
-              onChange={setTeamId}
-              options={[
-                { value: "", label: "All Teams" },
-                ...teams.map((team) => ({ value: team.id, label: team.name })),
-              ]}
-              value={teamId}
-            />
-            <label className="relative min-w-0 sm:min-w-[16rem]">
+          <div className="flex min-w-0 items-center gap-2 sm:min-w-[20rem]">
+            <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search roles</span>
               <Search aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
               <input
-                className="h-11 w-full rounded-xl border border-neutral-300 bg-white py-2 pl-10 pr-4 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="h-12 w-full rounded-xl border border-neutral-300 bg-white py-2 pl-10 pr-4 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search roles"
                 value={query}
               />
             </label>
+            <FilterSheet
+              active={Boolean(teamId)}
+              alwaysShow
+              title="Filter by team"
+              triggerSize="md"
+            >
+              <FilterField label="Team">
+                <Dropdown
+                  aria-label="Filter by team"
+                  className="w-full"
+                  onChange={setTeamId}
+                  options={[
+                    { value: "", label: "All Teams" },
+                    ...teams.map((team) => ({ value: team.id, label: team.name })),
+                  ]}
+                  size="md"
+                  value={teamId}
+                />
+              </FilterField>
+            </FilterSheet>
           </div>
         </div>
 
@@ -187,11 +198,13 @@ export function CareersBoard() {
                         >
                           {group.jobs.map((job) => (
                             <li
-                              className="grid grid-cols-1 items-center gap-3 border-t border-neutral-100 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] sm:gap-6 dark:border-gray-900"
+                              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-neutral-100 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] sm:gap-6 dark:border-gray-900"
                               key={job.id}
                             >
-                              <span className="text-sm font-medium text-neutral-900 sm:col-start-2 dark:text-white">{job.title}</span>
-                              <div className="sm:col-start-3 sm:justify-self-end">
+                              <span className="min-w-0 truncate text-sm font-medium text-neutral-900 sm:col-start-2 dark:text-white">
+                                {job.title}
+                              </span>
+                              <div className="shrink-0 sm:col-start-3 sm:justify-self-end">
                                 {job.slug ? (
                                   <Link
                                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3.5 text-sm font-semibold text-neutral-800 transition hover:border-neutral-400 hover:bg-neutral-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"

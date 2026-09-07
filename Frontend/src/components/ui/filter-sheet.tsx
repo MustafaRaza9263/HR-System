@@ -10,20 +10,27 @@ interface FilterSheetProps {
   children: ReactNode;
   active?: boolean;
   triggerSize?: "sm" | "md";
+  alwaysShow?: boolean;
 }
 
-export function FilterSheet({ title, children, active = false, triggerSize = "sm" }: FilterSheetProps) {
+export function FilterSheet({
+  title,
+  children,
+  active = false,
+  triggerSize = "sm",
+  alwaysShow = false,
+}: FilterSheetProps) {
   const [open, setOpen] = useState(false);
   const triggerClass =
     triggerSize === "md"
-      ? "relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-gray-900 md:hidden dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
-      : "relative inline-flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900 md:hidden dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white";
+      ? "relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+      : "relative inline-flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white";
 
   return (
     <>
       <button
         aria-label={active ? "Open filters, filters applied" : "Open filters"}
-        className={triggerClass}
+        className={`${triggerClass} ${alwaysShow ? "" : "md:hidden"}`}
         onClick={() => setOpen(true)}
         title="Open filters"
         type="button"
