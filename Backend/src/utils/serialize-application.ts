@@ -27,6 +27,7 @@ export interface ApplicationLike {
     endDate?: string | null;
     currentlyWorking?: boolean | null;
     salary?: number | null;
+    salaryCurrency?: string | null;
     description?: string | null;
   }>;
   educationEntries?: Array<{
@@ -89,6 +90,7 @@ export function serializeApplication(application: ApplicationLike) {
       endDate: entry.endDate ?? null,
       currentlyWorking: Boolean(entry.currentlyWorking),
       salary: typeof entry.salary === "number" ? entry.salary : null,
+      salaryCurrency: entry.salaryCurrency ?? null,
       description: entry.description ?? "",
     })),
     educationEntries: (application.educationEntries ?? []).map((entry) => ({

@@ -9,6 +9,7 @@ import { StatusPills } from "@/components/ui/status-pills";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload } from "@/lib/api";
 import type { ApplicationAnswer, ApplicationDetail, EducationEntry, ExperienceEntry } from "@/lib/applications/types";
+import { formatSalaryAmount } from "@/lib/applications/salary";
 import { formatCalendarDate } from "@/lib/interviews/format";
 import type { FieldSection } from "@/lib/jobs/types";
 
@@ -27,10 +28,6 @@ const SECTION_LABEL: Record<FieldSection, string> = {
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiClientError) return error.message;
   return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function formatSalaryAmount(value: number) {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 }
 
 function formatDateOnly(value: string | null | undefined, pattern = "MMM d, yyyy") {
@@ -162,7 +159,7 @@ export function ApplicationProfile({ application }: { application: ApplicationDe
                     </div>
                     <p className="mt-0.5 text-[13px] text-gray-500">{entry.company}</p>
                     {typeof entry.salary === "number" ? (
-                      <p className="mt-1 text-[13px] text-gray-400">Salary: {formatSalaryAmount(entry.salary)}</p>
+                      <p className="mt-1 text-[13px] text-gray-400">Salary: {formatSalaryAmount(entry.salary, entry.salaryCurrency)}</p>
                     ) : null}
                     {entry.description ? (
                       <p className="mt-1 whitespace-pre-wrap text-[13px] text-gray-500">{entry.description}</p>

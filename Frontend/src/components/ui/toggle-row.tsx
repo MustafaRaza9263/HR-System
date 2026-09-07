@@ -8,12 +8,14 @@ export function ToggleRow({
   title,
   description,
   disabled = false,
+  muted = false,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
   title: string;
   description?: string;
   disabled?: boolean;
+  muted?: boolean;
 }) {
   return (
     <button
@@ -26,7 +28,15 @@ export function ToggleRow({
       type="button"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold text-gray-900 dark:text-white">{title}</span>
+        <span
+          className={
+            muted
+              ? "block truncate text-xs font-medium whitespace-nowrap text-neutral-400 dark:text-neutral-500"
+              : "block text-sm font-bold text-gray-900 dark:text-white"
+          }
+        >
+          {title}
+        </span>
         {description ? (
           <span className="mt-0.5 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">{description}</span>
         ) : null}

@@ -11,6 +11,8 @@ import { DateInput, todayIsoDate } from "@/components/ui/date-input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { FileUploader } from "@/components/ui/file-uploader";
 import { PhoneField } from "@/components/ui/phone-field";
+import { SalaryField } from "@/components/ui/salary-field";
+import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
 import type { ApplyResponse, PublicJobDetail, PublicJobDetailResponse } from "@/lib/applications/types";
@@ -403,7 +405,7 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                     autoComplete="tel"
                     disabled={busy}
                     invalid={Boolean(errors.candidateAlternativePhone)}
-                    numberLabel="Alternative phone number"
+                    numberLabel="Alternative phone No"
                     onChange={(phone) =>
                       setValues((current) =>
                         current.candidateAlternativePhone === phone
@@ -442,7 +444,7 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                       onChange={(event) =>
                         setValues((current) => ({ ...current, candidateCnic: formatCnic(event.target.value) }))
                       }
-                      placeholder="xxxxx-xxxxxxx-x"
+                      placeholder="00000-0000000-0"
                       value={values.candidateCnic}
                     />
                     <FieldError message={errors.candidateCnic} />
@@ -550,86 +552,87 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                         />
                         <FieldError message={errors[`experience.${index}.title`]} />
                       </label>
-                      <label className="flex items-center gap-3 text-sm font-semibold">
-                        <input
-                          checked={entry.currentlyWorking}
-                          className="h-4 w-4"
-                          disabled={busy}
-                          onChange={(event) =>
-                            setValues((current) => ({
-                              ...current,
-                              experience: current.experience.map((item) =>
-                                item.id === entry.id
-                                  ? {
-                                      ...item,
-                                      currentlyWorking: event.target.checked,
-                                      endDate: event.target.checked ? "" : item.endDate,
-                                    }
-                                  : item,
-                              ),
-                            }))
-                          }
-                          type="checkbox"
-                        />
-                        Currently working here
-                      </label>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <label className="block">
-                          <span className="mb-2 block text-sm font-semibold">
-                            Start date <span className="text-red-500">*</span>
-                          </span>
-                          <DateInput
-                            disabled={busy}
-                            invalid={Boolean(errors[`experience.${index}.startDate`])}
-                            onChange={(date) =>
-                              setValues((current) => ({
-                                ...current,
-                                experience: current.experience.map((item) =>
-                                  item.id === entry.id ? { ...item, startDate: date } : item,
-                                ),
-                              }))
-                            }
-                            value={entry.startDate}
-                          />
-                          <FieldError message={errors[`experience.${index}.startDate`]} />
-                        </label>
-                        <label className="block">
-                          <span className="mb-2 block text-sm font-semibold">End date</span>
-                          <DateInput
-                            disabled={busy || entry.currentlyWorking}
-                            invalid={Boolean(errors[`experience.${index}.endDate`])}
-                            onChange={(date) =>
-                              setValues((current) => ({
-                                ...current,
-                                experience: current.experience.map((item) =>
-                                  item.id === entry.id ? { ...item, endDate: date } : item,
-                                ),
-                              }))
-                            }
-                            value={entry.currentlyWorking ? "" : entry.endDate}
-                          />
-                          <FieldError message={errors[`experience.${index}.endDate`]} />
-                        </label>
-                      </div>
                       <label className="block">
-                        <span className="mb-2 block text-sm font-semibold">Salary</span>
-                        <input
-                          className={inputClass}
+                        <span className="mb-2 block text-sm font-semibold">
+                          Start date <span className="text-red-500">*</span>
+                        </span>
+                        <DateInput
                           disabled={busy}
-                          min={0}
-                          onChange={(event) =>
+                          invalid={Boolean(errors[`experience.${index}.startDate`])}
+                          onChange={(date) =>
                             setValues((current) => ({
                               ...current,
                               experience: current.experience.map((item) =>
-                                item.id === entry.id ? { ...item, salary: event.target.value } : item,
+                                item.id === entry.id ? { ...item, startDate: date } : item,
                               ),
                             }))
                           }
-                          type="number"
-                          value={entry.salary}
+                          value={entry.startDate}
+                        />
+                        <FieldError message={errors[`experience.${index}.startDate`]} />
+                      </label>
+                      <ToggleRow
+                        checked={entry.currentlyWorking}
+                        disabled={busy}
+                        muted
+                        onChange={(currentlyWorking) =>
+                          setValues((current) => ({
+                            ...current,
+                            experience: current.experience.map((item) =>
+                              item.id === entry.id
+                                ? {
+                                    ...item,
+                                    currentlyWorking,
+                                    endDate: currentlyWorking ? "" : item.endDate,
+                                  }
+                                : item,
+                            ),
+                          }))
+                        }
+                        title="Currently working here"
+                      />
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-semibold">End date</span>
+                        <DateInput
+                          disabled={busy || entry.currentlyWorking}
+                          invalid={Boolean(errors[`experience.${index}.endDate`])}
+                          onChange={(date) =>
+                            setValues((current) => ({
+                              ...current,
+                              experience: current.experience.map((item) =>
+                                item.id === entry.id ? { ...item, endDate: date } : item,
+                              ),
+                            }))
+                          }
+                          value={entry.currentlyWorking ? "" : entry.endDate}
+                        />
+                        <FieldError message={errors[`experience.${index}.endDate`]} />
+                      </label>
+                      <div>
+                        <SalaryField
+                          amount={entry.salary}
+                          currency={entry.salaryCurrency}
+                          disabled={busy}
+                          invalid={Boolean(errors[`experience.${index}.salary`])}
+                          onAmountChange={(salary) =>
+                            setValues((current) => ({
+                              ...current,
+                              experience: current.experience.map((item) =>
+                                item.id === entry.id ? { ...item, salary } : item,
+                              ),
+                            }))
+                          }
+                          onCurrencyChange={(salaryCurrency) =>
+                            setValues((current) => ({
+                              ...current,
+                              experience: current.experience.map((item) =>
+                                item.id === entry.id ? { ...item, salaryCurrency } : item,
+                              ),
+                            }))
+                          }
                         />
                         <FieldError message={errors[`experience.${index}.salary`]} />
-                      </label>
+                      </div>
                       <label className="block">
                         <span className="mb-2 block text-sm font-semibold">Description</span>
                         <textarea

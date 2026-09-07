@@ -228,6 +228,7 @@ careersRouter.post(
       currentlyWorking: Boolean(entry.currentlyWorking),
       endDate: entry.currentlyWorking ? null : entry.endDate?.trim() ? entry.endDate.trim() : null,
       salary: typeof entry.salary === "number" ? entry.salary : null,
+      salaryCurrency: typeof entry.salary === "number" ? entry.salaryCurrency ?? "PKR" : null,
       description: entry.description?.trim() ?? "",
     }));
     const educationEntries = parsePrefixed(educationEntriesSchema, educationRaw, "education").map((entry) => ({

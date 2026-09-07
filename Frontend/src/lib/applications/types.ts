@@ -56,6 +56,7 @@ export interface ExperienceEntry {
   endDate: string | null;
   currentlyWorking: boolean;
   salary: number | null;
+  salaryCurrency: string | null;
   description: string;
 }
 

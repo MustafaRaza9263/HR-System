@@ -115,12 +115,42 @@ export const experienceEntrySchema = z
       (value) => {
         if (value === "" || value === undefined || value === null) return null;
         if (typeof value === "string") {
-          const numeric = Number(value);
+          const numeric = Number(value.replace(/,/g, "").trim());
           return Number.isFinite(numeric) ? numeric : value;
         }
         return value;
       },
       z.number().nonnegative("Salary cannot be negative.").max(1_000_000_000_000).nullable(),
+    ),
+    salaryCurrency: z.preprocess(
+      (value) => {
+        if (value === "" || value === undefined || value === null) return null;
+        if (typeof value === "string") return value.trim().toUpperCase();
+        return value;
+      },
+      z
+        .enum([
+          "PKR",
+          "USD",
+          "EUR",
+          "GBP",
+          "AED",
+          "SAR",
+          "INR",
+          "CAD",
+          "AUD",
+          "CNY",
+          "TRY",
+          "QAR",
+          "KWD",
+          "BHD",
+          "OMR",
+          "MYR",
+          "SGD",
+          "CHF",
+          "JPY",
+        ])
+        .nullable(),
     ),
     description: z.string().trim().max(2000).optional(),
   })

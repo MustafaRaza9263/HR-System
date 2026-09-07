@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload, apiRequest } from "@/lib/api";
 import type { ApplicationAnswer, ApplicationDetailResponse } from "@/lib/applications/types";
+import { formatSalaryAmount } from "@/lib/applications/salary";
 import { queryKeys } from "@/lib/query/query-keys";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -19,10 +20,6 @@ function formatAnswerValue(answer: ApplicationAnswer) {
   if (answer.type === "checkbox") return answer.value === true ? "Yes" : "No";
   if (answer.value === null || answer.value === undefined || answer.value === "") return "—";
   return String(answer.value);
-}
-
-function formatSalaryAmount(value: number) {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 }
 
 export function ApplicationDetailsModal({
@@ -167,7 +164,7 @@ export function ApplicationDetailsModal({
                       {entry.startDate}
                       {" – "}
                       {entry.currentlyWorking || !entry.endDate ? "Present" : entry.endDate}
-                      {typeof entry.salary === "number" ? ` · Salary ${formatSalaryAmount(entry.salary)}` : ""}
+                      {typeof entry.salary === "number" ? ` · Salary ${formatSalaryAmount(entry.salary, entry.salaryCurrency)}` : ""}
                     </p>
                     {entry.description ? (
                       <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">{entry.description}</p>

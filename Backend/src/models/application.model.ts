@@ -39,6 +39,7 @@ const experienceEntrySchema = new Schema(
     endDate: { type: String, default: null, maxlength: 10 },
     currentlyWorking: { type: Boolean, default: false },
     salary: { type: Number, default: null, min: 0 },
+    salaryCurrency: { type: String, default: null, trim: true, uppercase: true, maxlength: 3 },
     description: { type: String, default: "", maxlength: 2000 },
   },
   { _id: false },

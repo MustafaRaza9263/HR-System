@@ -1,5 +1,6 @@
 import { isValidPhoneNumber } from "react-phone-number-input";
 
+import { DEFAULT_SALARY_CURRENCY, parseSalaryDigits } from "@/lib/applications/salary";
 import type { CustomField } from "@/lib/jobs/types";
 import { getStoredUtm } from "@/lib/utm";
 
@@ -13,6 +14,7 @@ export interface ExperienceFormEntry {
   endDate: string;
   currentlyWorking: boolean;
   salary: string;
+  salaryCurrency: string;
   description: string;
 }
 
@@ -53,6 +55,7 @@ export function emptyExperience(): ExperienceFormEntry {
     endDate: "",
     currentlyWorking: false,
     salary: "",
+    salaryCurrency: DEFAULT_SALARY_CURRENCY,
     description: "",
   };
 }
@@ -159,7 +162,7 @@ export function validateApplyForm(fields: CustomField[], values: ApplyFormValues
       }
     }
     if (entry.salary.trim()) {
-      const salary = Number(entry.salary);
+      const salary = Number(parseSalaryDigits(entry.salary));
       if (!Number.isFinite(salary) || salary < 0) {
         errors[`experience.${index}.salary`] = "Enter a valid salary.";
       }
@@ -280,7 +283,8 @@ export function buildApplyFormData(fields: CustomField[], values: ApplyFormValue
         startDate: entry.startDate,
         currentlyWorking: entry.currentlyWorking,
         endDate: entry.currentlyWorking ? "" : entry.endDate,
-        salary: entry.salary.trim() === "" ? null : Number(entry.salary),
+        salary: entry.salary.trim() === "" ? null : Number(parseSalaryDigits(entry.salary)),
+        salaryCurrency: entry.salary.trim() === "" ? null : (entry.salaryCurrency || DEFAULT_SALARY_CURRENCY),
         description: entry.description.trim(),
       })),
     ),
