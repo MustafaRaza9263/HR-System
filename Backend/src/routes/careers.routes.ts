@@ -191,6 +191,8 @@ careersRouter.post(
       candidateCnic: body.candidateCnic,
       candidateMaritalStatus: body.candidateMaritalStatus,
       candidateAlternativePhone: body.candidateAlternativePhone,
+      expectedSalary: body.expectedSalary,
+      expectedSalaryCurrency: body.expectedSalaryCurrency,
     });
 
     await assertNoDuplicateApplication({
@@ -280,6 +282,8 @@ careersRouter.post(
       candidateCnic: system.candidateCnic,
       candidateMaritalStatus: system.candidateMaritalStatus,
       candidateAlternativePhone: system.candidateAlternativePhone?.replace(/\s+/g, " ") || null,
+      expectedSalary: system.expectedSalary,
+      expectedSalaryCurrency: system.expectedSalaryCurrency,
       resumeUrl: savedResume.relative,
       resumeOriginalName: savedResume.originalName,
       status: "submitted",

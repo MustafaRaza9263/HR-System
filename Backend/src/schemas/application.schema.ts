@@ -50,6 +50,43 @@ export const bulkRejectSchema = z.object({
 
 export const maritalStatusEnum = z.enum(["Single", "Married", "Divorced", "Widowed"]);
 
+const salaryCurrencyEnum = z.enum([
+  "PKR",
+  "USD",
+  "EUR",
+  "GBP",
+  "AED",
+  "SAR",
+  "INR",
+  "CAD",
+  "AUD",
+  "CNY",
+  "TRY",
+  "QAR",
+  "KWD",
+  "BHD",
+  "OMR",
+  "MYR",
+  "SGD",
+  "CHF",
+  "JPY",
+]);
+
+function preprocessSalary(value: unknown) {
+  if (value === "" || value === undefined || value === null) return null;
+  if (typeof value === "string") {
+    const numeric = Number(value.replace(/,/g, "").trim());
+    return Number.isFinite(numeric) ? numeric : value;
+  }
+  return value;
+}
+
+function preprocessSalaryCurrency(value: unknown) {
+  if (value === "" || value === undefined || value === null) return null;
+  if (typeof value === "string") return value.trim().toUpperCase();
+  return value;
+}
+
 const phoneSchema = z
   .string()
   .trim()
@@ -89,6 +126,20 @@ export const applySystemFieldsSchema = z.object({
       if (!phone) return true;
       return phoneSchema.safeParse(phone).success;
     }, "Enter a valid phone number."),
+  expectedSalary: z.preprocess(
+    (value) => {
+      const next = preprocessSalary(value);
+      return next === null ? undefined : next;
+    },
+    z.number().nonnegative("Enter a valid expected salary.").max(1_000_000_000_000),
+  ),
+  expectedSalaryCurrency: z.preprocess(
+    (value) => {
+      const next = preprocessSalaryCurrency(value);
+      return next === null ? undefined : next;
+    },
+    salaryCurrencyEnum,
+  ),
 });
 
 export const submittedAnswerSchema = z.object({
@@ -112,46 +163,10 @@ export const experienceEntrySchema = z
     endDate: optionalDate.optional(),
     currentlyWorking: z.boolean().optional().default(false),
     salary: z.preprocess(
-      (value) => {
-        if (value === "" || value === undefined || value === null) return null;
-        if (typeof value === "string") {
-          const numeric = Number(value.replace(/,/g, "").trim());
-          return Number.isFinite(numeric) ? numeric : value;
-        }
-        return value;
-      },
+      preprocessSalary,
       z.number().nonnegative("Salary cannot be negative.").max(1_000_000_000_000).nullable(),
     ),
-    salaryCurrency: z.preprocess(
-      (value) => {
-        if (value === "" || value === undefined || value === null) return null;
-        if (typeof value === "string") return value.trim().toUpperCase();
-        return value;
-      },
-      z
-        .enum([
-          "PKR",
-          "USD",
-          "EUR",
-          "GBP",
-          "AED",
-          "SAR",
-          "INR",
-          "CAD",
-          "AUD",
-          "CNY",
-          "TRY",
-          "QAR",
-          "KWD",
-          "BHD",
-          "OMR",
-          "MYR",
-          "SGD",
-          "CHF",
-          "JPY",
-        ])
-        .nullable(),
-    ),
+    salaryCurrency: z.preprocess(preprocessSalaryCurrency, salaryCurrencyEnum.nullable()),
     description: z.string().trim().max(2000).optional(),
   })
   .superRefine((entry, context) => {

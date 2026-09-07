@@ -251,6 +251,8 @@ async function main() {
       candidateDateOfBirth: "1996-04-12",
       candidateCnic: cnicFor(index + 1),
       candidateMaritalStatus: rng() > 0.5 ? "Single" : "Married",
+      expectedSalary: 120_000,
+      expectedSalaryCurrency: "PKR",
       resumeUrl: "seed/resume.pdf",
       resumeOriginalName: `${first}-${last}-resume.pdf`,
       status,

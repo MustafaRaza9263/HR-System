@@ -117,6 +117,8 @@ export interface ApplicationDetail {
   candidateCnic: string | null;
   candidateMaritalStatus: string | null;
   candidateAlternativePhone: string | null;
+  expectedSalary: number | null;
+  expectedSalaryCurrency: string | null;
   resumeFileName: string;
   hasResume: boolean;
   status: ApplicationStatus;

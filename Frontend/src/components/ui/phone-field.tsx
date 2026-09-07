@@ -22,7 +22,7 @@ import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 const DEFAULT_COUNTRY: Country = "PK";
 
 const inputClass =
-  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
+  "h-11 w-full rounded border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
 
 const COUNTRY_OPTIONS: DropdownOption[] = getCountries()
   .map((code) => {

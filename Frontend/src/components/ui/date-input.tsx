@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 import { registerOverlay } from "@/components/ui/overlay-presence";
 
 const inputClass =
-  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 pr-11 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
+  "h-11 w-full rounded border border-neutral-300 bg-white px-3.5 pr-11 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 const ITEM_H = 40;

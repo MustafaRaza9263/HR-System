@@ -71,6 +71,8 @@ const applicationSchema = new Schema(
     candidateCnic: { type: String, default: null, maxlength: 15 },
     candidateMaritalStatus: { type: String, default: null, maxlength: 20 },
     candidateAlternativePhone: { type: String, default: null, maxlength: 30 },
+    expectedSalary: { type: Number, default: null, min: 0 },
+    expectedSalaryCurrency: { type: String, default: null, trim: true, uppercase: true, maxlength: 3 },
     resumeUrl: { type: String, required: true, maxlength: 500 },
     resumeOriginalName: { type: String, required: true, maxlength: 255 },
     status: {

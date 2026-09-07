@@ -116,6 +116,14 @@ export function ApplicationDetailsModal({
               <dd className="mt-1 text-sm font-medium">{application.candidateMaritalStatus || "—"}</dd>
             </div>
             <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Expected salary</dt>
+              <dd className="mt-1 text-sm font-medium">
+                {typeof application.expectedSalary === "number"
+                  ? formatSalaryAmount(application.expectedSalary, application.expectedSalaryCurrency)
+                  : "—"}
+              </dd>
+            </div>
+            <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-gray-400">Job</dt>
               <dd className="mt-1 text-sm font-medium">{application.roleSnapshot.title}</dd>
             </div>

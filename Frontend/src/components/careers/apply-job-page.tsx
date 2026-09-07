@@ -15,6 +15,7 @@ import { SalaryField } from "@/components/ui/salary-field";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
+import { DEFAULT_SALARY_CURRENCY } from "@/lib/applications/salary";
 import type { ApplyResponse, PublicJobDetail, PublicJobDetailResponse } from "@/lib/applications/types";
 import { MARITAL_STATUSES } from "@/lib/applications/types";
 import {
@@ -90,7 +91,7 @@ function scrollToApplyForm() {
 }
 
 const inputClass =
-  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
+  "h-11 w-full rounded border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiClientError) {
@@ -135,7 +136,7 @@ function CustomFieldInput({
           {field.required ? <span className="text-red-500"> *</span> : null}
         </span>
         <textarea
-          className="min-h-28 w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          className="min-h-28 w-full rounded border border-neutral-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
           disabled={disabled}
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
@@ -274,6 +275,8 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
     candidateCnic: "",
     candidateMaritalStatus: "",
     candidateAlternativePhone: "",
+    expectedSalary: "",
+    expectedSalaryCurrency: DEFAULT_SALARY_CURRENCY,
     resume: null,
     answers: {},
     experience: [emptyExperience()],
@@ -465,6 +468,23 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                   <FieldError message={errors.candidateMaritalStatus} />
                 </label>
                 <div>
+                  <SalaryField
+                    amount={values.expectedSalary}
+                    currency={values.expectedSalaryCurrency}
+                    disabled={busy}
+                    invalid={Boolean(errors.expectedSalary)}
+                    label="Expected salary"
+                    onAmountChange={(expectedSalary) =>
+                      setValues((current) => ({ ...current, expectedSalary }))
+                    }
+                    onCurrencyChange={(expectedSalaryCurrency) =>
+                      setValues((current) => ({ ...current, expectedSalaryCurrency }))
+                    }
+                    required
+                  />
+                  <FieldError message={errors.expectedSalary} />
+                </div>
+                <div>
                   <span className="mb-2 block text-sm font-semibold">
                     Resume <span className="text-red-500">*</span>
                   </span>
@@ -636,7 +656,7 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
                       <label className="block">
                         <span className="mb-2 block text-sm font-semibold">Description</span>
                         <textarea
-                          className="min-h-24 w-full rounded-xl border border-neutral-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          className="min-h-24 w-full rounded border border-neutral-300 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                           disabled={busy}
                           maxLength={2000}
                           onChange={(event) =>
@@ -844,7 +864,7 @@ function ApplyForm({ job }: { job: PublicJobDetail }) {
       ))}
 
       <div className="flex flex-col-reverse gap-3 border-t border-neutral-200 pt-6 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
-        <Link className="text-sm font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-white" href="/">
+        <Link className="w-full text-center text-sm font-semibold text-neutral-500 hover:text-neutral-800 sm:w-auto sm:text-left dark:hover:text-white" href="/">
           Back to open roles
         </Link>
         <button

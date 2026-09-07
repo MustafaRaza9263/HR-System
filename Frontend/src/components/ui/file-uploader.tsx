@@ -160,7 +160,7 @@ export function FileUploader({
 
       {phase === "success" && file ? (
         <div
-          className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 dark:border-emerald-500/30 dark:bg-emerald-500/10"
+          className="flex items-center justify-between gap-3 rounded border border-emerald-200 bg-emerald-50 px-3.5 py-3 dark:border-emerald-500/30 dark:bg-emerald-500/10"
           role="status"
         >
           <div className="flex min-w-0 items-center gap-3">
@@ -186,7 +186,7 @@ export function FileUploader({
           aria-invalid={invalid || Boolean(localError)}
           aria-label={phase === "uploading" ? `Uploading ${label}` : `Upload ${label}`}
           className={[
-            "flex min-h-30 flex-col items-center justify-center rounded-xl border border-dashed px-4 py-6 transition",
+            "flex min-h-30 flex-col items-center justify-center rounded border border-dashed px-4 py-6 transition",
             dragOver
               ? "border-indigo-500 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-500/10"
               : invalid || localError

@@ -21,7 +21,7 @@ export function ToggleRow({
     <button
       aria-checked={checked}
       aria-label={title}
-      className="flex w-full select-none items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-left transition hover:border-gray-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900/60 dark:hover:border-gray-600"
+      className="flex w-full select-none items-center gap-4 rounded border border-gray-200 bg-gray-50 px-4 py-3 text-left transition hover:border-gray-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900/60 dark:hover:border-gray-600"
       disabled={disabled}
       onClick={() => onChange(!checked)}
       role="switch"

@@ -36,6 +36,8 @@ export interface ApplyFormValues {
   candidateCnic: string;
   candidateMaritalStatus: string;
   candidateAlternativePhone: string;
+  expectedSalary: string;
+  expectedSalaryCurrency: string;
   resume: File | null;
   answers: Record<string, string | number | boolean | File | null>;
   experience: ExperienceFormEntry[];
@@ -147,6 +149,15 @@ export function validateApplyForm(fields: CustomField[], values: ApplyFormValues
     errors.candidateAlternativePhone = "Enter a valid phone number.";
   }
 
+  if (!values.expectedSalary.trim()) {
+    errors.expectedSalary = "Enter your expected salary.";
+  } else {
+    const expectedSalary = Number(parseSalaryDigits(values.expectedSalary));
+    if (!Number.isFinite(expectedSalary) || expectedSalary < 0) {
+      errors.expectedSalary = "Enter a valid expected salary.";
+    }
+  }
+
   const resumeError = validateUploadFile(values.resume, "Resume", true);
   if (resumeError) errors.resume = resumeError;
 
@@ -250,6 +261,8 @@ export function buildApplyFormData(fields: CustomField[], values: ApplyFormValue
   formData.append("candidateCnic", formatCnic(values.candidateCnic));
   formData.append("candidateMaritalStatus", values.candidateMaritalStatus);
   formData.append("candidateAlternativePhone", values.candidateAlternativePhone.trim());
+  formData.append("expectedSalary", String(Number(parseSalaryDigits(values.expectedSalary))));
+  formData.append("expectedSalaryCurrency", values.expectedSalaryCurrency || DEFAULT_SALARY_CURRENCY);
   if (values.resume) formData.append("resume", values.resume);
 
   const answers: Array<{ fieldId: string; value: string | number | boolean | null }> = [];

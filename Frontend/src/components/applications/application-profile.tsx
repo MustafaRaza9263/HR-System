@@ -139,6 +139,11 @@ export function ApplicationProfile({ application }: { application: ApplicationDe
             <Fact label="Date of birth">{formatDateOnly(application.candidateDateOfBirth)}</Fact>
             <Fact label="CNIC">{application.candidateCnic || "—"}</Fact>
             <Fact label="Marital status">{application.candidateMaritalStatus || "—"}</Fact>
+            <Fact label="Expected salary">
+              {typeof application.expectedSalary === "number"
+                ? formatSalaryAmount(application.expectedSalary, application.expectedSalaryCurrency)
+                : "—"}
+            </Fact>
           </dl>
         </article>
 

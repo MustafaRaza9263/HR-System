@@ -45,6 +45,8 @@ export interface ApplicationLike {
   candidateCnic?: string | null;
   candidateMaritalStatus?: string | null;
   candidateAlternativePhone?: string | null;
+  expectedSalary?: number | null;
+  expectedSalaryCurrency?: string | null;
   resumeOriginalName: string;
   status: string;
   statusHistory?: StatusHistoryEntry[];
@@ -108,6 +110,8 @@ export function serializeApplication(application: ApplicationLike) {
     candidateCnic: application.candidateCnic ?? null,
     candidateMaritalStatus: application.candidateMaritalStatus ?? null,
     candidateAlternativePhone: application.candidateAlternativePhone ?? null,
+    expectedSalary: typeof application.expectedSalary === "number" ? application.expectedSalary : null,
+    expectedSalaryCurrency: application.expectedSalaryCurrency ?? null,
     resumeFileName: application.resumeOriginalName,
     hasResume: true,
     status: application.status,

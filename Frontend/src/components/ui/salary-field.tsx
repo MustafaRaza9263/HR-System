@@ -19,7 +19,7 @@ const CURRENCY_OPTIONS: DropdownOption[] = SALARY_CURRENCIES.map((item) => ({
 }));
 
 const inputClass =
-  "h-11 w-full rounded-xl border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
+  "h-11 w-full rounded border border-neutral-300 bg-white px-3.5 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800";
 
 function caretFromDigitCount(formatted: string, digitCount: number) {
   if (digitCount <= 0) return 0;
@@ -38,6 +38,8 @@ export function SalaryField({
   onCurrencyChange,
   disabled = false,
   invalid = false,
+  label = "Salary",
+  required = false,
 }: {
   amount: string;
   currency: string;
@@ -45,6 +47,8 @@ export function SalaryField({
   onCurrencyChange: (value: string) => void;
   disabled?: boolean;
   invalid?: boolean;
+  label?: string;
+  required?: boolean;
 }) {
   const generatedId = useId();
   const currencyLabelId = `${generatedId}-currency-label`;
@@ -57,7 +61,8 @@ export function SalaryField({
     <div>
       <div className="mb-2 flex items-baseline gap-1.5">
         <label className="text-sm font-semibold" htmlFor={amountId}>
-          Salary
+          {label}
+          {required ? <span className="text-red-500"> *</span> : null}
         </label>
         <span className="text-sm font-normal text-neutral-400 dark:text-neutral-500">(monthly)</span>
       </div>

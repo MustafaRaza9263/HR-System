@@ -312,7 +312,7 @@ export function Dropdown({
         }
         aria-labelledby={ariaLabelledBy}
         className={cx(
-          "flex w-full items-center rounded-xl border text-left text-sm outline-none transition",
+          "flex w-full items-center rounded border text-left text-sm outline-none transition",
           triggerHeight,
           triggerClassName
             ? cx(

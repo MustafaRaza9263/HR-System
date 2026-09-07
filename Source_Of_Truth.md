@@ -293,7 +293,7 @@ Multiple drafts for same dept+role are allowed until one publishes.
 
 Closed slug page still loads; apply returns 409 `JOB_NOT_OPEN`. Draft slug → 404.
 
-**Required system fields:** name, email, phone, date of birth, CNIC (`xxxxx-xxxxxxx-x`), marital status (Single / Married / Divorced / Widowed), resume (pdf/doc/docx ≤5MB). Optional: alternative phone. **Required sections:** ≥1 experience (company, title, startDate; currentlyWorking checkbox disables end date; optional salary; end ≥ start when set), ≥1 education (school, degree; optional CGPA/percentage). Max 8 each.
+**Required system fields:** name, email, phone, date of birth, CNIC (`xxxxx-xxxxxxx-x`), marital status (Single / Married / Divorced / Widowed), expected salary (monthly, same currency+amount control as experience salary), resume (pdf/doc/docx ≤5MB). Optional: alternative phone. **Required sections:** ≥1 experience (company, title, startDate; currentlyWorking checkbox disables end date; optional salary; end ≥ start when set), ≥1 education (school, degree; optional CGPA/percentage). Max 8 each.
 
 **Duplicate apply:** after system-field parse, 409 `DUPLICATE_APPLICATION` (“You already have an application for this role.”) if another row for this job has the same email **or** CNIC and status is not `rejected`. A rejected-only match is allowed. Apply page shows this on the existing error alert (not a field error).
 

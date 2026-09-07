@@ -42,6 +42,10 @@ export function CareersBoard() {
 
   const jobs = careersQuery.data?.data.jobs ?? EMPTY_JOBS;
   const teams = careersQuery.data?.data.teams ?? EMPTY_TEAMS;
+  const teamOptions = [
+    { value: "", label: "All Teams" },
+    ...teams.map((team) => ({ value: team.id, label: team.name })),
+  ];
 
   const filteredJobs = useMemo(() => {
     const clean = query.trim().toLocaleLowerCase();
@@ -89,37 +93,37 @@ export function CareersBoard() {
           <h1 className="text-4xl font-bold tracking-[-0.04em] text-neutral-950 sm:text-5xl dark:text-white">
             Join our team
           </h1>
-          <div className="flex min-w-0 items-center gap-2 sm:min-w-[20rem]">
+          <div className="flex min-w-0 items-center gap-2 sm:min-w-[20rem] md:min-w-[28rem]">
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search roles</span>
               <Search aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
               <input
-                className="h-12 w-full rounded-xl border border-neutral-300 bg-white py-2 pl-10 pr-4 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="h-12 w-full rounded border border-neutral-300 bg-white py-2 pl-10 pr-4 text-sm text-neutral-800 outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search roles"
                 value={query}
               />
             </label>
-            <FilterSheet
-              active={Boolean(teamId)}
-              alwaysShow
-              title="Filter by team"
-              triggerSize="md"
-            >
+            <FilterSheet active={Boolean(teamId)} title="Filter by team" triggerSize="md">
               <FilterField label="Team">
                 <Dropdown
                   aria-label="Filter by team"
                   className="w-full"
                   onChange={setTeamId}
-                  options={[
-                    { value: "", label: "All Teams" },
-                    ...teams.map((team) => ({ value: team.id, label: team.name })),
-                  ]}
+                  options={teamOptions}
                   size="md"
                   value={teamId}
                 />
               </FilterField>
             </FilterSheet>
+            <Dropdown
+              aria-label="Filter by team"
+              className="hidden w-[12.5rem] md:block"
+              onChange={setTeamId}
+              options={teamOptions}
+              size="md"
+              value={teamId}
+            />
           </div>
         </div>
 
