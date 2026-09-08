@@ -16,10 +16,12 @@ import { RichTextEditor } from "@/components/jobs/rich-text-editor";
 import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Modal } from "@/components/ui/modal";
+import { SalaryRangeField } from "@/components/ui/salary-field";
 import { TagInput, commitTagDraft } from "@/components/ui/tag-input";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
+import { DEFAULT_SALARY_CURRENCY, formatSalaryRange, parseSalaryDigits } from "@/lib/applications/salary";
 import {
   FIELD_SECTIONS,
   FIELD_TYPES,
@@ -68,6 +70,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+function parseSalaryNumber(raw: string) {
+  if (!raw.trim()) return null;
+  const value = Number(parseSalaryDigits(raw));
+  return Number.isFinite(value) ? value : null;
+}
+
 interface WizardFormState {
   title: string;
   departmentId: string;
@@ -75,6 +83,7 @@ interface WizardFormState {
   jobType: JobType | "";
   salaryMin: string;
   salaryMax: string;
+  salaryCurrency: string;
   description: RichTextDoc;
   descriptionPlain: string;
   customFields: CustomField[];
@@ -87,8 +96,9 @@ function jobToForm(job: Job): WizardFormState {
     departmentId: job.departmentId,
     roleId: job.roleId,
     jobType: job.jobType ?? "",
-    salaryMin: job.salaryMin === null ? "" : String(job.salaryMin),
-    salaryMax: job.salaryMax === null ? "" : String(job.salaryMax),
+    salaryMin: job.salaryMin === null ? "" : String(Math.round(job.salaryMin)),
+    salaryMax: job.salaryMax === null ? "" : String(Math.round(job.salaryMax)),
+    salaryCurrency: job.salaryCurrency || DEFAULT_SALARY_CURRENCY,
     description: job.description ?? emptyRichTextDoc(),
     descriptionPlain: job.descriptionPlain ?? "",
     customFields: job.fieldsConfig?.customFields ?? [],
@@ -104,6 +114,7 @@ function emptyForm(): WizardFormState {
     jobType: "",
     salaryMin: "",
     salaryMax: "",
+    salaryCurrency: DEFAULT_SALARY_CURRENCY,
     description: emptyRichTextDoc(),
     descriptionPlain: "",
     customFields: [],
@@ -226,9 +237,9 @@ export function JobWizard({ jobId }: JobWizardProps) {
         alerts.error("Select a job type.");
         return null;
       }
-      const min = form.salaryMin === "" ? null : Number(form.salaryMin);
-      const max = form.salaryMax === "" ? null : Number(form.salaryMax);
-      if (min === null || max === null || Number.isNaN(min) || Number.isNaN(max)) {
+      const min = parseSalaryNumber(form.salaryMin);
+      const max = parseSalaryNumber(form.salaryMax);
+      if (min === null || max === null) {
         alerts.error("Enter salary min and max.");
         return null;
       }
@@ -243,8 +254,8 @@ export function JobWizard({ jobId }: JobWizardProps) {
       return null;
     }
 
-    const min = form.salaryMin === "" ? null : Number(form.salaryMin);
-    const max = form.salaryMax === "" ? null : Number(form.salaryMax);
+    const min = parseSalaryNumber(form.salaryMin);
+    const max = parseSalaryNumber(form.salaryMax);
 
     return {
       title: form.title.trim().replace(/\s+/g, " "),
@@ -253,8 +264,9 @@ export function JobWizard({ jobId }: JobWizardProps) {
       description: form.description,
       descriptionPlain: form.descriptionPlain,
       jobType: form.jobType || null,
-      salaryMin: min !== null && !Number.isNaN(min) ? min : null,
-      salaryMax: max !== null && !Number.isNaN(max) ? max : null,
+      salaryMin: min,
+      salaryMax: max,
+      salaryCurrency: form.salaryCurrency || DEFAULT_SALARY_CURRENCY,
       fieldsConfig: { customFields: form.customFields },
       wizardStep: nextStep,
     };
@@ -434,28 +446,15 @@ export function JobWizard({ jobId }: JobWizardProps) {
                 />
               </label>
 
-              <div className="grid gap-5 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-2 block text-sm font-bold">Salary min <span className="text-red-500">*</span></span>
-                  <input
-                    className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-                    min={0}
-                    onChange={(event) => setForm((current) => ({ ...current, salaryMin: event.target.value }))}
-                    type="number"
-                    value={form.salaryMin}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-2 block text-sm font-bold">Salary max <span className="text-red-500">*</span></span>
-                  <input
-                    className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800"
-                    min={0}
-                    onChange={(event) => setForm((current) => ({ ...current, salaryMax: event.target.value }))}
-                    type="number"
-                    value={form.salaryMax}
-                  />
-                </label>
-              </div>
+              <SalaryRangeField
+                currency={form.salaryCurrency}
+                maxAmount={form.salaryMax}
+                minAmount={form.salaryMin}
+                onCurrencyChange={(salaryCurrency) => setForm((current) => ({ ...current, salaryCurrency }))}
+                onMaxChange={(salaryMax) => setForm((current) => ({ ...current, salaryMax }))}
+                onMinChange={(salaryMin) => setForm((current) => ({ ...current, salaryMin }))}
+                required
+              />
             </div>
           ) : null}
 
@@ -555,7 +554,11 @@ export function JobWizard({ jobId }: JobWizardProps) {
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                   {form.jobType || "Type TBD"}
                   {" · "}
-                  {form.salaryMin && form.salaryMax ? `${form.salaryMin} – ${form.salaryMax}` : "Salary TBD"}
+                  {formatSalaryRange(
+                    parseSalaryNumber(form.salaryMin),
+                    parseSalaryNumber(form.salaryMax),
+                    form.salaryCurrency,
+                  ) ?? "Salary TBD"}
                 </p>
                 <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
                   <RichTextViewer value={form.description} />

@@ -47,6 +47,7 @@ const jobSchema = new Schema(
     remote: { type: Boolean, required: true, default: false },
     salaryMin: { type: Number, default: null, min: 0 },
     salaryMax: { type: Number, default: null, min: 0 },
+    salaryCurrency: { type: String, default: "PKR", trim: true, uppercase: true, maxlength: 3 },
     fieldsConfig: {
       customFields: { type: [customFieldSchema], default: [] },
     },

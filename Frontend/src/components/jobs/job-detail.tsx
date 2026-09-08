@@ -16,6 +16,7 @@ import { RichTextViewer } from "@/components/jobs/rich-text-viewer";
 import { Modal } from "@/components/ui/modal";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest, pendingApplicationsCloseCount } from "@/lib/api";
+import { formatSalaryRange } from "@/lib/applications/salary";
 import type { Job, JobResponse } from "@/lib/jobs/types";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -176,11 +177,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
             <DetailItem label="Job type" value={job.jobType ?? "—"} />
             <DetailItem
               label="Salary"
-              value={
-                job.salaryMin !== null && job.salaryMax !== null
-                  ? `${job.salaryMin} – ${job.salaryMax}`
-                  : "—"
-              }
+              value={formatSalaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency) ?? "—"}
             />
             <DetailItem label="Applicants" value={String(job.applicationCount)} />
             <DetailItem label="Job id" value={job.id} />

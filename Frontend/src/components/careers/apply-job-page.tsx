@@ -17,7 +17,7 @@ import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiFormRequest, apiRequest } from "@/lib/api";
 import { applyAutofillToForm } from "@/lib/applications/autofill";
-import { DEFAULT_SALARY_CURRENCY } from "@/lib/applications/salary";
+import { DEFAULT_SALARY_CURRENCY, formatSalaryRange } from "@/lib/applications/salary";
 import type {
   ApplyResponse,
   PublicJobDetail,
@@ -106,12 +106,6 @@ function errorMessage(error: unknown, fallback: string) {
     return fieldMessage ?? error.message;
   }
   return error instanceof Error && error.message ? error.message : fallback;
-}
-
-function formatSalary(min: number | null, max: number | null) {
-  if (min === null || max === null) return null;
-  const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-  return `${format.format(min)} – ${format.format(max)}`;
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -982,7 +976,7 @@ export function ApplyJobPage({ slug }: { slug: string }) {
             </p>
             <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] sm:text-4xl">{job.title}</h1>
             <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
-              {[job.jobType, formatSalary(job.salaryMin, job.salaryMax)].filter(Boolean).join(" · ")}
+              {[job.jobType, formatSalaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency)].filter(Boolean).join(" · ")}
             </p>
             <div className="mt-8">
               {accepting ? (

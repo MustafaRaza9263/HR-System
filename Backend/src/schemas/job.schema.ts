@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { listPaginationQuerySchema } from "../utils/pagination.js";
+import { salaryCurrencyEnum } from "./application.schema.js";
 
 const objectId = z.string().regex(/^[a-f\d]{24}$/i, "Select a valid id.");
 
@@ -91,6 +92,7 @@ export const createJobDraftSchema = z
     jobType: jobTypeEnum.nullable().optional(),
     salaryMin: z.number().min(0).nullable().optional(),
     salaryMax: z.number().min(0).nullable().optional(),
+    salaryCurrency: salaryCurrencyEnum.optional(),
     fieldsConfig: fieldsConfigSchema.optional(),
     wizardStep: z.number().int().min(1).max(4).default(1),
   })
@@ -120,6 +122,7 @@ export const updateJobDraftSchema = z
     jobType: jobTypeEnum.nullable().optional(),
     salaryMin: z.number().min(0).nullable().optional(),
     salaryMax: z.number().min(0).nullable().optional(),
+    salaryCurrency: salaryCurrencyEnum.optional(),
     fieldsConfig: fieldsConfigSchema.optional(),
     wizardStep: z.number().int().min(1).max(4).optional(),
   })

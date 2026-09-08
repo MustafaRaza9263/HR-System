@@ -40,3 +40,11 @@ export function formatSalaryAmount(value: number, currency?: string | null) {
   const amount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
   return currency ? `${currency} ${amount}` : amount;
 }
+
+export function formatSalaryRange(min: number | null, max: number | null, currency?: string | null) {
+  if (min === null || max === null) return null;
+  const minAmount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(min);
+  const maxAmount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(max);
+  const range = `${minAmount} – ${maxAmount}`;
+  return currency ? `${currency} ${range}` : range;
+}

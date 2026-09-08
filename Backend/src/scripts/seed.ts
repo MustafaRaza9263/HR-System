@@ -142,6 +142,7 @@ async function ensureDemoJobs(userId: typeof User.prototype._id) {
         jobType: "Full-time" as const,
         salaryMin: 80_000,
         salaryMax: 180_000,
+        salaryCurrency: "PKR",
         status: closed ? ("closed" as const) : ("open" as const),
         closeReason: closed ? "Role filled during demo seeding." : null,
         applicationCount: 0,

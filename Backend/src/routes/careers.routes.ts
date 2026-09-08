@@ -74,6 +74,7 @@ function serializePublicJob(
     jobType?: string | null;
     salaryMin?: number | null;
     salaryMax?: number | null;
+    salaryCurrency?: string | null;
     fieldsConfig?: { customFields?: unknown[] } | null;
     status: string;
   },
@@ -91,6 +92,7 @@ function serializePublicJob(
     jobType: job.jobType ?? null,
     salaryMin: job.salaryMin ?? null,
     salaryMax: job.salaryMax ?? null,
+    salaryCurrency: job.salaryCurrency ?? "PKR",
     fieldsConfig: { customFields: job.fieldsConfig?.customFields ?? [] },
     status: job.status,
   };

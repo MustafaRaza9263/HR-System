@@ -29,6 +29,7 @@ export interface PublicJobDetail {
   jobType: JobType | null;
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency: string | null;
   fieldsConfig: { customFields: CustomField[] };
   status: JobStatus;
 }

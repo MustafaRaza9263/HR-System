@@ -72,6 +72,7 @@ function serializeJob(
     jobType?: string | null;
     salaryMin?: number | null;
     salaryMax?: number | null;
+    salaryCurrency?: string | null;
     fieldsConfig?: { customFields?: unknown[] } | null;
     status: string;
     closeReason?: string | null;
@@ -97,6 +98,7 @@ function serializeJob(
     jobType: job.jobType ?? null,
     salaryMin: job.salaryMin ?? null,
     salaryMax: job.salaryMax ?? null,
+    salaryCurrency: job.salaryCurrency ?? "PKR",
     fieldsConfig: { customFields: job.fieldsConfig?.customFields ?? [] },
     status: job.status,
     closeReason: job.closeReason ?? null,
@@ -337,6 +339,7 @@ jobRouter.post(
       jobType: input.jobType ?? null,
       salaryMin: input.salaryMin ?? null,
       salaryMax: input.salaryMax ?? null,
+      salaryCurrency: input.salaryCurrency ?? "PKR",
       fieldsConfig: input.fieldsConfig ?? { customFields: [] },
       wizardStep: input.wizardStep,
       status: "draft",
@@ -389,6 +392,7 @@ jobRouter.patch(
     if (input.jobType !== undefined) update.jobType = input.jobType;
     if (input.salaryMin !== undefined) update.salaryMin = input.salaryMin;
     if (input.salaryMax !== undefined) update.salaryMax = input.salaryMax;
+    if (input.salaryCurrency !== undefined) update.salaryCurrency = input.salaryCurrency;
     if (input.fieldsConfig !== undefined) update.fieldsConfig = input.fieldsConfig;
     if (input.wizardStep !== undefined) update.wizardStep = input.wizardStep;
 
@@ -553,6 +557,7 @@ jobRouter.post(
       jobType: source.jobType ?? null,
       salaryMin: source.salaryMin ?? null,
       salaryMax: source.salaryMax ?? null,
+      salaryCurrency: source.salaryCurrency ?? "PKR",
       fieldsConfig: {
         customFields: (source.fieldsConfig?.customFields ?? []).map((field) => ({
           id: field.id,

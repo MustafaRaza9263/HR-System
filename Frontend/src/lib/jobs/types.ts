@@ -61,6 +61,7 @@ export interface Job {
   jobType: JobType | null;
   salaryMin: number | null;
   salaryMax: number | null;
+  salaryCurrency: string | null;
   fieldsConfig: FieldsConfig;
   status: JobStatus;
   closeReason: string | null;
@@ -126,6 +127,7 @@ export interface JobDraftPayload {
   jobType?: JobType | null;
   salaryMin?: number | null;
   salaryMax?: number | null;
+  salaryCurrency?: string | null;
   fieldsConfig?: FieldsConfig;
   wizardStep?: number;
 }
