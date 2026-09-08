@@ -63,11 +63,13 @@ export const sendDepartmentLinkEmailSchema = z.object({
   email: z.string().trim().email("Enter a valid email.").max(254),
 });
 
-export const listDepartmentLinksQuerySchema = z.object({
-  date: calendarDate.optional(),
-  departmentId: objectId.optional(),
-  department_id: objectId.optional(),
-});
+export const listDepartmentLinksQuerySchema = z
+  .object({
+    date: calendarDate.optional(),
+    departmentId: objectId.optional(),
+    department_id: objectId.optional(),
+  })
+  .extend(listPaginationQuerySchema.shape);
 
 export const registerAccessSchema = z.object({
   name: z.string().trim().min(1, "Enter your name.").max(120),

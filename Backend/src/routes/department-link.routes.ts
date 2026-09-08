@@ -16,6 +16,7 @@ import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { isAccessDateExpired, todayCalendarDate } from "../utils/date-state.js";
 import { assertObjectId } from "../utils/object-id.js";
+import { paginationMeta } from "../utils/pagination.js";
 import { generateRawToken } from "../utils/token.js";
 
 export const departmentLinkRouter = Router();
@@ -127,7 +128,15 @@ departmentLinkRouter.get(
       filter.departmentId = departmentId;
     }
 
-    const links = await DepartmentAccessLink.find(filter).sort({ accessDate: -1, createdAt: -1 }).limit(100).lean();
+    const skip = (input.page - 1) * input.limit;
+    const [links, total] = await Promise.all([
+      DepartmentAccessLink.find(filter)
+        .sort({ accessDate: -1, createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(input.limit)
+        .lean(),
+      DepartmentAccessLink.countDocuments(filter),
+    ]);
     const departmentIds = [...new Set(links.map((item) => item.departmentId.toString()))];
     const departments = await Department.find({ _id: { $in: departmentIds } }).select("name").lean();
     const names = new Map(departments.map((item) => [item._id.toString(), item.name]));
@@ -148,6 +157,7 @@ departmentLinkRouter.get(
           departmentName: names.get(link.departmentId.toString()) ?? "Department",
           requesters: requesterCounts(byToken.get(link.token) ?? []),
         })),
+        pagination: paginationMeta(total, input.page, input.limit),
       },
     });
   }),

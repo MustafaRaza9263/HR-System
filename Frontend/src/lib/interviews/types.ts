@@ -101,7 +101,7 @@ export interface PendingLinksResponse {
 }
 
 export interface DepartmentLinksListResponse {
-  data: { links: DepartmentLink[] };
+  data: { links: DepartmentLink[]; pagination: ListPagination };
 }
 
 export interface LinkRegistrant {

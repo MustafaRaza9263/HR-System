@@ -200,7 +200,7 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/interviews` | HR; `q, jobId, roleId, status, bucket, page, limit≤50` default 15; Mongo filters (lookup only when `q`/`jobId`/`roleId`); `roleId` matches application `roleSnapshot.roleId` (all jobs for that role); stats via aggregation; `{ interviews, stats, pagination }` |
 | PATCH | `/interviews/:id/reschedule` `/cancel` `/no-show` `/complete` | reschedule: `sendEmail` default true; same date+time as current row → 422 `INTERVIEW_UNCHANGED` |
 | POST | `/interviews/:id/notes` | HR |
-| POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day) |
+| POST/GET | `/department-links` | HR create today’s link (idempotent per dept+day); GET `page, limit≤50` default 15; `{ links, pagination }` |
 | GET | `/department-links/pending` | today’s pending registrants |
 | GET | `/department-links/:token/registrants` | |
 | POST | `/department-links/:token/send-email` | `{ email }`; unexpired link only |

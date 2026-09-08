@@ -92,8 +92,15 @@ export const queryKeys = {
       ] as const,
     pendingLinks: ["interviews", "pending-links"] as const,
     departmentLinksAll: ["interviews", "department-links"] as const,
-    departmentLinks: (filters?: { date?: string; departmentId?: string }) =>
-      ["interviews", "department-links", filters?.date ?? "", filters?.departmentId ?? ""] as const,
+    departmentLinks: (filters?: { date?: string; departmentId?: string; limit?: number }) =>
+      [
+        "interviews",
+        "department-links",
+        "infinite",
+        filters?.date ?? "",
+        filters?.departmentId ?? "",
+        filters?.limit ?? 10,
+      ] as const,
     linkRegistrants: (token: string) => ["interviews", "link-registrants", token] as const,
   },
   departments: {

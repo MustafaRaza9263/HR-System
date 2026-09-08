@@ -14,7 +14,7 @@ import {
   useInteractions,
   useRole,
 } from "@floating-ui/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
@@ -24,6 +24,7 @@ import {
   Clock3,
   Copy,
   History,
+  LoaderCircle,
   Mail,
   Send,
   ShieldOff,
@@ -49,7 +50,10 @@ import type {
   LinkRegistrantsResponse,
   RegistrantStatus,
 } from "@/lib/interviews/types";
+import { listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
+
+const INVITE_LINKS_PAGE_SIZE = 10;
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiClientError) return error.message;
@@ -112,7 +116,7 @@ const ARROW_OPPOSITE = {
   left: "right",
 } as const;
 
-function ScrollFadeFrame({ children }: { children: ReactNode }) {
+function ScrollFadeFrame({ children, onNearEnd }: { children: ReactNode; onNearEnd?: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollFades, setScrollFades] = useState({ top: false, bottom: false });
 
@@ -124,7 +128,10 @@ function ScrollFadeFrame({ children }: { children: ReactNode }) {
       bottom: body.scrollTop + body.clientHeight < body.scrollHeight - 1,
     };
     setScrollFades((current) => (current.top === next.top && current.bottom === next.bottom ? current : next));
-  }, []);
+    if (onNearEnd && body.scrollHeight - body.scrollTop - body.clientHeight < 120) {
+      onNearEnd();
+    }
+  }, [onNearEnd]);
 
   useEffect(() => {
     const body = scrollRef.current;
@@ -369,14 +376,28 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
     queryFn: async () => apiRequest<{ data: { departments: DepartmentOption[] } }>("/departments"),
   });
 
-  const linksQuery = useQuery({
-    queryKey: queryKeys.interviews.departmentLinks(),
-    queryFn: async () => apiRequest<DepartmentLinksListResponse>("/department-links"),
+  const linksQuery = useInfiniteQuery({
+    queryKey: queryKeys.interviews.departmentLinks({ limit: INVITE_LINKS_PAGE_SIZE }),
+    queryFn: async ({ pageParam }) =>
+      apiRequest<DepartmentLinksListResponse>(
+        `/department-links${listQueryString({ page: pageParam, limit: INVITE_LINKS_PAGE_SIZE })}`,
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const pagination = lastPage.data.pagination;
+      if (!pagination) return undefined;
+      return pagination.page < pagination.pages ? pagination.page + 1 : undefined;
+    },
   });
 
   const departments = (departmentsQuery.data?.data.departments ?? []).filter((item) => item.status === "active");
-  const links = linksQuery.data?.data.links ?? [];
+  const links = linksQuery.data?.pages.flatMap((page) => page.data.links) ?? [];
   const hasEmail = inviteEmail.trim().length > 0;
+  const fetchNextLinksPage = linksQuery.fetchNextPage;
+  const loadMoreLinks = useCallback(() => {
+    if (!linksQuery.hasNextPage || linksQuery.isFetchingNextPage || linksQuery.isPending) return;
+    void fetchNextLinksPage();
+  }, [fetchNextLinksPage, linksQuery.hasNextPage, linksQuery.isFetchingNextPage, linksQuery.isPending]);
 
   function invalidateLinks() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.departmentLinksAll });
@@ -405,7 +426,9 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
       }),
     onSuccess: (result) => {
       alerts.success(hasEmail ? "Link generated and emailed." : "Access link is ready.");
-      invalidateLinks();
+      void queryClient.resetQueries({ queryKey: queryKeys.interviews.departmentLinksAll });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.pendingLinks });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
       void copyUrl(result.data.link);
     },
     onError: (error) => alerts.error(errorMessage(error, "Access link could not be created.")),
@@ -517,7 +540,7 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
             </span>
             Previous invitations
           </h3>
-          <ScrollFadeFrame>
+          <ScrollFadeFrame onNearEnd={loadMoreLinks}>
             {linksQuery.isPending ? (
               <div className="space-y-3 p-4">
                 {[1, 2, 3].map((item) => (
@@ -525,7 +548,7 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             ) : null}
-            {linksQuery.isError ? (
+            {linksQuery.isError && links.length === 0 ? (
               <div className="px-6 py-10 text-center text-sm text-gray-500">
                 {errorMessage(linksQuery.error, "Invitations could not be loaded.")}
                 <button
@@ -537,10 +560,10 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
             ) : null}
-            {linksQuery.isSuccess && links.length === 0 ? (
+            {!linksQuery.isPending && !linksQuery.isError && links.length === 0 ? (
               <p className="px-6 py-10 text-center text-sm text-gray-500">No invitations yet. Generate a department link to get started.</p>
             ) : null}
-            {linksQuery.isSuccess && links.length > 0 ? (
+            {links.length > 0 ? (
               <table className="min-w-full text-left text-sm">
                 <thead className="sticky top-0 z-30 border-b border-gray-200 bg-gray-50 text-xs font-bold uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                   <tr>
@@ -584,6 +607,30 @@ export function InviteInterviewersModal({ onClose }: { onClose: () => void }) {
                       />
                     );
                   })}
+                  {linksQuery.isFetchingNextPage ? (
+                    <tr>
+                      <td className="px-4 py-4 text-center text-xs text-gray-400" colSpan={6}>
+                        <span className="inline-flex items-center gap-2">
+                          <LoaderCircle aria-hidden className="h-3.5 w-3.5 animate-spin" />
+                          Loading more invitations…
+                        </span>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {linksQuery.isFetchNextPageError ? (
+                    <tr>
+                      <td className="px-4 py-4 text-center text-sm text-gray-500" colSpan={6}>
+                        {errorMessage(linksQuery.error, "More invitations could not be loaded.")}
+                        <button
+                          className="mt-1 block w-full text-sm font-bold text-indigo-600"
+                          onClick={() => void fetchNextLinksPage()}
+                          type="button"
+                        >
+                          Try again
+                        </button>
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             ) : null}
