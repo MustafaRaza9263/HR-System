@@ -6,18 +6,19 @@ Canonical spec for agents. Matches the running code. If this file and the code d
 
 ## 1. Product
 
-HR hiring workspace: departments/roles → jobs → public apply → applications → interviews → guest interviewer access → in-app notifications.
+HR hiring workspace: departments/roles → jobs → public apply → applications → interviews → guest interviewer access → in-app notifications → read-only HR assistant.
 
 | In scope | Not built (do not invent) |
 |---|---|
 | HR register/login | Password reset, MFA, email verify, RBAC |
 | Dept + Role CRUD (soft inactive) | Role JD template (`defaultDescription` does not exist) |
 | Job 4-step wizard, list, detail, publish/close/duplicate/delete | Reopen closed |
-| Public careers + apply + resume autofill + application scoring | Duplicate-apply flag; tags; AI chat; OCR on scanned resumes |
+| Public careers + apply + resume autofill + application scoring | Duplicate-apply flag; tags; OCR on scanned resumes |
 | Application list/detail, reject + bulk reject, approve/trial from list | Approve / trial on application detail |
 | Interview schedule/notes/actions | Interviewer assignment; time-based overdue |
 | Dept-day guest invite + approve/reject/revoke | Marketing dashboard |
 | HR bell + SSE + optional FCM | |
+| HR Assistant (read-only chat) | Assistant writes / mutations of any kind |
 
 **Timezone:** all calendar dates (`YYYY-MM-DD`) and “today / overdue / link expiry” use `Asia/Karachi`. Interview `time` is display-only; status rules use **date**, not clock time.
 
@@ -62,12 +63,12 @@ Monorepo: `Backend/src`, `Frontend/src`. No shared package.
 Backend/src
   app.ts                 CORS (credentials), helmet, json 512kb, cookie, /api/v1
   server.ts              HTTP + Mongo connect + graceful shutdown
-  config/                env (zod), database
+  config/                env (zod), database, readonly-database
   middleware/            authenticate, origin, apply-upload, error-handler
   models/                one collection per file
   routes/                Express routers = controllers (no extra layer)
   schemas/               Zod
-  services/              auth, email/ (transport, queue, templates), llm/ (structured-output adapters), resume-autofill, application-scoring, application-side-effects
+  services/              auth, email/, llm/, resume-autofill, application-scoring, application-side-effects, assistant/ (read-only tools + loop)
   notifications/         catalog, service, stream (SSE), fcm, routes
   utils/                 rules, serialize, pagination, cookies, token, uploads, dates, extract-resume-text, extract-link-text
 
@@ -91,7 +92,7 @@ Frontend/src
 - List tables (jobs, applications, interviews, notifications): `{ pagination: { total, page, limit, pages } }` inside `data`. Offset pagination (`skip`/`limit`). Stats from aggregations, never by loading the full collection.
 - Calendar helpers: `todayCalendarDate`, `getDateStateFromCalendarDate` (`future` \| `today` \| `passed`).
 - Emails: enqueue via `sendEmailBestEffort` / queue — never fail the HTTP action if mail fails. Bulk sends use Resend batch (≤100) off the request path.
-- Rate limits: auth 10/15m; apply 20/15m (shared with resume autofill); guest register 20/15m.
+- Rate limits: auth 10/15m; apply 20/15m (shared with resume autofill); guest register 20/15m; assistant chat 30/15m.
 
 **Frontend**
 
@@ -122,7 +123,7 @@ Frontend/src
 | Primary CTA indigo-600 | Create / Publish / View all |
 | Dark: `data-theme` on `<html>`, localStorage `hr-theme` | Theme |
 | Sidebar | Dashboard, Jobs, Applications, Interviews, Scoring*, Configuration. Collapse key `hr-sidebar-collapsed`. \*Nav only — no page. |
-| Header | Sticky on the dashboard scroll pane. Desktop: centered page title. Mobile: circular outlined hamburger (opens sidebar) with the title left of the actions. Circular outlined icon buttons (bell / theme / assistant / profile). Assistant opens a right-hand panel that animates by shrinking the dashboard pane (not an overlay). UI only — no chat API. Glassmorphic frost when content scrolls up. No aurora / colored page wash. |
+| Header | Sticky on the dashboard scroll pane. Desktop: centered page title. Mobile: circular outlined hamburger (opens sidebar) with the title left of the actions. Circular outlined icon buttons (bell / theme / assistant / profile). Assistant: desktop right-hand panel that animates by shrinking the dashboard pane; mobile full-screen overlay with a circular back icon. Chat transcript hides the scrollbar and uses top/bottom fades like dashboard cards. Glassmorphic frost when content scrolls up. No aurora / colored page wash. |
 
 ---
 
@@ -154,6 +155,7 @@ All docs: timestamps unless noted. No `versionKey`. Soft-delete = `status: inact
 | DepartmentAccessLink | token unique, departmentId, accessDate, createdBy | Unique `(departmentId, accessDate)` |
 | LinkRegistrant | linkToken, name, email, status, requestedAt, approvedAt | |
 | Notification | type, title, body, refId, targetRole `hr`, isRead, createdAt | Shared HR inbox (not per-user) |
+| AssistantSession | userId, messages[] (user/assistant + steps + optional table), modelHistory[] | Persisted multi-turn assistant chat. Writes use the primary connection. |
 
 Job schema also has unused `locations[]` / `remote` — do not expose or build on them.
 
@@ -217,6 +219,10 @@ Base `/api/v1`. Public unless marked **HR**.
 | GET | `/notifications/unread-count` `/stream` | SSE `notification` events |
 | PATCH | `/notifications/read-all` `/:id/read` | |
 | POST | `/users/fcm-token` | `{ token }` |
+| GET | `/assistant/sessions` | HR; caller’s chats, newest first, limit 50; `{ sessions: [{ id, title, updatedAt }] }`; `title` is the first user message |
+| GET | `/assistant/sessions/:id` | HR; session owned by caller |
+| DELETE | `/assistant/sessions/:id` | HR; origin; owned by caller |
+| POST | `/assistant/chat` | HR; origin; rate limit 30/15m; SSE steps + answer. Body `{ message, sessionId? }` |
 
 Frontend routes: `/` careers, `/apply/[slug]`, `/login` `/register`, `/dashboard`, `/dashboard/jobs` `/new` `/[id]` `/[id]/edit`, `/dashboard/applications` `/[id]`, `/dashboard/interviews`, `/dashboard/notifications`, `/dashboard/configuration` `/job-roles`, `/interview-access/[token]`. Alias `/dashboard/job-roles`.
 
@@ -411,7 +417,8 @@ Approve / reject / bulk reject / reschedule modals: `ToggleRow` “Send email”
 - At most one posting may **become `open`** per dept+role while any other draft/open exists.
 - No reopen; next cycle = Duplicate.
 - Hiring capacity is not tracked (no positions / `filled`). Approved count is a list metric only.
-- Scoring sidebar link has no route. Scoring lives on application list + detail, not a separate page. Assistant is a header panel (UI only, no chat).
+- Scoring sidebar link has no route. Scoring lives on application list + detail, not a separate page.
+- Assistant is a header panel (not a nav route). Read-only: separate Mongo connection (`MONGODB_READONLY_URI`, falls back to `MONGODB_URI` with a warning) plus tools that only `find`/`aggregate`/`countDocuments`. Never call mutating HR routes (application detail GET has a status side effect). Data tools and render tools are separate registries; adding a workflow is one new data tool. Name search returns a capped distinguishing list — never guess. Sessions persist so “the second one” works. Answers restated the question. Live tool steps use the autofill shimmer; tables use the same card/`StatusPills`/`UserProfile`/`DateTimeDisplay` convention and only appear when `render_table` is invoked.
 - Dashboard home (`/dashboard`): per-widget aggregation APIs (not one payload, not list endpoints). Trend buckets last 30 days / 12 weeks / 12 months / 5 years (`$dateTrunc` timezone `Asia/Karachi`, weeks start Monday); job-filtered aggregations use `{ jobId, createdAt }`. Client `staleTime` 45s. Job dropdowns share `GET /jobs/options` (drafts hidden).
 - Guest never sees HR panel. HR never uses guest cookie.
 
@@ -427,7 +434,8 @@ Env:
 |---|---|
 | `LLM_PROVIDER` | Adapter id. Currently `gemini` (default). |
 | `LLM_MODEL` | Passed through unchanged to the adapter. Test: `gemini-3.1-flash-lite`. |
-| `GEMINI_API_KEY` | Gemini only. Optional at boot (like Resend); missing key fails the autofill request with `RESUME_UNREADABLE`, and marks application scoring `failed`, not process start. |
+| `GEMINI_API_KEY` | Gemini only. Optional at boot (like Resend); missing key fails the autofill request with `RESUME_UNREADABLE`, marks application scoring `failed`, and makes the assistant reply that it is unavailable. |
+| `MONGODB_READONLY_URI` | Optional. Second Mongo connection for assistant reads. Production should be a read-only DB user. |
 
 **Change model (same provider):** set `LLM_MODEL` in env. No code change.
 
@@ -439,4 +447,17 @@ Env:
 4. Document the env vars in `Backend/.env.example`. Set `LLM_PROVIDER=<id>` and `LLM_MODEL=<vendor-model-id>`.
 5. Do not change `extractResumeText`, `extract-link-text`, autofill schema/sanitize, scoring gather/sanitize, or the careers route when swapping models or providers.
 
-Missing/invalid credentials, timeouts, and malformed model JSON all surface as `RESUME_UNREADABLE` on the **autofill HTTP path** (no retry loop there). Application scoring is async: the same failures are retried a fixed number of times like email, then stored as `scoring.status = "failed"`.
+Missing/invalid credentials, timeouts, and malformed model JSON all surface as `RESUME_UNREADABLE` on the **autofill HTTP path** (no retry loop there). Application scoring is async: the same failures are retried a fixed number of times like email, then stored as `scoring.status = "failed"`. The assistant tool loop also uses `generateStructured` (JSON `call_tool` / `answer`); those failures become an HR-facing unavailable message, not `RESUME_UNREADABLE`.
+
+## 18. Assistant
+
+Read-only Q&A in the dashboard header panel. Same collections HR already reads; no writes to hiring data.
+
+**Enforcement:** (1) dedicated mongoose connection via `MONGODB_READONLY_URI` (or `MONGODB_URI` with a boot warning). (2) Tools call `readDb.find` / `aggregate` / `countDocuments` only.
+
+**Loop:** `POST /assistant/chat` streams SSE (`session`, `step_start`, `step_done`, `table`, `answer`, `error`, `done`). Each model step is `generateStructured`. Data tools: `lookup_applications`, `lookup_interviews`, `lookup_interview_notes`, `lookup_jobs`, `lookup_org`, `lookup_dashboard` (metric-selectable), `lookup_notifications`. Render tools: `render_table` (`text` / `status` / `person` / `datetime` columns; person cells `Name|email`). Register a new tool in `services/assistant/tools/` — do not change the loop or panel when adding one.
+
+**Disambiguation:** name lookup returns up to 8 matches with email, phone, CNIC, DOB, job, applied date, status, and decision/scoring fields. 0 → say so. 2+ → table + ask. 1 → continue in the same turn. History lives on `AssistantSession`.
+
+**UI:** live shimmering step labels (autofill convention), then a collapsed check trail. Chat transcript hides the scrollbar and uses top/bottom fades. Desktop: shrinking right panel. Mobile: full-screen overlay with a circular back icon. Header clock opens an attached popover of previous sessions (search, grouped Today / Yesterday / Previous 7 days / Older; click to open, hover delete). Tables match list pages. Prose restates the question. Composer is the interview-note pattern (rounded-2xl + circular send).
+

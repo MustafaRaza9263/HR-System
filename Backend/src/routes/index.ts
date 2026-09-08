@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { isDatabaseConnected } from "../config/database.js";
 import { notificationRouter, userRouter } from "../notifications/index.js";
+import { assistantRouter } from "./assistant.routes.js";
 import { applicationRouter } from "./application.routes.js";
 import { authRouter } from "./auth.routes.js";
 import { careersRouter } from "./careers.routes.js";
@@ -35,4 +36,5 @@ apiRouter.use("/department-links", departmentLinkRouter);
 apiRouter.use("/link-registrants", linkRegistrantRouter);
 apiRouter.use("/interview-access", interviewAccessRouter);
 apiRouter.use("/notifications", notificationRouter);
+apiRouter.use("/assistant", assistantRouter);
 apiRouter.use("/users", userRouter);

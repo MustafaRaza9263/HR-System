@@ -16,6 +16,7 @@ const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     MONGODB_URI: z.string().min(1, "MONGODB_URI is required."),
+    MONGODB_READONLY_URI: optionalEnvString,
     JWT_SECRET: z.string().min(32, "JWT_SECRET must contain at least 32 characters."),
     JWT_ISSUER: z.string().min(1).default("hr-system-api"),
     JWT_AUDIENCE: z.string().min(1).default("hr-system-frontend"),

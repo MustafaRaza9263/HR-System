@@ -53,12 +53,18 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   useEffect(() => {
     if (!assistantOpen) return;
 
+    const mobileViewport = window.matchMedia("(max-width: 767px)");
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setAssistantOpen(false);
     };
+    const previousOverflow = document.body.style.overflow;
+    if (mobileViewport.matches) document.body.style.overflow = "hidden";
 
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
   }, [assistantOpen]);
 
   useEffect(() => {

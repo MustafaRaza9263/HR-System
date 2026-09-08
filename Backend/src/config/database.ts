@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 import { Application } from "../models/application.model.js";
+import { AssistantSession } from "../models/assistant-session.model.js";
 import { DepartmentAccessLink } from "../models/department-access-link.model.js";
 import { Interview } from "../models/interview.model.js";
 import { InterviewNote } from "../models/interview-note.model.js";
@@ -13,6 +14,7 @@ import { failStaleScoring } from "../services/application-scoring/index.js";
 import { migrateApplicationStatusHistory } from "../utils/application-status.js";
 import { migrateAccessLinkRegistrants, migrateInterviewDocuments } from "../utils/interview-migrate.js";
 import { env } from "./env.js";
+import { connectReadOnlyDatabase, disconnectReadOnlyDatabase } from "./readonly-database.js";
 
 export async function connectToDatabase(): Promise<void> {
   mongoose.set("strictQuery", true);
@@ -42,10 +44,13 @@ export async function connectToDatabase(): Promise<void> {
     DepartmentAccessLink.createIndexes(),
     LinkRegistrant.createIndexes(),
     Notification.createIndexes(),
+    AssistantSession.createIndexes(),
   ]);
+  await connectReadOnlyDatabase();
 }
 
 export async function disconnectFromDatabase(): Promise<void> {
+  await disconnectReadOnlyDatabase();
   await mongoose.disconnect();
 }
 
