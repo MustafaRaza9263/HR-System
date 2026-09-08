@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
+import { AssistantPanel } from "./assistant-panel";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 
@@ -15,6 +16,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const pathname = usePathname();
   const mainRef = useRef<HTMLElement>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -49,6 +51,17 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   }, [mobileSidebarOpen]);
 
   useEffect(() => {
+    if (!assistantOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAssistantOpen(false);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [assistantOpen]);
+
+  useEffect(() => {
     const node = mainRef.current;
     if (!node) return;
 
@@ -78,13 +91,23 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
         <main className="relative min-h-0 flex-1 overflow-y-auto" ref={mainRef}>
           <DashboardHeader
-            onMenuClick={() => setMobileSidebarOpen(true)}
+            assistantOpen={assistantOpen}
+            onAssistantToggle={() => {
+              setAssistantOpen((current) => !current);
+              setMobileSidebarOpen(false);
+            }}
+            onMenuClick={() => {
+              setMobileSidebarOpen(true);
+              setAssistantOpen(false);
+            }}
             scrolled={scrolled}
             user={user}
           />
           <div className="mx-auto w-full max-w-[100rem]">{children}</div>
         </main>
       </div>
+
+      <AssistantPanel onClose={() => setAssistantOpen(false)} open={assistantOpen} />
     </div>
   );
 }

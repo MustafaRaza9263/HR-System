@@ -121,8 +121,8 @@ Frontend/src
 | `TagInput` | Type-and-enter chips (select field options) |
 | Primary CTA indigo-600 | Create / Publish / View all |
 | Dark: `data-theme` on `<html>`, localStorage `hr-theme` | Theme |
-| Sidebar | Dashboard, Jobs, Applications, Interviews, Scoring*, Assistant*, Configuration. Collapse key `hr-sidebar-collapsed`. \*Nav only — no pages. |
-| Header | Sticky on the dashboard scroll pane. Desktop: centered page title. Mobile: circular outlined hamburger (opens sidebar) with the title left of the actions. Circular outlined icon buttons (bell / theme / profile). Glassmorphic frost when content scrolls up. No aurora / colored page wash. |
+| Sidebar | Dashboard, Jobs, Applications, Interviews, Scoring*, Configuration. Collapse key `hr-sidebar-collapsed`. \*Nav only — no page. |
+| Header | Sticky on the dashboard scroll pane. Desktop: centered page title. Mobile: circular outlined hamburger (opens sidebar) with the title left of the actions. Circular outlined icon buttons (bell / theme / assistant / profile). Assistant opens a right-hand panel that animates by shrinking the dashboard pane (not an overlay). UI only — no chat API. Glassmorphic frost when content scrolls up. No aurora / colored page wash. |
 
 ---
 
@@ -411,7 +411,7 @@ Approve / reject / bulk reject / reschedule modals: `ToggleRow` “Send email”
 - At most one posting may **become `open`** per dept+role while any other draft/open exists.
 - No reopen; next cycle = Duplicate.
 - Hiring capacity is not tracked (no positions / `filled`). Approved count is a list metric only.
-- Scoring + Assistant sidebar links have no routes. Scoring lives on application list + detail, not a separate page.
+- Scoring sidebar link has no route. Scoring lives on application list + detail, not a separate page. Assistant is a header panel (UI only, no chat).
 - Dashboard home (`/dashboard`): per-widget aggregation APIs (not one payload, not list endpoints). Trend buckets last 30 days / 12 weeks / 12 months / 5 years (`$dateTrunc` timezone `Asia/Karachi`, weeks start Monday); job-filtered aggregations use `{ jobId, createdAt }`. Client `staleTime` 45s. Job dropdowns share `GET /jobs/options` (drafts hidden).
 - Guest never sees HR panel. HR never uses guest cookie.
 

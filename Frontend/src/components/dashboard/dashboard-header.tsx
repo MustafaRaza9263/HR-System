@@ -5,16 +5,25 @@ import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
+import { AssistantToggle } from "./assistant-panel";
 import { NotificationMenu } from "./notification-menu";
 import { ProfileMenu } from "./profile-menu";
 
 interface DashboardHeaderProps {
   user: { name: string; email: string };
   scrolled?: boolean;
+  assistantOpen?: boolean;
+  onAssistantToggle: () => void;
   onMenuClick: () => void;
 }
 
-export function DashboardHeader({ user, scrolled = false, onMenuClick }: DashboardHeaderProps) {
+export function DashboardHeader({
+  user,
+  scrolled = false,
+  assistantOpen = false,
+  onAssistantToggle,
+  onMenuClick,
+}: DashboardHeaderProps) {
   const pathname = usePathname();
   const title = resolveTitle(pathname);
 
@@ -31,13 +40,14 @@ export function DashboardHeader({ user, scrolled = false, onMenuClick }: Dashboa
           <Menu aria-hidden className="h-5 w-5" />
         </button>
         {title ? (
-          <h1 className="relative z-10 min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-0.02em] text-gray-950 md:pointer-events-none md:absolute md:inset-x-0 md:flex-none md:px-36 md:text-center md:text-lg dark:text-white">
+          <h1 className="relative z-10 min-w-0 flex-1 truncate text-[15px] font-bold tracking-[-0.02em] text-gray-950 md:pointer-events-none md:absolute md:inset-x-0 md:flex-none md:px-52 md:text-center md:text-lg dark:text-white">
             {title}
           </h1>
         ) : null}
         <div className="z-10 ml-auto flex shrink-0 items-center gap-2 sm:gap-2.5">
           <NotificationMenu />
           <ThemeToggle variant="header" />
+          <AssistantToggle onToggle={onAssistantToggle} open={assistantOpen} />
           <ProfileMenu email={user.email} name={user.name} />
         </div>
       </div>
