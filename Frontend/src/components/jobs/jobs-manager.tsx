@@ -630,17 +630,12 @@ function DeleteJobModal({
         </div>
       )}
       onClose={onCancel}
-      subtitle={
-        <>
-          This permanently deletes <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span>.
-          This cannot be undone.
-        </>
-      }
       title="Delete draft?"
     >
-      <span className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
-        <Trash2 aria-hidden className="h-5 w-5" />
-      </span>
+      <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+        This permanently deletes <span className="font-semibold text-gray-800 dark:text-gray-200">{job.title}</span>.
+        This cannot be undone.
+      </p>
     </Modal>
   );
 }

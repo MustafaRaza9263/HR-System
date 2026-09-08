@@ -3,7 +3,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
+import { TimeInput } from "@/components/ui/time-input";
 import { ToggleRow } from "@/components/ui/toggle-row";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
@@ -141,24 +143,13 @@ export function ScheduleInterviewModal({
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Date</span>
-            <input
-              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              onChange={(event) => setDate(event.target.value)}
-              required
-              type="date"
-              value={date}
-            />
+            <DateInput onChange={setDate} value={date} />
           </label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Time (PKT)</span>
-            <input
-              className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-              onChange={(event) => setTime(event.target.value)}
-              type="time"
-              value={time}
-            />
+            <TimeInput onChange={setTime} value={time} />
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Duration (minutes)</span>

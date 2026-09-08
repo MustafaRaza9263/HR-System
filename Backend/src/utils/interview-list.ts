@@ -183,7 +183,7 @@ export async function listHrInterviews(query: InterviewListQuery) {
   if (!applicationMatch) {
     const [total, interviews, stats] = await Promise.all([
       Interview.countDocuments(interviewMatch),
-      Interview.find(interviewMatch).sort({ date: 1, time: 1, _id: 1 }).skip(skip).limit(query.limit).lean(),
+      Interview.find(interviewMatch).sort({ date: -1, time: -1, _id: -1 }).skip(skip).limit(query.limit).lean(),
       statsPromise,
     ]);
     const rows = await toBoardRows(interviews);
@@ -207,7 +207,7 @@ export async function listHrInterviews(query: InterviewListQuery) {
       {
         $facet: {
           total: [{ $count: "count" }],
-          rows: [{ $sort: { date: 1, time: 1, _id: 1 } }, { $skip: skip }, { $limit: query.limit }],
+          rows: [{ $sort: { date: -1, time: -1, _id: -1 } }, { $skip: skip }, { $limit: query.limit }],
         },
       },
     ]).then((result) => result[0]),
