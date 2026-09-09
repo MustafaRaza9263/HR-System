@@ -130,3 +130,12 @@ export const queryKeys = {
     unread: ["notifications", "unread"] as const,
   },
 } as const;
+
+/** List tuple: applications, list, q, jobId, roleId, status, sort, dir, scoreMin, scoreMax, scoreLessThan, page, limit */
+export function applicationsListIsScoreScoped(queryKey: readonly unknown[]) {
+  return (
+    queryKey[0] === "applications" &&
+    queryKey[1] === "list" &&
+    (queryKey[6] === "score" || queryKey[8] !== "" || queryKey[9] !== "" || queryKey[10] !== "")
+  );
+}

@@ -22,9 +22,13 @@ export function subscribeNotificationStream(response: Response): () => void {
   };
 }
 
-export function publishNotification(event: NotificationEvent): void {
-  const payload = `event: notification\ndata: ${JSON.stringify(event)}\n\n`;
+export function publishHrEvent(event: string, data: unknown): void {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const client of clients) {
     client.write(payload);
   }
+}
+
+export function publishNotification(event: NotificationEvent): void {
+  publishHrEvent("notification", event);
 }

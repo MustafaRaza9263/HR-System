@@ -4,10 +4,12 @@ import { extname } from "node:path";
 import { env } from "../../config/env.js";
 import { Application } from "../../models/application.model.js";
 import { Job } from "../../models/job.model.js";
+import { publishHrEvent } from "../../notifications/stream.js";
 import { discoverUrls, extractLinkText } from "../../utils/extract-link-text.js";
 import { extractResumeText } from "../../utils/extract-resume-text.js";
 import { parseHttpUrl } from "../../utils/http-url.js";
 import { logger } from "../../utils/logger.js";
+import { serializeScoring } from "../../utils/serialize-application.js";
 import { resolveUploadPath } from "../../utils/uploads.js";
 import { getLlmProvider } from "../llm/index.js";
 
@@ -148,8 +150,13 @@ export const emptyScoring = {
   scoredAt: null,
 };
 
+function publishApplicationScored(applicationId: string, scoring: Parameters<typeof serializeScoring>[0]) {
+  publishHrEvent("application.scored", { id: applicationId, ...serializeScoring(scoring) });
+}
+
 export async function markScoringFailed(applicationId: string) {
-  await Application.updateOne(
+  const scoredAt = new Date();
+  const write = await Application.updateOne(
     { _id: applicationId, "scoring.status": { $ne: "completed" } },
     {
       $set: {
@@ -158,10 +165,20 @@ export async function markScoringFailed(applicationId: string) {
         "scoring.summary": null,
         "scoring.strengths": [],
         "scoring.gaps": [],
-        "scoring.scoredAt": new Date(),
+        "scoring.scoredAt": scoredAt,
       },
     },
   );
+  if (write.modifiedCount > 0) {
+    publishApplicationScored(applicationId, {
+      status: "failed",
+      score: null,
+      summary: null,
+      strengths: [],
+      gaps: [],
+      scoredAt,
+    });
+  }
 }
 
 export async function failStaleScoring() {
@@ -294,24 +311,22 @@ export async function scoreApplication(applicationId: string) {
     throw new Error("scoring output was empty or invalid");
   }
 
-  await Application.updateOne(
+  const scoring = {
+    status: "completed" as const,
+    score: result.score,
+    summary: result.summary,
+    strengths: result.strengths,
+    gaps: result.gaps,
+    provider: provider.id,
+    model: env.LLM_MODEL,
+    linksAttempted: discovered.length,
+    linksUsed: linkBlocks.length,
+    scoredAt: new Date(),
+  };
+  const write = await Application.updateOne(
     { _id: applicationId, "scoring.status": { $ne: "completed" } },
-    {
-      $set: {
-        scoring: {
-          status: "completed",
-          score: result.score,
-          summary: result.summary,
-          strengths: result.strengths,
-          gaps: result.gaps,
-          provider: provider.id,
-          model: env.LLM_MODEL,
-          linksAttempted: discovered.length,
-          linksUsed: linkBlocks.length,
-          scoredAt: new Date(),
-        },
-      },
-    },
+    { $set: { scoring } },
   );
+  if (write.modifiedCount > 0) publishApplicationScored(applicationId, scoring);
   logger.info(`scoring ${applicationId}  completed  score ${String(result.score)}`);
 }

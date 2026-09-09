@@ -6,17 +6,18 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { ApplicationStatusTimeline, applicationStatusLabel, applicationStatusTone } from "@/components/applications/application-status-timeline";
+import { ScorePendingShimmer } from "@/components/applications/score-pending-shimmer";
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
 import { StatusPills } from "@/components/ui/status-pills";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiDownload, apiRequest } from "@/lib/api";
+import { applyApplicationScoring } from "@/lib/applications/cache";
 import { parseHttpUrl } from "@/lib/applications/http-url";
 import { formatScore, scoreTone } from "@/lib/applications/scoring";
 import type { ApplicationAnswer, ApplicationDetail, ApplicationScoring, EducationEntry, ExperienceEntry } from "@/lib/applications/types";
 import { formatSalaryAmount } from "@/lib/applications/salary";
 import { formatCalendarDate } from "@/lib/interviews/format";
 import type { FieldSection } from "@/lib/jobs/types";
-import { queryKeys } from "@/lib/query/query-keys";
 
 const CARD =
   "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6 dark:border-gray-700 dark:bg-gray-800/70";
@@ -93,9 +94,8 @@ export function ApplicationProfile({ application }: { application: ApplicationDe
       apiRequest<{ data: { scoring: ApplicationScoring } }>(`/applications/${application.id}/score/retry`, {
         method: "POST",
       }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.detail(application.id) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.all });
+    onSuccess: (result) => {
+      applyApplicationScoring(queryClient, application.id, result.data.scoring);
       alerts.success("Scoring queued again.");
     },
     onError: (error) => {
@@ -309,7 +309,7 @@ function ScoringCard({
   onRetry: () => void;
 }) {
   if (scoring?.status === "pending") {
-    return <p className="text-sm text-gray-500">Scoring in progress</p>;
+    return <ScorePendingShimmer />;
   }
 
   if (scoring?.status === "failed") {

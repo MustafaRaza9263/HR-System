@@ -44,6 +44,7 @@ import { queryKeys } from "@/lib/query/query-keys";
 import { ApplicationNotesModal } from "./application-notes-modal";
 import { ReasonModal } from "./reason-modal";
 import { ResumeViewerModal } from "./resume-viewer-modal";
+import { ScorePendingShimmer } from "./score-pending-shimmer";
 
 const emptyApps: ApplicationListItem[] = [];
 const emptyStats: ApplicationStats = {
@@ -609,7 +610,9 @@ export function ApplicationsManager() {
                           <StatusPills items={[{ label: statusLabel(application.status), tone: statusTone(application.status) }]} />
                         </td>
                         <td className="px-4 py-3 align-middle">
-                          {typeof application.score === "number" ? (
+                          {application.scoringStatus === "pending" ? (
+                            <ScorePendingShimmer />
+                          ) : typeof application.score === "number" ? (
                             <StatusPills items={[{ label: formatScore(application.score), tone: scoreTone(application.score) }]} />
                           ) : (
                             <span className="text-sm text-gray-400">—</span>

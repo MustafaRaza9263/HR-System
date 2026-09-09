@@ -115,6 +115,10 @@ export interface ApplicationScoring {
   scoredAt: string | null;
 }
 
+export interface ApplicationScoredEvent extends ApplicationScoring {
+  id: string;
+}
+
 export interface ApplicationDetail {
   id: string;
   jobId: string;
