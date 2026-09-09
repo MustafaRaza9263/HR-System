@@ -83,6 +83,8 @@ export interface ApplicationListItem {
   status: ApplicationStatus;
   score: number | null;
   scoringStatus: ScoringStatus | null;
+  source: string;
+  campaign: string | null;
   createdAt: string;
   resumeFileName: string;
 }
@@ -160,6 +162,21 @@ export interface ApplicationDetail {
 
 export interface ApplicationDetailResponse {
   data: { application: ApplicationDetail };
+}
+
+export interface ApplicationSourceCampaign {
+  key: string;
+  label: string;
+}
+
+export interface ApplicationSourceOption {
+  source: string;
+  label: string;
+  campaigns: ApplicationSourceCampaign[];
+}
+
+export interface ApplicationSourcesResponse {
+  data: { sources: ApplicationSourceOption[] };
 }
 
 export const APPLICATION_STATUSES: ApplicationStatus[] = [

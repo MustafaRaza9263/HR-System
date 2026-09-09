@@ -19,6 +19,7 @@ import { getInitials } from "@/components/ui/user-profile";
 import { alerts } from "@/lib/alerts";
 import { ApiClientError, apiRequest } from "@/lib/api";
 import type { ApplicationDetail as ApplicationDetailModel, ApplicationDetailResponse } from "@/lib/applications/types";
+import { formatSourceCampaign } from "@/lib/applications/utm";
 import { queryKeys } from "@/lib/query/query-keys";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -37,7 +38,7 @@ function interviewSummary(application: ApplicationDetailModel) {
 }
 
 function sourceLabel(application: ApplicationDetailModel) {
-  return application.campaign ? `${application.source} · ${application.campaign}` : application.source;
+  return formatSourceCampaign(application.source, application.campaign);
 }
 
 export function ApplicationDetail({ applicationId }: { applicationId: string }) {

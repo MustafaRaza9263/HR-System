@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ScheduleInterviewModal } from "@/components/interviews/schedule-interview-modal";
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
-import { Dropdown } from "@/components/ui/dropdown";
+import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 import { FilterField, FilterSheet } from "@/components/ui/filter-sheet";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
@@ -31,12 +31,14 @@ import { ApiClientError, apiRequest } from "@/lib/api";
 import type {
   ApplicationDetailResponse,
   ApplicationListItem,
+  ApplicationSourcesResponse,
   ApplicationStats,
   ApplicationStatus,
   ApplicationsListResponse,
 } from "@/lib/applications/types";
 import { APPLICATION_STATUSES } from "@/lib/applications/types";
 import { formatScore, SCORE_RANGE_OPTIONS, scoreRangeParams, scoreTone } from "@/lib/applications/scoring";
+import { formatSource, formatCampaign } from "@/lib/applications/utm";
 import type { JobOptionsResponse } from "@/lib/jobs/types";
 import { emptyPagination, LIST_PAGE_LIMIT, listQueryString } from "@/lib/pagination";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -53,6 +55,16 @@ const emptyStats: ApplicationStats = {
   rejected: 0,
   approved: 0,
 };
+
+const SOURCE_PREFIX = "source:";
+const CAMPAIGN_PREFIX = "campaign:";
+const CAMPAIGN_SEP = "::";
+
+function utmFilterValue(source: string, campaign: string) {
+  if (source && campaign) return `${CAMPAIGN_PREFIX}${source}${CAMPAIGN_SEP}${campaign}`;
+  if (source) return `${SOURCE_PREFIX}${source}`;
+  return "";
+}
 
 interface Department {
   id: string;
@@ -116,6 +128,15 @@ function isUnlocked(status: ApplicationStatus) {
   return status !== "approved" && status !== "rejected";
 }
 
+function TwoLineCell({ primary, secondary }: { primary: string; secondary: string }) {
+  return (
+    <span className="flex min-w-0 flex-col leading-tight">
+      <span className="truncate text-sm font-bold text-gray-950 dark:text-white">{primary}</span>
+      <span className="mt-0.5 truncate text-xs font-normal text-gray-500 dark:text-gray-400">{secondary}</span>
+    </span>
+  );
+}
+
 export function ApplicationsManager() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -123,6 +144,8 @@ export function ApplicationsManager() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [jobId, setJobId] = useState("");
   const [roleId, setRoleId] = useState("");
+  const [source, setSource] = useState("");
+  const [campaign, setCampaign] = useState("");
   const [status, setStatus] = useState("");
   const [scoreRange, setScoreRange] = useState("");
   const [scoreSort, setScoreSort] = useState<"asc" | "desc" | null>(null);
@@ -157,10 +180,12 @@ export function ApplicationsManager() {
       scoreMin: scoreFilters.scoreMin,
       scoreMax: scoreFilters.scoreMax,
       scoreLessThan: scoreFilters.scoreLessThan,
+      source: source || undefined,
+      campaign: campaign || undefined,
       page,
       limit: LIST_PAGE_LIMIT,
     }),
-    [debouncedQuery, jobId, page, roleId, scoreFilters.scoreLessThan, scoreFilters.scoreMax, scoreFilters.scoreMin, scoreSort, status],
+    [campaign, debouncedQuery, jobId, page, roleId, scoreFilters.scoreLessThan, scoreFilters.scoreMax, scoreFilters.scoreMin, scoreSort, source, status],
   );
 
   const listQuery = useQuery({
@@ -186,6 +211,11 @@ export function ApplicationsManager() {
         roles: roles.data.roles,
       };
     },
+  });
+
+  const sourcesQuery = useQuery({
+    queryKey: queryKeys.applications.sources,
+    queryFn: async () => apiRequest<ApplicationSourcesResponse>("/applications/sources"),
   });
 
   const applications = listQuery.data?.data.applications ?? emptyApps;
@@ -216,6 +246,50 @@ export function ApplicationsManager() {
     { value: "", label: "All statuses" },
     ...APPLICATION_STATUSES.map((item) => ({ value: item, label: statusLabel(item) })),
   ];
+
+  const utmOptions = useMemo<DropdownOption[]>(() => {
+    const options: DropdownOption[] = [{ value: "", label: "All sources" }];
+    for (const item of sourcesQuery.data?.data.sources ?? []) {
+      const headingValue = `${SOURCE_PREFIX}${item.source}`;
+      options.push({
+        value: headingValue,
+        label: item.label,
+        heading: true,
+        keywords: `${item.label} ${item.source}`,
+      });
+      for (const campaignOption of item.campaigns) {
+        options.push({
+          value: `${CAMPAIGN_PREFIX}${item.source}${CAMPAIGN_SEP}${campaignOption.key}`,
+          label: campaignOption.label,
+          group: headingValue,
+          keywords: `${campaignOption.label} ${item.label} ${item.source}`,
+        });
+      }
+    }
+    return options;
+  }, [sourcesQuery.data]);
+
+  function applyUtmFilter(next: string) {
+    if (next.startsWith(CAMPAIGN_PREFIX)) {
+      const rest = next.slice(CAMPAIGN_PREFIX.length);
+      const sep = rest.indexOf(CAMPAIGN_SEP);
+      if (sep === -1) {
+        setSource("");
+        setCampaign("");
+      } else {
+        setSource(rest.slice(0, sep));
+        setCampaign(rest.slice(sep + CAMPAIGN_SEP.length));
+      }
+    } else if (next.startsWith(SOURCE_PREFIX)) {
+      setSource(next.slice(SOURCE_PREFIX.length));
+      setCampaign("");
+    } else {
+      setSource("");
+      setCampaign("");
+    }
+    setPage(1);
+    setSelectedIds([]);
+  }
 
   const rejectableSelected = applications.filter(
     (item) => selectedIds.includes(item.id) && isUnlocked(item.status),
@@ -251,6 +325,8 @@ export function ApplicationsManager() {
           scoreMin: applicationIds ? undefined : filters.scoreMin,
           scoreMax: applicationIds ? undefined : filters.scoreMax,
           scoreLessThan: applicationIds ? undefined : filters.scoreLessThan,
+          source: applicationIds ? undefined : filters.source,
+          campaign: applicationIds ? undefined : filters.campaign,
           applicationIds,
           reason,
           sendEmail,
@@ -332,6 +408,8 @@ export function ApplicationsManager() {
         scoreMin: filters.scoreMin,
         scoreMax: filters.scoreMax,
         scoreLessThan: filters.scoreLessThan,
+        source: filters.source,
+        campaign: filters.campaign,
       });
       if (result.data.count === 0) {
         alerts.info("No matching applications to reject.");
@@ -397,7 +475,7 @@ export function ApplicationsManager() {
                   value={query}
                 />
               </label>
-              <FilterSheet active={Boolean(jobId || roleId || status || scoreRange)} title="Application filters" triggerSize="md">
+              <FilterSheet active={Boolean(jobId || roleId || source || campaign || status || scoreRange)} title="Application filters" triggerSize="md">
                 <FilterField label="Job">
                   <Dropdown
                     aria-label="Filter by job"
@@ -424,6 +502,18 @@ export function ApplicationsManager() {
                     options={roleOptions}
                     size="md"
                     value={roleId}
+                  />
+                </FilterField>
+                <FilterField label="Source">
+                  <Dropdown
+                    aria-label="Filter by source or campaign"
+                    className="w-full"
+                    menuMinWidth={280}
+                    onChange={applyUtmFilter}
+                    options={utmOptions}
+                    searchable
+                    size="md"
+                    value={utmFilterValue(source, campaign)}
                   />
                 </FilterField>
                 <FilterField label="Status">
@@ -480,6 +570,16 @@ export function ApplicationsManager() {
                 options={roleOptions}
                 size="md"
                 value={roleId}
+              />
+              <Dropdown
+                aria-label="Filter by source or campaign"
+                className="w-full xl:w-64"
+                menuMinWidth={280}
+                onChange={applyUtmFilter}
+                options={utmOptions}
+                searchable
+                size="md"
+                value={utmFilterValue(source, campaign)}
               />
               <Dropdown
                 aria-label="Filter by status"
@@ -555,7 +655,7 @@ export function ApplicationsManager() {
               />
             ) : null}
             {listQuery.isSuccess && applications.length === 0 ? (
-              <EmptyState hasQuery={Boolean(debouncedQuery || jobId || roleId || status || scoreRange)} />
+              <EmptyState hasQuery={Boolean(debouncedQuery || jobId || roleId || source || campaign || status || scoreRange)} />
             ) : null}
             {listQuery.isSuccess && applications.length > 0 ? (
               <div className="overflow-x-auto">
@@ -566,8 +666,9 @@ export function ApplicationsManager() {
                         <span className="sr-only">Select</span>
                       </th>
                       <th className="px-4 py-3">Candidate</th>
-                      <th className="px-4 py-3">Job</th>
+                      <th className="px-4 py-3">Job Label</th>
                       <th className="px-4 py-3">Department / role</th>
+                      <th className="px-4 py-3">Source / campaign</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3" aria-sort={scoreSort ? (scoreSort === "asc" ? "ascending" : "descending") : "none"}>
                         <button
@@ -603,8 +704,14 @@ export function ApplicationsManager() {
                         <td className="max-w-[220px] truncate px-4 py-3 text-gray-700 dark:text-gray-200">
                           {application.jobTitle}
                         </td>
-                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                          {application.departmentName} / {application.roleName}
+                        <td className="max-w-[180px] px-4 py-3">
+                          <TwoLineCell primary={application.departmentName} secondary={application.roleName} />
+                        </td>
+                        <td className="max-w-[180px] px-4 py-3">
+                          <TwoLineCell
+                            primary={formatSource(application.source)}
+                            secondary={formatCampaign(application.campaign)}
+                          />
                         </td>
                         <td className="px-4 py-3 align-middle">
                           <StatusPills items={[{ label: statusLabel(application.status), tone: statusTone(application.status) }]} />

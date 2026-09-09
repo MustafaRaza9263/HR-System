@@ -1,3 +1,6 @@
+export const DEFAULT_SOURCE = "website";
+export const ORGANIC_CAMPAIGN_KEY = "organic";
+
 function readTrimmed(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -13,10 +16,35 @@ export function extractUtm(request: {
   const query = request.query && typeof request.query === "object" ? (request.query as Record<string, unknown>) : {};
 
   const source = (
-    readTrimmed(body.utm_source, 80) ?? readTrimmed(query.utm_source, 80) ?? "website"
+    readTrimmed(body.utm_source, 80) ?? readTrimmed(query.utm_source, 80) ?? DEFAULT_SOURCE
   ).toLowerCase();
   const campaignRaw = readTrimmed(body.utm_campaign, 120) ?? readTrimmed(query.utm_campaign, 120);
   const campaign = campaignRaw ? campaignRaw.toLowerCase() : null;
 
   return { source, campaign };
+}
+
+export function titleCaseUtm(value: string) {
+  return value.replace(/[a-z0-9]+/gi, (part) => part.charAt(0).toUpperCase() + part.slice(1));
+}
+
+export function normalizeSourceKey(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim().toLowerCase();
+  return trimmed || DEFAULT_SOURCE;
+}
+
+export function normalizeCampaignKey(value: string | null | undefined) {
+  const trimmed = (value ?? "").trim().toLowerCase();
+  if (!trimmed || trimmed === ORGANIC_CAMPAIGN_KEY) return ORGANIC_CAMPAIGN_KEY;
+  return trimmed;
+}
+
+export function sourceLabel(value: string | null | undefined) {
+  return titleCaseUtm(normalizeSourceKey(value));
+}
+
+export function campaignLabel(value: string | null | undefined) {
+  const key = normalizeCampaignKey(value);
+  if (key === ORGANIC_CAMPAIGN_KEY) return "Organic";
+  return titleCaseUtm(key);
 }

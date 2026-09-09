@@ -27,6 +27,7 @@ import { assertNoDuplicateInterviewSlot } from "../utils/interview-rules.js";
 import { paginationMeta } from "../utils/pagination.js";
 import { serializeApplication, serializeListItem, serializeScoring } from "../utils/serialize-application.js";
 import { serializeInterview, serializeInterviews } from "../utils/serialize-interview.js";
+import { campaignLabel, DEFAULT_SOURCE, ORGANIC_CAMPAIGN_KEY, sourceLabel } from "../utils/utm.js";
 import { contentDispositionFilename, resolveUploadPath } from "../utils/uploads.js";
 
 export const applicationRouter = Router();
@@ -61,6 +62,8 @@ applicationRouter.get(
       scoreMin: query.scoreMin,
       scoreMax: query.scoreMax,
       scoreLessThan: query.scoreLessThan,
+      source: query.source,
+      campaign: query.campaign,
     });
     const statsMatch = buildApplicationStatsMatch({
       q: query.q,
@@ -70,10 +73,12 @@ applicationRouter.get(
       scoreMin: query.scoreMin,
       scoreMax: query.scoreMax,
       scoreLessThan: query.scoreLessThan,
+      source: query.source,
+      campaign: query.campaign,
     });
     const skip = (query.page - 1) * query.limit;
     const listSelect =
-      "jobId candidateName candidateEmail roleSnapshot.title roleSnapshot.departmentName roleSnapshot.roleName status createdAt resumeOriginalName scoring.score scoring.status";
+      "jobId candidateName candidateEmail roleSnapshot.title roleSnapshot.departmentName roleSnapshot.roleName status source campaign createdAt resumeOriginalName scoring.score scoring.status";
     const sortDir = query.dir === "asc" ? 1 : -1;
     const sort: Record<string, 1 | -1> =
       query.sort === "score" ? { "scoring.score": sortDir, createdAt: -1 } : { createdAt: -1 };
@@ -107,6 +112,58 @@ applicationRouter.get(
   }),
 );
 
+applicationRouter.get(
+  "/sources",
+  asyncHandler(async (_request, response) => {
+    const grouped = await Application.aggregate<{ _id: { source: string; campaign: string } }>([
+      {
+        $group: {
+          _id: {
+            source: {
+              $let: {
+                vars: { normalized: { $toLower: { $trim: { input: { $ifNull: ["$source", ""] } } } } },
+                in: { $cond: [{ $eq: ["$$normalized", ""] }, DEFAULT_SOURCE, "$$normalized"] },
+              },
+            },
+            campaign: {
+              $let: {
+                vars: { normalized: { $toLower: { $trim: { input: { $ifNull: ["$campaign", ""] } } } } },
+                in: {
+                  $cond: [{ $in: ["$$normalized", ["", ORGANIC_CAMPAIGN_KEY]] }, ORGANIC_CAMPAIGN_KEY, "$$normalized"],
+                },
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    const bySource = new Map<string, { source: string; label: string; campaigns: Array<{ key: string; label: string }> }>();
+    for (const row of grouped) {
+      const sourceKey = row._id.source || DEFAULT_SOURCE;
+      const campaignKey = row._id.campaign || ORGANIC_CAMPAIGN_KEY;
+      const current = bySource.get(sourceKey) ?? {
+        source: sourceKey,
+        label: sourceLabel(sourceKey),
+        campaigns: [],
+      };
+      if (!current.campaigns.some((item) => item.key === campaignKey)) {
+        current.campaigns.push({ key: campaignKey, label: campaignLabel(campaignKey) });
+      }
+      bySource.set(sourceKey, current);
+    }
+
+    const sources = [...bySource.values()]
+      .map((row) => ({
+        ...row,
+        campaigns: row.campaigns.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+
+    response.status(200).json({ data: { sources } });
+  }),
+);
+
 applicationRouter.post(
   "/bulk-reject",
   verifyBrowserOrigin,
@@ -129,6 +186,8 @@ applicationRouter.post(
       scoreMin: input.scoreMin,
       scoreMax: input.scoreMax,
       scoreLessThan: input.scoreLessThan,
+      source: input.source,
+      campaign: input.campaign,
     });
 
     const matches = await Application.find(filter)

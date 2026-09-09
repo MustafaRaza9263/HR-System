@@ -39,6 +39,8 @@ export const queryKeys = {
       scoreMin?: number;
       scoreMax?: number;
       scoreLessThan?: number;
+      source?: string;
+      campaign?: string;
       page?: number;
       limit?: number;
     }) =>
@@ -54,9 +56,12 @@ export const queryKeys = {
         filters?.scoreMin ?? "",
         filters?.scoreMax ?? "",
         filters?.scoreLessThan ?? "",
+        filters?.source ?? "",
+        filters?.campaign ?? "",
         filters?.page ?? 1,
         filters?.limit ?? LIST_PAGE_LIMIT,
       ] as const,
+    sources: ["applications", "sources"] as const,
     detail: (applicationId: string) => ["applications", "detail", applicationId] as const,
     interviews: (applicationId: string) => ["applications", "interviews", applicationId] as const,
     resume: (applicationId: string) => ["application-resume", applicationId] as const,
@@ -131,7 +136,7 @@ export const queryKeys = {
   },
 } as const;
 
-/** List tuple: applications, list, q, jobId, roleId, status, sort, dir, scoreMin, scoreMax, scoreLessThan, page, limit */
+/** List tuple: applications, list, q, jobId, roleId, status, sort, dir, scoreMin, scoreMax, scoreLessThan, source, campaign, page, limit */
 export function applicationsListIsScoreScoped(queryKey: readonly unknown[]) {
   return (
     queryKey[0] === "applications" &&

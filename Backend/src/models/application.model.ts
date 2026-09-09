@@ -155,6 +155,7 @@ applicationSchema.index({ status: 1, createdAt: -1 });
 applicationSchema.index({ jobId: 1, candidateEmail: 1 });
 applicationSchema.index({ jobId: 1, candidateCnic: 1 });
 applicationSchema.index({ "scoring.score": 1, createdAt: -1 });
+applicationSchema.index({ source: 1, campaign: 1 });
 
 export type ApplicationDocument = InferSchemaType<typeof applicationSchema>;
 export const Application = model("Application", applicationSchema);

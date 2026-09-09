@@ -41,6 +41,8 @@ export const bulkRejectSchema = z.object({
   scoreMin: z.number().min(0).max(10).optional(),
   scoreMax: z.number().min(0).max(10).optional(),
   scoreLessThan: z.number().min(0).max(10).optional(),
+  source: z.string().trim().max(80).optional(),
+  campaign: z.string().trim().max(120).optional(),
   reason: z
     .string()
     .trim()
@@ -221,5 +223,7 @@ export const listApplicationsQuerySchema = z
     scoreMin: z.coerce.number().min(0).max(10).optional(),
     scoreMax: z.coerce.number().min(0).max(10).optional(),
     scoreLessThan: z.coerce.number().min(0).max(10).optional(),
+    source: z.string().trim().max(80).optional(),
+    campaign: z.string().trim().max(120).optional(),
   })
   .extend(listPaginationQuerySchema.shape);

@@ -176,6 +176,8 @@ export function serializeListItem(application: {
   candidateEmail: string;
   roleSnapshot: { title: string; departmentName: string; roleName: string };
   status: string;
+  source?: string | null;
+  campaign?: string | null;
   createdAt: Date;
   resumeOriginalName: string;
   scoring?: { status?: string | null; score?: number | null } | null;
@@ -189,6 +191,8 @@ export function serializeListItem(application: {
     departmentName: application.roleSnapshot.departmentName,
     roleName: application.roleSnapshot.roleName,
     status: application.status,
+    source: application.source ?? "website",
+    campaign: application.campaign ?? null,
     score: typeof application.scoring?.score === "number" ? application.scoring.score : null,
     scoringStatus:
       application.scoring?.status === "pending" ||

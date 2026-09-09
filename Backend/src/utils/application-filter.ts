@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 
 import { TERMINAL_APPLICATION_STATUSES } from "../schemas/application.schema.js";
+import { normalizeCampaignKey, normalizeSourceKey, ORGANIC_CAMPAIGN_KEY } from "./utm.js";
 
 export function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -16,6 +17,8 @@ export function buildApplicationFilter(input: {
   scoreMin?: number | undefined;
   scoreMax?: number | undefined;
   scoreLessThan?: number | undefined;
+  source?: string | undefined;
+  campaign?: string | undefined;
 }): Record<string, unknown> {
   const filter: Record<string, unknown> = {};
 
@@ -54,6 +57,16 @@ export function buildApplicationFilter(input: {
   if (typeof input.scoreLessThan === "number") score.$lt = input.scoreLessThan;
   if (Object.keys(score).length > 0) filter["scoring.score"] = score;
 
+  if (input.source) {
+    const source = normalizeSourceKey(input.source);
+    filter.source = source;
+    if (input.campaign) {
+      const campaign = normalizeCampaignKey(input.campaign);
+      filter.campaign =
+        campaign === ORGANIC_CAMPAIGN_KEY ? { $in: [null, "", ORGANIC_CAMPAIGN_KEY] } : campaign;
+    }
+  }
+
   return filter;
 }
 
@@ -65,6 +78,8 @@ export function buildApplicationStatsMatch(input: {
   scoreMin?: number | undefined;
   scoreMax?: number | undefined;
   scoreLessThan?: number | undefined;
+  source?: string | undefined;
+  campaign?: string | undefined;
 }): Record<string, unknown> {
   return castApplicationFilterForAggregate(
     buildApplicationFilter({
@@ -75,6 +90,8 @@ export function buildApplicationStatsMatch(input: {
       scoreMin: input.scoreMin,
       scoreMax: input.scoreMax,
       scoreLessThan: input.scoreLessThan,
+      source: input.source,
+      campaign: input.campaign,
     }),
   );
 }
