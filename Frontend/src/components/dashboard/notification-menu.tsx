@@ -6,11 +6,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { NotificationTypeIcon } from "@/components/notifications/notification-icon";
-import { apiRequest, getApiBaseUrl } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 import { fetchNotifications } from "@/lib/notifications/api";
 import { markAllNotificationsReadInCache, markNotificationReadInCache } from "@/lib/notifications/cache";
 import { NOTIFICATION_PREVIEW_LIMIT, relativeNotificationTime } from "@/lib/notifications/meta";
-import type { HrNotification, NotificationsListResponse, UnreadCountResponse } from "@/lib/notifications/types";
+import type { UnreadCountResponse } from "@/lib/notifications/types";
 import { queryKeys } from "@/lib/query/query-keys";
 
 const previewFilters = { page: 1, limit: NOTIFICATION_PREVIEW_LIMIT };
@@ -32,43 +32,6 @@ export function NotificationMenu() {
 
   const items = listQuery.data?.data.notifications ?? [];
   const unreadCount = unreadQuery.data?.data.count ?? listQuery.data?.data.unreadCount ?? items.filter((item) => !item.isRead).length;
-
-  useEffect(() => {
-    const source = new EventSource(`${getApiBaseUrl()}/notifications/stream`, { withCredentials: true });
-    source.addEventListener("notification", (event) => {
-      const incoming = JSON.parse((event as MessageEvent).data) as HrNotification;
-      queryClient.setQueryData<NotificationsListResponse>(previewKey, (current) => {
-        const existing = current?.data.notifications ?? [];
-        if (existing.some((item) => item.id === incoming.id)) return current;
-        const pagination = current?.data.pagination ?? { total: 0, page: 1, limit: NOTIFICATION_PREVIEW_LIMIT, pages: 1 };
-        const nextTotal = pagination.total + 1;
-        return {
-          data: {
-            notifications: [incoming, ...existing].slice(0, pagination.limit),
-            unreadCount: (current?.data.unreadCount ?? 0) + (incoming.isRead ? 0 : 1),
-            pagination: {
-              ...pagination,
-              total: nextTotal,
-              pages: Math.max(1, Math.ceil(nextTotal / pagination.limit)),
-            },
-          },
-        };
-      });
-      if (!incoming.isRead) {
-        queryClient.setQueryData<UnreadCountResponse>(queryKeys.notifications.unread, (current) => ({
-          data: { count: (current?.data.count ?? 0) + 1 },
-        }));
-      }
-      void queryClient.invalidateQueries({
-        predicate: (query) =>
-          query.queryKey[0] === "notifications" &&
-          JSON.stringify(query.queryKey) !== JSON.stringify(previewKey) &&
-          JSON.stringify(query.queryKey) !== JSON.stringify(queryKeys.notifications.unread),
-      });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.interviews.pendingLinks });
-    });
-    return () => source.close();
-  }, [previewKey, queryClient]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {

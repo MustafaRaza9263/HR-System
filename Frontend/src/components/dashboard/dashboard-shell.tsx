@@ -3,6 +3,8 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
+import { useHrLiveEvents } from "@/lib/notifications/use-hr-live-events";
+
 import { AssistantPanel } from "./assistant-panel";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
@@ -18,6 +20,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  useHrLiveEvents();
 
   useEffect(() => {
     void import("@/lib/notifications/fcm")

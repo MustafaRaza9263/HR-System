@@ -131,6 +131,8 @@ registerTool({
         meaning: {
           submitted:
             "Applications whose current status is still Submitted, all-time. Do not report this as applications received today.",
+          rejected: "Applications whose current status is Rejected, all-time. Matches the Applications page Rejected card.",
+          approved: "Applications whose current status is Approved, all-time. Matches the Applications page Approved card.",
         },
       };
     }

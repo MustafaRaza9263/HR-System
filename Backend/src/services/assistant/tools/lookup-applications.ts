@@ -102,7 +102,7 @@ registerTool({
   family: "data",
   label: "Checking applications",
   description:
-    "Find applications/candidates. Name search always returns a capped list with enough detail to tell people apart. Never guess when several people match.",
+    "Find specific applications/candidates (name, id, filters). Returns a sample of at most 8 rows plus `total` (uncapped count). For 'how many rejected/approved/…' use lookup_dashboard metric pipeline instead. Never report matchCount as the total.",
   argsHint:
     '{"q":"optional name/email/phone/cnic","applicationId":"optional 24-hex","jobId":"optional","roleId":"optional","status":"optional enum","scoreMin":0,"scoreMax":10}',
   inputSchema,
@@ -134,16 +134,25 @@ registerTool({
       filter.$or = or;
     }
 
-    const rows = (await readDb.find(READ_COLLECTIONS.applications, filter, {
-      projection: listProjection,
-      sort: { createdAt: -1 },
-      limit: MATCH_LIMIT,
-    })) as ApplicationRow[];
+    const [rows, total] = await Promise.all([
+      readDb.find(READ_COLLECTIONS.applications, filter, {
+        projection: listProjection,
+        sort: { createdAt: -1 },
+        limit: MATCH_LIMIT,
+      }) as Promise<ApplicationRow[]>,
+      readDb.countDocuments(READ_COLLECTIONS.applications, filter),
+    ]);
 
     const matches = rows.map(serializeMatch);
     return {
+      total,
       matchCount: matches.length,
       cappedAt: MATCH_LIMIT,
+      truncated: total > MATCH_LIMIT,
+      meaning: {
+        total: "Uncapped count for this filter. Use this if you must answer 'how many' from this tool.",
+        matchCount: `Rows in matches, never more than ${String(MATCH_LIMIT)}. Do not report this as the total.`,
+      },
       matches,
     };
   },

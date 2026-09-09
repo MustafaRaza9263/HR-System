@@ -98,6 +98,7 @@ Frontend/src
 
 - Client managers (`*-manager.tsx`) own queries/mutations. `apiRequest` / `apiFormRequest` with `credentials: "include"`.
 - `queryKeys` in `lib/query/query-keys.ts`. Invalidate parent `all` keys after writes.
+- Dashboard shell opens one EventSource on `/notifications/stream` (bell + live list invalidation). Do not open a second stream per page.
 - List tables send `page` + `limit` + filters as query params; `keepPreviousData` while paging.
 - Toasts: `alerts.success|error` (portal). Forms: field errors from `ApiClientError.fields`.
 - Dashboard layout SSR-checks `/auth/me`; missing session → `/login`.
@@ -325,7 +326,7 @@ On success: `applicationCount++` only if job still `open` (else delete created r
 
 **Application scoring (advisory only):** one denormalized `scoring` object on the Application (`pending` \| `completed` \| `failed`; score 0–10 one decimal, summary, strengths[], gaps[], provider, model, linksAttempted, linksUsed, scoredAt). No separate collection. Never writes `Application.status` or calls `recomputeApplicationStatus`. `completed` is terminal. Retry is HR-only and only when `failed`. Gathering: `extractResumeText` on the stored resume; regex URLs in CV text + `url` custom answers; best-effort link fetch (`extract-link-text`, ~8s, silent drop); JD title/`descriptionPlain`/dept/role; application system fields + experience + education + non-file answers. Each source clipped ~8k chars. One `generateStructured()` call. Malformed JSON / missing key / timeout → `failed` after 4 internal attempts (same posture as email). Boot marks leftover `pending` as `failed` so Retry appears. Logs each step; dumps gathered context before the model call.
 
-**HR list:** search name/email; filter job / role / status / score range (below 4, 4–6.9, 7–10). Role dropdown lists every role; `roleId` returns applications for all jobs of that role. Score column uses `StatusPills`; click **Score** to sort asc/desc (default list remains newest first until Score is clicked). Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Row click → detail (see HR detail UX above). Every row: view resume, view notes (read-only modal of all interview notes, grouped by interview; fetched on open via `GET /applications/:id/interviews`, not on the list payload). Unlocked row actions: schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar (same list filters, including score). Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
+**HR list:** search name/email; filter job / role / status / score range (below 4, 4–6.9, 7–10). Role dropdown lists every role; `roleId` returns applications for all jobs of that role. Score column uses `StatusPills`; click **Score** to sort asc/desc (default list remains newest first until Score is clicked). Metrics: total, scheduled, rejected, approved (real counts). Backend pagination default 15. Live: the shared HR SSE invalidates `applications` queries on `new_application` (debounced); the mounted list refetches with current filters — rows are not patched into the client cache. Row click → detail (see HR detail UX above). Every row: view resume, view notes (read-only modal of all interview notes, grouped by interview; fetched on open via `GET /applications/:id/interviews`, not on the list payload). Unlocked row actions: schedule interview, trial (confirm), approve (reason), reject (reason). Approve/reject/bulk-reject modals: heading + close in the header, reason in the body, Send email toggle default on. Trial confirm: heading + close in the header, explanation in the body, no icon. Bulk reject from the filter bar (same list filters, including score). Status pills: submitted sky, under review amber, interview scheduled indigo, interviewed/trial violet, approved green, rejected red.
 
 ---
 
@@ -381,7 +382,7 @@ Types: `new_application` (href `/dashboard/applications/:id`), `interview_reques
 
 Shared HR feed. Insert only via `notifyHR(type, refId)`. Also SSE + optional FCM.
 
-Bell: last 20, mark one/all read, link to `/dashboard/notifications` (search, unread filter, pagination). Unread badge from `/unread-count`.
+Bell: last 20, mark one/all read, link to `/dashboard/notifications` (search, unread filter, pagination). Unread badge from `/unread-count`. One EventSource per dashboard session (dashboard shell, not the bell). `new_application` also invalidates the applications list (debounced refetch of current filters).
 
 ---
 
