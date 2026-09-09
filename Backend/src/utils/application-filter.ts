@@ -56,3 +56,37 @@ export function buildApplicationFilter(input: {
 
   return filter;
 }
+
+export function buildApplicationStatsMatch(input: {
+  q?: string | undefined;
+  jobId?: string | undefined;
+  roleId?: string | undefined;
+  status?: string | undefined;
+  scoreMin?: number | undefined;
+  scoreMax?: number | undefined;
+  scoreLessThan?: number | undefined;
+}): Record<string, unknown> {
+  return castApplicationFilterForAggregate(
+    buildApplicationFilter({
+      q: input.q,
+      jobId: input.jobId,
+      roleId: input.roleId,
+      status: input.status,
+      scoreMin: input.scoreMin,
+      scoreMax: input.scoreMax,
+      scoreLessThan: input.scoreLessThan,
+    }),
+  );
+}
+
+function castApplicationFilterForAggregate(filter: Record<string, unknown>): Record<string, unknown> {
+  const match = { ...filter };
+  if (typeof match.jobId === "string" && Types.ObjectId.isValid(match.jobId)) {
+    match.jobId = new Types.ObjectId(match.jobId);
+  }
+  const roleId = match["roleSnapshot.roleId"];
+  if (typeof roleId === "string" && Types.ObjectId.isValid(roleId)) {
+    match["roleSnapshot.roleId"] = new Types.ObjectId(roleId);
+  }
+  return match;
+}

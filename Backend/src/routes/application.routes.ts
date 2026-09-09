@@ -19,7 +19,7 @@ import { createInterviewSchema } from "../schemas/interview.schema.js";
 import { enqueueScoring } from "../services/application-scoring/queue.js";
 import { sendCandidateInterviewScheduled } from "../services/email/index.js";
 import { ApiError } from "../utils/api-error.js";
-import { buildApplicationFilter } from "../utils/application-filter.js";
+import { buildApplicationFilter, buildApplicationStatsMatch } from "../utils/application-filter.js";
 import { approveApplication, assertRejectable, markApplicationTrial, rejectApplications } from "../utils/application-reject.js";
 import { applicationStatusUpdate, recomputeApplicationStatus } from "../utils/application-status.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -62,17 +62,30 @@ applicationRouter.get(
       scoreMax: query.scoreMax,
       scoreLessThan: query.scoreLessThan,
     });
+    const statsMatch = buildApplicationStatsMatch({
+      q: query.q,
+      jobId: query.jobId,
+      roleId: query.roleId,
+      status: query.status,
+      scoreMin: query.scoreMin,
+      scoreMax: query.scoreMax,
+      scoreLessThan: query.scoreLessThan,
+    });
     const skip = (query.page - 1) * query.limit;
     const listSelect =
       "jobId candidateName candidateEmail roleSnapshot.title roleSnapshot.departmentName roleSnapshot.roleName status createdAt resumeOriginalName scoring.score scoring.status";
     const sortDir = query.dir === "asc" ? 1 : -1;
     const sort: Record<string, 1 | -1> =
       query.sort === "score" ? { "scoring.score": sortDir, createdAt: -1 } : { createdAt: -1 };
+    const statsPipeline: Array<{ $match: Record<string, unknown> } | { $group: { _id: string; count: { $sum: number } } }> =
+      [];
+    if (Object.keys(statsMatch).length > 0) statsPipeline.push({ $match: statsMatch });
+    statsPipeline.push({ $group: { _id: "$status", count: { $sum: 1 } } });
 
     const [applications, total, statusCounts] = await Promise.all([
       Application.find(filter).select(listSelect).sort(sort).skip(skip).limit(query.limit).lean(),
       Application.countDocuments(filter),
-      Application.aggregate<{ _id: string; count: number }>([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      Application.aggregate<{ _id: string; count: number }>(statsPipeline),
     ]);
 
     const byStatus = new Map(statusCounts.map((row) => [row._id, row.count]));

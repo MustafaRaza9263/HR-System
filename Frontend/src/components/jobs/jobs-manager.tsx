@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { DateTimeDisplay } from "@/components/ui/date-time-display";
-import { Dropdown } from "@/components/ui/dropdown";
+import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 import { FilterField, FilterSheet } from "@/components/ui/filter-sheet";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Modal } from "@/components/ui/modal";
@@ -94,6 +94,15 @@ const emptyStats: JobStats = {
   totalClosed: 0,
 };
 
+const DEPT_PREFIX = "dept:";
+const ROLE_PREFIX = "role:";
+
+function orgFilterValue(departmentId: string, roleId: string) {
+  if (roleId) return `${ROLE_PREFIX}${roleId}`;
+  if (departmentId) return `${DEPT_PREFIX}${departmentId}`;
+  return "";
+}
+
 export function JobsManager() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -148,27 +157,64 @@ export function JobsManager() {
   const stats = jobsQuery.data?.data.stats ?? emptyStats;
   const pagination = jobsQuery.data?.data.pagination ?? emptyPagination(page);
   const departments = metaQuery.data?.departments ?? [];
+  const roles = metaQuery.data?.roles ?? [];
 
-  const filteredRoles = useMemo(() => {
-    const roles = metaQuery.data?.roles ?? [];
-    if (!departmentId) return roles;
-    return roles.filter((role) => role.departmentId === departmentId);
-  }, [metaQuery.data?.roles, departmentId]);
+  const orgOptions = useMemo<DropdownOption[]>(() => {
+    const byDepartment = new Map<string, Role[]>();
+    for (const role of roles) {
+      const list = byDepartment.get(role.departmentId) ?? [];
+      list.push(role);
+      byDepartment.set(role.departmentId, list);
+    }
+    const sortedDepartments = [...departments].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+    const options: DropdownOption[] = [{ value: "", label: "All roles" }];
+    for (const department of sortedDepartments) {
+      const headingValue = `${DEPT_PREFIX}${department.id}`;
+      options.push({
+        value: headingValue,
+        label: department.name,
+        heading: true,
+        keywords: department.name,
+      });
+      const deptRoles = [...(byDepartment.get(department.id) ?? [])].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+      );
+      for (const role of deptRoles) {
+        options.push({
+          value: `${ROLE_PREFIX}${role.id}`,
+          label: role.name,
+          group: headingValue,
+          keywords: `${role.name} ${department.name}`,
+        });
+      }
+    }
+    return options;
+  }, [departments, roles]);
 
-  const departmentOptions = [
-    { value: "", label: "All departments" },
-    ...departments.map((department) => ({ value: department.id, label: department.name })),
-  ];
-  const roleOptions = [
-    { value: "", label: "All roles" },
-    ...filteredRoles.map((role) => ({ value: role.id, label: role.name })),
-  ];
   const statusOptions = [
     { value: "", label: "All statuses" },
     { value: "open", label: "Open" },
     { value: "closed", label: "Closed" },
     { value: "draft", label: "Draft" },
   ];
+
+  function applyOrgFilter(next: string) {
+    if (next.startsWith(DEPT_PREFIX)) {
+      setDepartmentId(next.slice(DEPT_PREFIX.length));
+      setRoleId("");
+    } else if (next.startsWith(ROLE_PREFIX)) {
+      const nextRoleId = next.slice(ROLE_PREFIX.length);
+      const role = roles.find((item) => item.id === nextRoleId);
+      setRoleId(nextRoleId);
+      setDepartmentId(role?.departmentId ?? "");
+    } else {
+      setDepartmentId("");
+      setRoleId("");
+    }
+    setPage(1);
+  }
 
   const closeMutation = useMutation({
     mutationFn: async ({ jobId, closeReason }: { jobId: string; closeReason: string }) => {
@@ -252,31 +298,16 @@ export function JobsManager() {
                 />
               </label>
               <FilterSheet active={Boolean(departmentId || roleId || status)} title="Job filters" triggerSize="md">
-                <FilterField label="Department">
-                  <Dropdown
-                    aria-label="Filter by department"
-                    className="w-full"
-                    onChange={(next) => {
-                      setDepartmentId(next);
-                      setRoleId("");
-                      setPage(1);
-                    }}
-                    options={departmentOptions}
-                    size="md"
-                    value={departmentId}
-                  />
-                </FilterField>
                 <FilterField label="Role">
                   <Dropdown
-                    aria-label="Filter by role"
+                    aria-label="Filter by department or role"
                     className="w-full"
-                    onChange={(next) => {
-                      setRoleId(next);
-                      setPage(1);
-                    }}
-                    options={roleOptions}
+                    menuMinWidth={280}
+                    onChange={applyOrgFilter}
+                    options={orgOptions}
+                    searchable
                     size="md"
-                    value={roleId}
+                    value={orgFilterValue(departmentId, roleId)}
                   />
                 </FilterField>
                 <FilterField label="Status">
@@ -296,27 +327,14 @@ export function JobsManager() {
             </div>
             <div className="hidden md:contents">
               <Dropdown
-                aria-label="Filter by department"
-                className="w-full xl:w-48"
-                onChange={(next) => {
-                  setDepartmentId(next);
-                  setRoleId("");
-                  setPage(1);
-                }}
-                options={departmentOptions}
+                aria-label="Filter by department or role"
+                className="w-full xl:w-72"
+                menuMinWidth={280}
+                onChange={applyOrgFilter}
+                options={orgOptions}
+                searchable
                 size="md"
-                value={departmentId}
-              />
-              <Dropdown
-                aria-label="Filter by role"
-                className="w-full xl:w-48"
-                onChange={(next) => {
-                  setRoleId(next);
-                  setPage(1);
-                }}
-                options={roleOptions}
-                size="md"
-                value={roleId}
+                value={orgFilterValue(departmentId, roleId)}
               />
               <Dropdown
                 aria-label="Filter by status"

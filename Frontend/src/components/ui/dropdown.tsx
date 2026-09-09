@@ -30,6 +30,8 @@ export interface DropdownOption {
   leading?: ReactNode;
   meta?: string;
   keywords?: string;
+  group?: string;
+  heading?: boolean;
 }
 
 type DropdownSize = "sm" | "md";
@@ -54,10 +56,48 @@ interface DropdownProps {
 }
 
 const MENU_MAX_HEIGHT = 256;
+const GROUPED_MENU_MAX_HEIGHT = 360;
 const SEARCH_THRESHOLD = 8;
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
+}
+
+function optionMatches(option: DropdownOption, clean: string) {
+  const haystack = `${option.label} ${option.meta ?? ""} ${option.keywords ?? ""} ${option.value} ${option.group ?? ""}`;
+  return haystack.toLocaleLowerCase().includes(clean);
+}
+
+function filterDropdownOptions(options: DropdownOption[], query: string): DropdownOption[] {
+  const clean = query.trim().toLocaleLowerCase();
+  if (!clean) return options;
+
+  const result: DropdownOption[] = [];
+  let index = 0;
+  while (index < options.length) {
+    const option = options[index]!;
+    if (option.heading) {
+      const heading = option;
+      const items: DropdownOption[] = [];
+      index += 1;
+      while (index < options.length) {
+        const next = options[index]!;
+        if (next.heading || next.group !== heading.value) break;
+        items.push(next);
+        index += 1;
+      }
+      const headingHit = optionMatches(heading, clean);
+      const itemHits = items.filter((item) => optionMatches(item, clean));
+      if (headingHit || itemHits.length > 0) {
+        result.push(heading);
+        result.push(...(headingHit ? items : itemHits));
+      }
+      continue;
+    }
+    if (optionMatches(option, clean)) result.push(option);
+    index += 1;
+  }
+  return result;
 }
 
 export function Dropdown({
@@ -95,14 +135,8 @@ export function Dropdown({
 
   const selected = options.find((option) => option.value === value);
   const showSearch = searchable ?? options.length >= SEARCH_THRESHOLD;
-  const filtered = useMemo(() => {
-    const clean = query.trim().toLocaleLowerCase();
-    if (!clean) return options;
-    return options.filter((option) => {
-      const haystack = `${option.label} ${option.meta ?? ""} ${option.keywords ?? ""} ${option.value}`;
-      return haystack.toLocaleLowerCase().includes(clean);
-    });
-  }, [options, query]);
+  const menuMaxHeight = options.some((option) => option.heading) ? GROUPED_MENU_MAX_HEIGHT : MENU_MAX_HEIGHT;
+  const filtered = useMemo(() => filterDropdownOptions(options, query), [options, query]);
 
   function openMenu() {
     const selectedIndex = filtered.findIndex((option) => option.value === value);
@@ -134,7 +168,7 @@ export function Dropdown({
         apply({ availableHeight, rects, elements }) {
           Object.assign(elements.floating.style, {
             width: `${Math.max(rects.reference.width, menuMinWidth ?? 0)}px`,
-            maxHeight: `${Math.min(MENU_MAX_HEIGHT, Math.max(72, availableHeight))}px`,
+            maxHeight: `${Math.min(menuMaxHeight, Math.max(72, availableHeight))}px`,
           });
         },
       }),
@@ -388,7 +422,7 @@ export function Dropdown({
                       setQuery(event.target.value);
                       setActiveIndex(0);
                     }}
-                    placeholder="Search"
+                    placeholder={options.some((option) => option.heading) ? "Search roles or departments" : "Search"}
                     ref={searchRef}
                     value={query}
                   />
@@ -410,6 +444,32 @@ export function Dropdown({
                 filtered.map((option, index) => {
                   const isSelected = option.value === value;
                   const isActive = index === activeIndex;
+                  if (option.heading) {
+                    return (
+                      <div
+                        aria-label={`${option.label} department`}
+                        aria-selected={isSelected}
+                        className={cx(
+                          "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide transition",
+                          isActive && !isSelected && "bg-gray-100 dark:bg-gray-800",
+                          isSelected && "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300",
+                          !isActive && !isSelected && "text-gray-400 dark:text-gray-500",
+                        )}
+                        id={`${listboxId}-option-${index}`}
+                        key={`${option.value}-${index}`}
+                        onClick={() => selectOption(option)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        ref={(node) => {
+                          optionRefs.current[index] = node;
+                        }}
+                        role="option"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                        {isSelected ? <Check aria-hidden className="h-3.5 w-3.5 shrink-0" /> : null}
+                      </div>
+                    );
+                  }
                   return (
                     <div
                       aria-disabled={option.disabled || undefined}
